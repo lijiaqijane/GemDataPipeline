@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "general-agent-synthesis"
+version = "0.1.0"
+description = "Automatic environment and task synthesis agent supporting local vLLM or OpenAI-compatible APIs"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.32.0",
+]
+authors = [
+    { name = "Auto Generated", email = "noreply@example.com" },
+]
+
+[project.urls]
+Homepage = "https://example.com"
+
+[project.scripts]
+general-agent = "general_agent.cli:main"
+

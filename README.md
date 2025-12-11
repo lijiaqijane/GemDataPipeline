@@ -1,0 +1,67 @@
+# General Agent Synthesis
+
+Lightweight automatic environment and task synthesis project with:
+- Local vLLM or any OpenAI-compatible API
+- Retrieval + sandbox tools to seed the database automatically
+- Verifiable tasks with auto-repair when solutions fail validation
+- Both CLI and Python API entrypoints
+
+## Install
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+## Model Configuration
+Environment variables to switch between local vLLM and OpenAI-compatible endpoints:
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `LLM_PROVIDER` | `vllm` or `openai` | `vllm` |
+| `VLLM_BASE_URL` | vLLM OpenAI-compatible base URL | `http://localhost:8000/v1` |
+| `VLLM_MODEL` | Local model name | `local-model` |
+| `VLLM_API_KEY` | Optional if auth enabled | empty |
+| `OPENAI_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com/v1` |
+| `OPENAI_MODEL` | Remote model name | `gpt-4o-mini` |
+| `OPENAI_API_KEY` | API key for OpenAI/compatible service | empty |
+| `LLM_TIMEOUT` | Request timeout seconds | `60` |
+
+## Quickstart
+### CLI
+```bash
+general-agent --category "travel itinerary planning" --sandbox ./sandbox/travel --rounds 3
+```
+Generated DB and tasks are saved under `sandbox/travel`.
+
+### Python API
+```python
+from pathlib import Path
+from general_agent import LLMClient, EnvironmentSynthesizer
+
+llm = LLMClient.from_env()
+synth = EnvironmentSynthesizer(llm)
+bundles = synth.synthesize(category="travel itinerary planning", sandbox=Path("sandbox/travel"), rounds=3)
+for b in bundles:
+    print(b.name, b.difficulty)
+```
+
+## Project Layout
+- `general_agent/llm.py`: unified client for vLLM & OpenAI-compatible APIs
+- `general_agent/tools.py`: sandbox tools (restricted bash, DuckDuckGo search) and registry
+- `general_agent/database.py`: local JSON storage
+- `general_agent/synthesis.py`: main pipeline for environment/tool/task synthesis and validation
+- `general_agent/cli.py`: CLI entrypoint
+
+## Workflow
+1. **Build context**: create sandbox dir, load DB, inject default tools.
+2. **Seed database**: fetch seed data with search tool; LLM structures and stores it.
+3. **Synthesize tools**: LLM proposes task-specific tools and registers them.
+4. **Generate tasks**: produce solution and verifier; auto-run and repair on failure.
+5. **Refine**: iterate difficulty over multiple rounds.
+6. **Persist**: save tools, DB, and tasks into `tasks.json`.
+
+## Notes
+- DuckDuckGo API is used by default; network access is required.
+- Solutions/verifiers run in a constrained environment; still prefer running inside a controlled sandbox directory.
+
