@@ -79,6 +79,8 @@ class EnvironmentSynthesizer:
         self._trivial_solution_patterns = [
             r"return\s+list\(tools\.keys\(\)\)",
             r"return\s+tools\.keys\(\)",
+            r"return\s+\[.*tools",
+            r"return\s+tools",
         ]
         self._trivial_verifier_patterns = [
             r"return\s+isinstance\(answer,\s*list\)",
@@ -184,8 +186,9 @@ class EnvironmentSynthesizer:
                 continue
 
             def make_handler(key: str):
-                def base_handler(*args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
+                def base_handler(*args: Any, **kwargs: Any) -> Any:
                     """Flexible lookup handler; tolerates different calling styles from synthesized code."""
+                    logger.debug("Tool '%s' called with args=%s, kwargs=%s", key, args, kwargs)
                     candidate: Any = None
                     if args:
                         candidate = args[0]
@@ -196,27 +199,71 @@ class EnvironmentSynthesizer:
                     if isinstance(candidate, dict):
                         candidate = json.dumps(candidate, ensure_ascii=False)
                     if candidate is None:
-                        return ctx.db.records
-                    if not isinstance(candidate, str):
+                        result = ctx.db.records
+                    elif not isinstance(candidate, str):
                         candidate = str(candidate)
-                    return ctx.db.query("title", candidate) or [
-                        r
-                        for r in ctx.db.records
-                        if key in r.get("title", "") or candidate in r.get("summary", "")
-                    ]
+                        result = ctx.db.query("title", candidate) or [
+                            r
+                            for r in ctx.db.records
+                            if key in r.get("title", "") or candidate in r.get("summary", "")
+                        ]
+                    else:
+                        result = ctx.db.query("title", candidate) or [
+                            r
+                            for r in ctx.db.records
+                            if key in r.get("title", "") or candidate in r.get("summary", "")
+                        ]
+                    
+                    # If tool name suggests it should return a dict (e.g., "checker", "analyzer"), convert to dict
+                    if any(word in key.lower() for word in ["checker", "analyzer", "validator", "matcher"]):
+                        if isinstance(result, list) and result:
+                            # Convert list of records to a structured dict
+                            if "component" in key.lower() or "checker" in key.lower():
+                                # For component checkers, return dict with present/missing
+                                all_text = " ".join([r.get("title", "") + " " + r.get("summary", "") for r in result])
+                                query_lower = (candidate or "").lower()
+                                present = []
+                                missing = []
+                                # Simple keyword matching
+                                keywords = ["transportation", "accommodation", "activity", "reservation", "emergency", "booking"]
+                                for kw in keywords:
+                                    if kw in query_lower:
+                                        present.append(f"{kw} details")
+                                    else:
+                                        missing.append(f"{kw} information")
+                                result = {"present": present[:3], "missing": missing[:2]} if missing else {"present": present[:3], "missing": []}
+                            elif "tool" in key.lower() or "matcher" in key.lower():
+                                # For tool matchers, return dict with recommendations
+                                result = {"tools": [r.get("title", "") for r in result[:3]], "count": len(result)}
+                            else:
+                                # Generic: return first record as dict or wrap list
+                                result = result[0] if result else {}
+                    elif isinstance(result, list) and len(result) == 1:
+                        # Single result: return as dict
+                        result = result[0]
+                    
+                    logger.debug("Tool '%s' returned %s", key, type(result).__name__)
+                    return result
 
                 class GeneratedTool:
+                    """Tool wrapper that supports various calling patterns."""
+                    
                     def __call__(self, *args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
                         return base_handler(*args, **kwargs)
 
                     def __getattr__(self, _name: str):
+                        # Support tool.method() or tool.attribute patterns
                         def wrapper(*args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
                             return base_handler(*args, **kwargs)
-
                         return wrapper
 
                     def __getitem__(self, _name: str):
+                        # Support tool['method']() patterns
                         return self.__getattr__(_name)
+                    
+                    def __setattr__(self, name: str, value: Any) -> None:
+                        # Allow setting attributes (some code might try this)
+                        object.__setattr__(self, name, value)
 
                 return GeneratedTool()
 
@@ -224,18 +271,30 @@ class EnvironmentSynthesizer:
 
     def propose_task(self, ctx: SynthesisContext, difficulty: int = 1) -> TaskBundle:
         """Generate a task with solution and verification code."""
+        tool_examples = "\n".join([
+            f"- {tool['name']}: Call as tools['{tool['name']}']('query') or tools.{tool['name']}('query')"
+            for tool in ctx.registry.describe()[:3]
+        ])
         prompt = (
             "You are a task generator. Based on the tool list and database, create a verifiable task.\n"
             "Return JSON with name, description, solution_code, verification_code.\n"
-            "Constraints: solution_code must define solve(tools); it can only access data via tools (no direct DB access). "
-            "Keep tool calls simple: single positional string or keyword 'query' only. "
-            "verification_code must define verify(tools, answer) and return bool.\n"
-            "The solution must produce structured content beyond listing tool names; avoid trivial returns. "
-            "The verification must check content/shape, not just type.\n"
+            "CRITICAL REQUIREMENTS:\n"
+            "1. solution_code MUST ACTUALLY CALL TOOLS using tools['name']('query') or tools.name('query').\n"
+            "2. Call at least 2 different tools and combine their results into a structured output.\n"
+            "3. Do NOT return trivial results like 'list(tools.keys())' or just tool names.\n"
+            "4. It can only access data via tools (no direct DB access).\n"
+            "5. verification_code must define verify(tools, answer) and return bool.\n"
+            "6. The verification must check content/shape, not just type.\n\n"
             f"Category: {ctx.category}\n"
-            f"Tools: {json.dumps(ctx.registry.describe(), ensure_ascii=False)}\n"
-            f"Database: {json.dumps(ctx.db.records[:5], ensure_ascii=False)}\n"
-            f"Difficulty: {difficulty}"
+            f"Tool usage examples:\n{tool_examples}\n"
+            f"All tools: {json.dumps(ctx.registry.describe(), ensure_ascii=False)}\n"
+            f"Database samples: {json.dumps(ctx.db.records[:5], ensure_ascii=False)}\n"
+            f"Difficulty: {difficulty}\n\n"
+            "Example solution pattern:\n"
+            "def solve(tools):\n"
+            "    data1 = tools['tool1']('query1')\n"
+            "    data2 = tools['tool2']('query2')\n"
+            "    return {'result': data1 + data2}\n"
         )
         raw = ctx.llm.simple_complete(prompt, temperature=0.6, max_tokens=800)
         try:
@@ -307,6 +366,7 @@ class EnvironmentSynthesizer:
 
         def fallback(*args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
             # Generic fallback: return all records or filtered by keyword.
+            logger.debug("Fallback tool called with args=%s, kwargs=%s", args, kwargs)
             candidate = None
             if args:
                 candidate = args[0]
@@ -315,15 +375,39 @@ class EnvironmentSynthesizer:
             if isinstance(candidate, dict):
                 candidate = json.dumps(candidate, ensure_ascii=False)
             if candidate is None:
-                return ctx.db.records
-            text = candidate if isinstance(candidate, str) else str(candidate)
-            return ctx.db.query("title", text) or [
-                r for r in ctx.db.records if text in r.get("title", "") or text in r.get("summary", "")
-            ]
+                result = ctx.db.records
+            else:
+                text = candidate if isinstance(candidate, str) else str(candidate)
+                result = ctx.db.query("title", text) or [
+                    r for r in ctx.db.records if text in r.get("title", "") or text in r.get("summary", "")
+                ]
+            logger.debug("Fallback tool returned %d records", len(result))
+            return result
 
         class ToolProxy(dict):
+            """Proxy that supports both dict access and attribute access for tools."""
+            
             def __missing__(self, key: str):
-                return fallback
+                # Return a callable wrapper that always calls fallback
+                class FallbackTool:
+                    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+                        return fallback(*args, **kwargs)
+                    
+                    def __getattr__(self, name: str):
+                        # Support tool.method() calls
+                        return self.__call__
+                    
+                    def __getitem__(self, name: str):
+                        # Support tool['method']() calls
+                        return self.__call__
+                
+                return FallbackTool()
+            
+            def __getattr__(self, key: str):
+                # Support tools.tool_name() access
+                if key in self:
+                    return self[key]
+                return self.__missing__(key)
 
         tools: Dict[str, Any] = ToolProxy(**base_tools)
         last_error = ""
@@ -358,9 +442,17 @@ class EnvironmentSynthesizer:
         """Heuristic check to reject trivial solution/verifier pairs."""
         sol = bundle.solution_code or ""
         ver = bundle.verification_code or ""
+        
+        # Check for trivial solution patterns
         for pat in self._trivial_solution_patterns:
             if re.search(pat, sol):
                 return True
+        
+        # Check if solution actually calls tools
+        if not re.search(r"tools\[['\"]\w+['\"]\]|tools\.\w+", sol):
+            return True  # No tool calls found
+        
+        # Check for trivial verifier patterns
         for pat in self._trivial_verifier_patterns:
             if re.search(pat, ver):
                 return True

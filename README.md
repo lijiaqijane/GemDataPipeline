@@ -18,20 +18,33 @@ Environment variables to switch between local vLLM and OpenAI-compatible endpoin
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `LLM_PROVIDER` | `vllm` or `openai` | `vllm` |
+| `LLM_PROVIDER` | `vllm`, `openai`, or `deepseek` | `vllm` |
 | `VLLM_BASE_URL` | vLLM OpenAI-compatible base URL | `http://localhost:8000/v1` |
 | `VLLM_MODEL` | Local model name | `local-model` |
 | `VLLM_API_KEY` | Optional if auth enabled | empty |
+| `VOLCANO_BASE_URL` | Deepseek API base URL | `https://ark.cn-beijing.volces.com/api/v3` |
+| `VOLCANO_MODEL` | Deepseek model ID | `deepseek-v3-2-251201` |
+| `VOLCANO_API_KEY` | Deepseek API key | empty |
 | `OPENAI_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com/v1` |
 | `OPENAI_MODEL` | Remote model name | `gpt-4o-mini` |
 | `OPENAI_API_KEY` | API key for OpenAI/compatible service | empty |
 | `LLM_TIMEOUT` | Request timeout seconds | `60` |
 
 ## Quickstart
-### CLI
+### CLI with Deepseek
 ```bash
-general-agent --category "travel itinerary planning" --sandbox ./sandbox/travel --rounds 3
+export LLM_PROVIDER=deepseek
+export VOLCANO_MODEL=deepseek-v3-2-251201
+export VOLCANO_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+export VOLCANO_API_KEY=your-api-key
+python -m general_agent --category "travel itinerary planning" --sandbox ./sandbox/travel --rounds 1
 ```
+
+Or use the provided script:
+```bash
+bash test_deepseek.sh
+```
+
 Generated DB and tasks are saved under `sandbox/travel`.
 
 ### Python API
