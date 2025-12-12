@@ -178,6 +178,58 @@ class SearchTool:
             results.append({"title": data["Heading"], "url": url})
         return results
 
+@dataclass
+class SerperSearchTool:
+    """Serper API search wrapper for high-quality web search results."""
+
+    api_key: str
+    base_url: str = "https://google.serper.dev"
+
+    def __call__(
+        self,
+        query: str,
+        max_results: int = 10,
+        search_type: str = "search",
+    ) -> Dict[str, Any]:
+        """
+        Search using Serper API.
+        
+        Args:
+            query: Search query string
+            max_results: Maximum number of results to return
+            search_type: Type of search - "search" (default) or "images" or "videos"
+        
+        Returns:
+            Dictionary containing organic results, answerBox, knowledgeGraph, etc.
+        """
+        url = f"{self.base_url}/{search_type}"
+        headers = {
+            "X-API-KEY": self.api_key,
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "q": query,
+            "num": max_results,
+        }
+        
+        response = requests.request(url, headers=headers, data=payload)
+        return response.text.json()
+
+    def get_organic_results(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """Get only organic search results."""
+        data = self(query, max_results=max_results)
+        return data.get("organic", [])[:max_results]
+
+    def get_answer_box(self, query: str) -> Dict[str, Any]:
+        """Get answer box if available."""
+        data = self(query, max_results=1)
+        return data.get("answerBox", {})
+
+    def get_knowledge_graph(self, query: str) -> Dict[str, Any]:
+        """Get knowledge graph if available."""
+        data = self(query, max_results=1)
+        return data.get("knowledgeGraph", {})
+
 
 @dataclass
 class SandboxFusionTool:
