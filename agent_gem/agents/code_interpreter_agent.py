@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+from typing import List
+
+from agent_gem.core.task_schema import ToolSpec
+
+from .base import AgentRequest, BaseAgent
+
+
+class CodeInterpreterAgent(BaseAgent):
+    agent_type = "code_interpreter_agent"
+    description = "Generates notebook-style reasoning and execution tasks"
+
+    def _build_prompt(self, request: AgentRequest) -> str:
+        return (
+            "You are the Code Interpreter Agent designing math/data-science tasks requiring execution. "
+            f"Create exactly 1 task for '{request.topic or 'a domain you choose'}' that requires code to solve. "
+            "Return JSON with task_title, task_content (include dataset snippet or function signature), "
+            "submit_result_format (e.g., 'notebook cells', 'json metrics'), tool_set, evaluation_criteria, difficulty_level, "
+            "solution (reference python code), verification (verify(tools, answer) validating numerical closeness or dataframe shape). "
+            "Encourage multiple reasoning steps and validation of outputs. Return only JSON."
+        )
+
+    def _default_tools(self) -> List[ToolSpec]:
+        return [
+            ToolSpec(
+                tool_name="python_runner",
+                tool_description="Execute Python code with scientific stack.",
+                tool_functionality="python_runner(code: str) -> {stdout, stderr, returncode}",
+            ),
+            ToolSpec(
+                tool_name="dataset_loader",
+                tool_description="Load provided in-sandbox datasets.",
+                tool_functionality="dataset_loader(name: str) -> DataFrame",
+            ),
+        ]

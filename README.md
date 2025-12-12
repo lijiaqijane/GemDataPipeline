@@ -1,67 +1,60 @@
-# General Agent Synthesis
+# AgentGEM: Agent Generative Environment Maker
 
-Lightweight automatic environment and task synthesis project with:
-- Local vLLM or any OpenAI-compatible API
-- Retrieval + sandbox tools to seed the database automatically
-- Verifiable tasks with auto-repair when solutions fail validation
-- Both CLI and Python API entrypoints
+High-performance generator for RL-ready agentic tasks. It ships four pipelines (Search, Code, Code Interpreter, General) and packages each task into isolated sandboxes for large-scale training.
 
 ## Install
+
+### With uv (recommended)
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync --group dev
+uv run pre-commit install
+```
+
+### With pip
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
 
-## Model Configuration
-Environment variables to switch between local vLLM and OpenAI-compatible endpoints:
+Copy your environment template to `.env` and fill in provider keys:
 
-| Variable | Description | Default |
-| --- | --- | --- |
-| `LLM_PROVIDER` | `vllm` or `openai` | `vllm` |
-| `VLLM_BASE_URL` | vLLM OpenAI-compatible base URL | `http://localhost:8000/v1` |
-| `VLLM_MODEL` | Local model name | `local-model` |
-| `VLLM_API_KEY` | Optional if auth enabled | empty |
-| `OPENAI_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com/v1` |
-| `OPENAI_MODEL` | Remote model name | `gpt-4o-mini` |
-| `OPENAI_API_KEY` | API key for OpenAI/compatible service | empty |
-| `LLM_TIMEOUT` | Request timeout seconds | `60` |
+```bash
+cp .env.example .env
+# then edit .env with your API keys/models
+```
+
+## Model Configuration (DeepSeek-first)
+
+- Default provider: `deepseek`. Set `DEEPSEEK_API_KEY` (or `DEEPSEEK_API`) and optionally `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL`.
+- Other providers: `LLM_PROVIDER=openai` with `OPENAI_API_KEY`/`OPENAI_MODEL`, or `LLM_PROVIDER=vllm` with `VLLM_BASE_URL`/`VLLM_MODEL`.
+- Tunables: `LLM_TIMEOUT` (seconds), `LLM_MAX_RETRIES` (default 3).
 
 ## Quickstart
-### CLI
+
+Generate two general tasks about retrieval:
+
 ```bash
-general-agent --category "travel itinerary planning" --sandbox ./sandbox/travel --rounds 3
+agent_gem --agent-type general_agent --topic "retrieval-augmented QA" --count 2 --sandbox-root sandbox/raq
 ```
-Generated DB and tasks are saved under `sandbox/travel`.
 
-### Python API
-```python
-from pathlib import Path
-from general_agent import LLMClient, EnvironmentSynthesizer
+Run a code-focused batch:
 
-llm = LLMClient.from_env()
-synth = EnvironmentSynthesizer(llm)
-bundles = synth.synthesize(category="travel itinerary planning", sandbox=Path("sandbox/travel"), rounds=3)
-for b in bundles:
-    print(b.name, b.difficulty)
+```bash
+agent_gem --agent-type code_agent --topic "python data pipelines" --count 1 --difficulty Hard
 ```
 
 ## Project Layout
-- `general_agent/llm.py`: unified client for vLLM & OpenAI-compatible APIs
-- `general_agent/tools.py`: sandbox tools (restricted bash, DuckDuckGo search) and registry
-- `general_agent/database.py`: local JSON storage
-- `general_agent/synthesis.py`: main pipeline for environment/tool/task synthesis and validation
-- `general_agent/cli.py`: CLI entrypoint
 
-## Workflow
-1. **Build context**: create sandbox dir, load DB, inject default tools.
-2. **Seed database**: fetch seed data with search tool; LLM structures and stores it.
-3. **Synthesize tools**: LLM proposes task-specific tools and registers them.
-4. **Generate tasks**: produce solution and verifier; auto-run and repair on failure.
-5. **Refine**: iterate difficulty over multiple rounds.
-6. **Persist**: save tools, DB, and tasks into `tasks.json`.
+- `agent_gem/config.py`, `agent_gem/llm.py`: DeepSeek-first client with retries.
+- `agent_gem/core/`: task schema, validation, scoring, and helpers.
+- `agent_gem/agents/`: agent implementations (search, code, code interpreter, general).
+- `agent_gem/env_generator/`: orchestrator for routing requests and prioritizing tasks.
+- `agent_gem/sandbox/`: isolation and persistence of generated tasks.
 
-## Notes
-- DuckDuckGo API is used by default; network access is required.
-- Solutions/verifiers run in a constrained environment; still prefer running inside a controlled sandbox directory.
+## Output
 
+Tasks are saved as `sandbox/<agent>/<slug>/task.json` with task schema, reference solution, verification snippet, and metadata. Use these sandboxes directly for RL rollouts or dataset curation.

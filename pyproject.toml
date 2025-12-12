@@ -3,21 +3,40 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "general-agent-synthesis"
-version = "0.1.0"
-description = "Automatic environment and task synthesis agent supporting local vLLM or OpenAI-compatible APIs"
+name = "agent-gem"
+version = "0.2.0"
+description = "Generative agentic environment generator for large-scale RL LLM training"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+    "dotenv>=0.9.9",
+    "httpx>=0.27.0",
+    "openai>=1.14.0",
+    "pydantic>=2.7.0",
     "requests>=2.32.0",
+    "tenacity>=8.2.0",
+    "coloredlogs>=15.0.1",
+    "docker>=7.1.0",
+    "sandbox-fusion>=0.3.7",
+    "numpy>=2.0.2",
 ]
 authors = [
-    { name = "Auto Generated", email = "noreply@example.com" },
+    { name = "BIGAI NLCo Team", email = "nlp@bigai.ai" },
 ]
 
 [project.urls]
-Homepage = "https://example.com"
+Homepage = "https://github.com/bigai-nlco"
 
 [project.scripts]
-general-agent = "general_agent.cli:main"
+agent_gem = "agent_gem.cli:main"
 
+[tool.setuptools]
+packages = ["agent_gem"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["sandbox", "sandbox/*"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.3.0",
+]

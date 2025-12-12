@@ -1,2 +1,24 @@
-__pycache__
+# Bytecode and cache
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Virtual envs and local tooling
+.venv/
+.env
+.python-version
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Generated data
 sandbox/
