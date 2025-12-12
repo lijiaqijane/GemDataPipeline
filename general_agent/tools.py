@@ -207,13 +207,13 @@ class SerperSearchTool:
             "X-API-KEY": self.api_key,
             "Content-Type": "application/json",
         }
-        payload = {
+        payload = json.dumps({
             "q": query,
             "num": max_results,
-        }
+        })
         
-        response = requests.request(url, headers=headers, data=payload)
-        return response.text.json()
+        response = requests.request("POST", url, headers=headers, data=payload)
+        return json.loads(response.text)
 
     def get_organic_results(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         """Get only organic search results."""
