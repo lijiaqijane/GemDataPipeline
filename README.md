@@ -29,20 +29,71 @@ Environment variables to switch between local vLLM and OpenAI-compatible endpoin
 | `OPENAI_MODEL` | Remote model name | `gpt-4o-mini` |
 | `OPENAI_API_KEY` | API key for OpenAI/compatible service | empty |
 | `LLM_TIMEOUT` | Request timeout seconds | `60` |
+| `SANDBOX_FUSION_URL` | SandboxFusion service URL | `http://localhost:8080` |
+| `SANDBOX_FUSION_TIMEOUT` | SandboxFusion request timeout | `30` |
+| `SANDBOX_FUSION_LANGUAGE` | Default programming language | `python` |
+| `DOCKER_IMAGE` | Docker image for code execution | `python:3.11-slim` |
+| `DOCKER_TIMEOUT` | Docker execution timeout | `30` |
 
 ## Quickstart
-### CLI with Deepseek
+
+### Prerequisites
+
+1. **Docker** (required for secure code execution):
 ```bash
+# Check if Docker is running
+docker ps
+
+# If not running, start Docker service
+sudo systemctl start docker  # Linux
+# Or start Docker Desktop
+```
+
+2. **SandboxFusion** (optional, but recommended):
+```bash
+# Deploy SandboxFusion service
+docker run -it -p 8080:8080 volcengine/sandbox-fusion:server-20250609
+```
+
+### Basic Usage
+
+**By default, Docker and SandboxFusion are enabled for secure execution:**
+
+```bash
+# Configure LLM (Deepseek example)
 export LLM_PROVIDER=deepseek
 export VOLCANO_MODEL=deepseek-v3-2-251201
 export VOLCANO_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
 export VOLCANO_API_KEY=your-api-key
-python -m general_agent --category "travel itinerary planning" --sandbox ./sandbox/travel --rounds 1
+
+# Optional: Configure SandboxFusion (if service is running)
+export SANDBOX_FUSION_URL=http://localhost:8080
+
+# Run with default secure execution (Docker + SandboxFusion)
+python -m general_agent \
+  --category "travel itinerary planning" \
+  --sandbox ./sandbox/travel \
+  --rounds 1
 ```
 
-Or use the provided script:
+**Or use the provided test script:**
 ```bash
 bash test_deepseek.sh
+```
+
+### Disable Security Features (Not Recommended)
+
+If you need to disable Docker or SandboxFusion:
+
+```bash
+# Disable Docker
+python -m general_agent --category "..." --sandbox ./sandbox/travel --no-docker
+
+# Disable SandboxFusion
+python -m general_agent --category "..." --sandbox ./sandbox/travel --no-sandbox-fusion
+
+# Disable both (use local execution - less secure)
+python -m general_agent --category "..." --sandbox ./sandbox/travel --no-docker --no-sandbox-fusion
 ```
 
 Generated DB and tasks are saved under `sandbox/travel`.
