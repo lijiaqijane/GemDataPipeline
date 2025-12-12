@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from agent_gem.core.task_schema import EvaluationCriteria, TaskDefinition, TaskPackage, ToolSpec
 from agent_gem.core.validation import validate_task_package
@@ -134,18 +135,18 @@ class GeneralAgent(BaseAgent):
                     if isinstance(candidate, dict):
                         candidate = json.dumps(candidate, ensure_ascii=False)
                     if candidate is None:
-                        result = ctx.db.records
+                        result = self.db.records
                     elif not isinstance(candidate, str):
                         candidate = str(candidate)
-                        result = ctx.db.query("title", candidate) or [
+                        result = self.db.query("title", candidate) or [
                             r
-                            for r in ctx.db.records
+                            for r in self.db.records
                             if key in r.get("title", "") or candidate in r.get("summary", "")
                         ]
                     else:
-                        result = ctx.db.query("title", candidate) or [
+                        result = self.db.query("title", candidate) or [
                             r
-                            for r in ctx.db.records
+                            for r in self.db.records
                             if key in r.get("title", "") or candidate in r.get("summary", "")
                         ]
 
@@ -219,15 +220,15 @@ class GeneralAgent(BaseAgent):
 
                 return GeneratedTool()
 
-            ctx.registry.register(name=name, description=desc, func=make_handler(name))
+            self.registry.register(name=name, description=desc, func=make_handler(name))
 
-    def augment_toolset(self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str) -> bool:
+    def augment_toolset(self, ctx: AgentRequest, bundle: TaskPackage, failure_reason: str) -> bool:
         """Augment the toolset when current tools are insufficient. Returns True if new tools were added."""
         # Analyze if the failure might be due to missing tools
-        solution_code = bundle.solution_code or ""
+        solution_code = bundle.solution or ""
 
         called_tools = self._extract_tool_calls(solution_code)
-        available_tools = {tool.name for tool in ctx.registry.tools.values()}
+        available_tools = {tool.name for tool in self.registry.tools.values()}
         missing_tools = called_tools - available_tools
 
         # Check if failure suggests missing functionality
@@ -261,16 +262,16 @@ class GeneralAgent(BaseAgent):
             "Return a JSON array with fields name and description. "
             "Tools should complement existing tools and address the specific needs of the task. "
             "Tools must accept either a single positional string or keyword 'query'.\n"
-            f"Topic: {ctx.category}\n"
-            f"Current tools: {json.dumps(ctx.registry.describe(), ensure_ascii=False)}\n"
+            f"Topic: {ctx.topic}\n"
+            f"Current tools: {json.dumps(self.registry.describe(), ensure_ascii=False)}\n"
             f"Task: {bundle.description[:300]}\n"
             f"Failure context: {failure_reason[:200]}\n"
-            f"Database examples: {json.dumps(ctx.db.records[:3], ensure_ascii=False)}"
+            f"Database examples: {json.dumps(self.db.records[:3], ensure_ascii=False)}"
         )
 
-        raw = ctx.llm.simple_complete(prompt, temperature=0.6, max_tokens=400)
+        raw = self.llm.chat_completion(prompt, temperature=0.6, max_tokens=400)
         try:
-            new_tools = self._parse_json_response(raw)
+            new_tools = self._extract_json(raw)
         except json.JSONDecodeError:
             logger.warning("Failed to parse new tools from LLM response")
             return False
@@ -304,18 +305,18 @@ class GeneralAgent(BaseAgent):
                     if isinstance(candidate, dict):
                         candidate = json.dumps(candidate, ensure_ascii=False)
                     if candidate is None:
-                        result = ctx.db.records
+                        result = self.db.records
                     elif not isinstance(candidate, str):
                         candidate = str(candidate)
-                        result = ctx.db.query("title", candidate) or [
+                        result = self.db.query("title", candidate) or [
                             r
-                            for r in ctx.db.records
+                            for r in self.db.records
                             if key in r.get("title", "") or candidate in r.get("summary", "")
                         ]
                     else:
-                        result = ctx.db.query("title", candidate) or [
+                        result = self.db.query("title", candidate) or [
                             r
-                            for r in ctx.db.records
+                            for r in self.db.records
                             if key in r.get("title", "") or candidate in r.get("summary", "")
                         ]
 
@@ -375,18 +376,18 @@ class GeneralAgent(BaseAgent):
 
                 return GeneratedTool()
 
-            ctx.registry.register(name=name, description=desc, func=make_handler(name))
+            self.registry.register(name=name, description=desc, func=make_handler(name))
             added_count += 1
             logger.info("Added new tool: %s - %s", name, desc)
 
         return added_count > 0
 
-    def propose_task(self, ctx: SynthesisContext, difficulty: int = 1) -> TaskBundle:
+    def propose_task(self, ctx: AgentRequest, difficulty: int = 1) -> TaskPackage:
         """Generate a task with solution and verification code."""
         tool_examples = "\n".join(
             [
                 f"- {tool['name']}: Call as tools['{tool['name']}']('query') or tools.{tool['name']}('query')"
-                for tool in ctx.registry.describe()[:3]
+                for tool in self.registry.describe()[:3]
             ]
         )
         prompt = (
@@ -399,10 +400,10 @@ class GeneralAgent(BaseAgent):
             "4. It can only access data via tools (no direct DB access).\n"
             "5. verification_code must define verify(tools, answer) and return bool.\n"
             "6. The verification must check content/shape, not just type.\n\n"
-            f"Category: {ctx.category}\n"
+            f"Category: {ctx.topic}\n"
             f"Tool usage examples:\n{tool_examples}\n"
-            f"All tools: {json.dumps(ctx.registry.describe(), ensure_ascii=False)}\n"
-            f"Database samples: {json.dumps(ctx.db.records[:5], ensure_ascii=False)}\n"
+            f"All tools: {json.dumps(self.registry.describe(), ensure_ascii=False)}\n"
+            f"Database samples: {json.dumps(self.db.records[:5], ensure_ascii=False)}\n"
             f"Difficulty: {difficulty}\n\n"
             "Example solution pattern:\n"
             "def solve(tools):\n"
@@ -410,17 +411,17 @@ class GeneralAgent(BaseAgent):
             "    data2 = tools['tool2']('query2')\n"
             "    return {'result': data1 + data2}\n"
         )
-        raw = ctx.llm.simple_complete(prompt, temperature=0.6, max_tokens=800)
+        raw = self.llm.chat_completion(prompt, temperature=0.6, max_tokens=800)
         try:
-            parsed = self._parse_json_response(raw)
+            parsed = self._extract_json(raw)
         except json.JSONDecodeError:
             parsed = {
-                "name": f"{ctx.category}-task",
+                "name": f"{ctx.topic}-task",
                 "description": raw[:200],
                 "solution_code": "def solve(tools):\n    return list(tools.keys())",
                 "verification_code": "def verify(tools, answer):\n    return isinstance(answer, list)",
             }
-        return TaskBundle(
+        return TaskPackage(
             name=parsed.get("name", "generated-task"),
             description=parsed.get("description", ""),
             difficulty=difficulty,
@@ -428,7 +429,7 @@ class GeneralAgent(BaseAgent):
             verification_code=parsed.get("verification_code", ""),
         )
 
-    def refine_task(self, ctx: SynthesisContext, prev: TaskBundle) -> TaskBundle:
+    def refine_task(self, ctx: AgentRequest, prev: TaskPackage) -> TaskPackage:
         """Increase task difficulty while keeping it verifiable."""
         prompt = (
             "Increase the task difficulty while keeping it verifiable. "
@@ -436,12 +437,12 @@ class GeneralAgent(BaseAgent):
             "Keep solve and verify signatures unchanged. Keep tool calls simple: positional string or keyword 'query' only.\n"
             f"Previous: {json.dumps(prev.__dict__, ensure_ascii=False)}"
         )
-        raw = ctx.llm.simple_complete(prompt, temperature=0.7, max_tokens=800)
+        raw = self.llm.chat_completion(prompt, temperature=0.7, max_tokens=800)
         try:
-            data = self._parse_json_response(raw)
+            data = self._extract_json(raw)
         except json.JSONDecodeError:
             data = prev.__dict__ | {"difficulty": prev.difficulty + 1}
-        return TaskBundle(
+        return TaskPackage(
             name=data.get("name", prev.name),
             description=data.get("description", prev.description),
             difficulty=data.get("difficulty", prev.difficulty + 1),
@@ -449,7 +450,7 @@ class GeneralAgent(BaseAgent):
             verification_code=data.get("verification_code", prev.verification_code),
         )
 
-    def repair_bundle(self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str) -> TaskBundle:
+    def repair_bundle(self, ctx: AgentRequest, bundle: TaskPackage, failure_reason: str) -> TaskPackage:
         """Ask LLM to repair the bundle when validation fails."""
         prompt = (
             "The current solution or verification failed. Produce a new JSON with name, description, solution_code, verification_code. "
@@ -457,29 +458,29 @@ class GeneralAgent(BaseAgent):
             "Keep tool calls simple: positional string or keyword 'query' only; avoid extra kwargs.\n"
             f"Failure reason: {failure_reason}\n"
             f"Original task: {json.dumps(bundle.__dict__, ensure_ascii=False)}\n"
-            f"Tools: {json.dumps(ctx.registry.describe(), ensure_ascii=False)}\n"
-            f"Database examples: {json.dumps(ctx.db.records[:5], ensure_ascii=False)}"
+            f"Tools: {json.dumps(self.registry.describe(), ensure_ascii=False)}\n"
+            f"Database examples: {json.dumps(self.db.records[:5], ensure_ascii=False)}"
         )
-        raw = ctx.llm.simple_complete(prompt, temperature=0.6, max_tokens=800)
+        raw = self.llm.chat_completion(prompt, temperature=0.6, max_tokens=800)
         try:
-            data = self._parse_json_response(raw)
+            data = self._extract_json(raw)
         except json.JSONDecodeError:
             logger.warning("LLM repair did not return JSON; keeping original task: %s", raw)
             data = bundle.__dict__
-        return TaskBundle(
+        return TaskPackage(
             name=data.get("name", bundle.name),
             description=data.get("description", bundle.description),
             difficulty=data.get("difficulty", bundle.difficulty),
-            solution_code=data.get("solution_code", bundle.solution_code),
-            verification_code=data.get("verification_code", bundle.verification_code),
+            solution_code=data.get("solution_code", bundle.solution),
+            verification_code=data.get("verification_code", bundle.verification),
             use_docker=bundle.use_docker,  # Preserve use_docker flag
         )
 
     def ensure_valid(
-        self, ctx: SynthesisContext, bundle: TaskBundle, fail_soft: bool = False
-    ) -> Tuple[TaskBundle, Any]:
+        self, ctx: AgentRequest, bundle: TaskPackage, fail_soft: bool = False
+    ) -> Tuple[TaskPackage, Any]:
         """Execute and verify a bundle; repair via LLM when needed. If fail_soft, return last attempt instead of raising."""
-        base_tools = ctx.registry.as_callable_dict()
+        base_tools = self.registry.as_callable_dict()
 
         # Ensure the task is not trivial before running executions
         bundle = self._ensure_substantive_task(ctx, bundle, "Initial validation quality gate")
@@ -495,11 +496,11 @@ class GeneralAgent(BaseAgent):
             if isinstance(candidate, dict):
                 candidate = json.dumps(candidate, ensure_ascii=False)
             if candidate is None:
-                result = ctx.db.records
+                result = self.db.records
             else:
                 text = candidate if isinstance(candidate, str) else str(candidate)
-                result = ctx.db.query("title", text) or [
-                    r for r in ctx.db.records if text in r.get("title", "") or text in r.get("summary", "")
+                result = self.db.query("title", text) or [
+                    r for r in self.db.records if text in r.get("title", "") or text in r.get("summary", "")
                 ]
             logger.debug("Fallback tool returned %d records", len(result))
             return result
@@ -535,7 +536,7 @@ class GeneralAgent(BaseAgent):
 
         for attempt in range(self.max_validation_rounds + 1):
             # Refresh tools dict after potential augmentation
-            base_tools = ctx.registry.as_callable_dict()
+            base_tools = self.registry.as_callable_dict()
             tools = ToolProxy(**base_tools)
 
             try:
@@ -571,10 +572,10 @@ class GeneralAgent(BaseAgent):
             return bundle, None
         raise RuntimeError(f"Task failed validation repeatedly: {bundle.name}; last error: {last_error}")
 
-    def _looks_trivial(self, bundle: TaskBundle) -> bool:
+    def _looks_trivial(self, bundle: TaskPackage) -> bool:
         """Heuristic check to reject trivial solution/verifier pairs."""
-        sol = bundle.solution_code or ""
-        ver = bundle.verification_code or ""
+        sol = bundle.solution or ""
+        ver = bundle.verification or ""
 
         # Check for trivial solution patterns
         for pat in self._trivial_solution_patterns:
@@ -594,23 +595,23 @@ class GeneralAgent(BaseAgent):
         return False
 
     def _ensure_substantive_task(
-        self, ctx: SynthesisContext, bundle: TaskBundle, reason: str = ""
-    ) -> TaskBundle:
+        self, ctx: AgentRequest, bundle: TaskPackage, reason: str = ""
+    ) -> TaskPackage:
         """Repair tasks that are trivial or do not use enough tools."""
         base_reason = reason or "Task too trivial or lacks multiple tool calls"
         for _ in range(3):
-            tool_calls = self._extract_tool_calls(bundle.solution_code)
+            tool_calls = self._extract_tool_calls(bundle.solution)
             if not self._looks_trivial(bundle) and len(tool_calls) >= 2:
                 return bundle
             bundle = self.repair_bundle(ctx, bundle, f"{base_reason}; tool_calls={list(tool_calls)}")
         return bundle
 
-    def _persist(self, ctx: SynthesisContext, bundles: List[TaskBundle]) -> None:
+    def _persist(self, ctx: AgentRequest, bundles: List[TaskPackage]) -> None:
         """Persist synthesis results to the sandbox for later reproduction."""
         payload = {
-            "category": ctx.category,
-            "tooling": ctx.registry.describe(),
-            "records": ctx.db.records,
+            "category": ctx.topic,
+            "tooling": self.registry.describe(),
+            "records": self.db.records,
             "tasks": [bundle.__dict__ for bundle in bundles],
         }
         target = ctx.sandbox / "tasks.json"
@@ -672,7 +673,7 @@ class GeneralAgent(BaseAgent):
                 # Before validating, check if the refined task might need additional tools
                 # by analyzing the solution code for tool calls
                 called_tools = self._extract_tool_calls(current.solution)
-                available_tools = {tool.name for tool in ctx.registry.tools.values()}
+                available_tools = {tool.name for tool in self.registry.tools.values()}
                 missing_tools = called_tools - available_tools
 
                 if missing_tools:
