@@ -15,9 +15,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentRequest:
     topic: Optional[str] = None
-    difficulty: str = "Medium"
+    difficulty: int
     seed_tools: Optional[List[ToolSpec]] = None
-    submit_result_format: str = "json"
     hints: Dict[str, str] = field(default_factory=dict)
 
 
@@ -44,7 +43,7 @@ class BaseAgent:
             current_difficulty="easy",
         )
 
-    def generate(self, request: AgentRequest) -> List[TaskPackage]:
+    def generate(self, request: AgentRequest) -> TaskPackage:
         logger.info(
             "[agent:%s] Generating 1 task (topic=%s, difficulty=%s)",
             self.agent_type,
@@ -59,39 +58,35 @@ class BaseAgent:
             max_tokens=1800,
         )
         logger.debug("[agent:%s] Raw completion: %s", self.agent_type, _preview_text(raw))
-        packages = self._parse_response(raw, request)
-        if not packages:
+        package = self._parse_response(raw, request)
+        if not package:
             logger.warning("[agent:%s] No tasks parsed; using fallback task.", self.agent_type)
-            packages = [self._fallback_package(request)]
-        validated = []
-        for idx, pkg in enumerate(packages, start=1):
-            try:
-                validated.append(validate_task_package(pkg))
-                logger.info(
-                    "[agent:%s] Accepted task %d: %s [%s]",
-                    self.agent_type,
-                    idx,
-                    pkg.task.task_title,
-                    pkg.task.difficulty_level,
-                )
-                logger.debug(
-                    "[agent:%s] Solution preview: %s",
-                    self.agent_type,
-                    _preview_text(pkg.solution),
-                )
-                logger.debug(
-                    "[agent:%s] Verification preview: %s",
-                    self.agent_type,
-                    _preview_text(pkg.verification),
-                )
-            except Exception as exc:
-                logger.warning(
-                    "[agent:%s] Dropping task %d due to validation error: %s",
-                    self.agent_type,
-                    idx,
-                    exc,
-                )
-                continue
+            package = self._fallback_package(request)
+        validated = None
+        try:
+            validated = validate_task_package(package)
+            logger.info(
+                "[agent:%s] Accepted task: %s [%d]",
+                self.agent_type,
+                package.task.task_title,
+                package.task.difficulty_level,
+            )
+            logger.debug(
+                "[agent:%s] Solution preview: %s",
+                self.agent_type,
+                _preview_text(package.solution),
+            )
+            logger.debug(
+                "[agent:%s] Verification preview: %s",
+                self.agent_type,
+                _preview_text(package.verification),
+            )
+        except Exception as exc:
+            logger.warning(
+                "[agent:%s] Dropping task due to validation error: %s",
+                self.agent_type,
+                exc,
+            )
         return validated
 
     def _build_prompt(self, request: AgentRequest) -> str:
@@ -108,18 +103,12 @@ class BaseAgent:
             "Return only JSON."
         )
 
-    def _parse_response(self, raw: str, request: AgentRequest) -> List[TaskPackage]:
+    def _parse_response(self, raw: str, request: AgentRequest) -> TaskPackage:
         data = self._extract_json(raw)
         if not data:
-            return []
-        if isinstance(data, dict):
-            data = [data]
-        packages: List[TaskPackage] = []
-        for item in data:
-            pkg = self._build_package(item, request)
-            if pkg:
-                packages.append(pkg)
-        return packages
+            return None
+        pkg = self._build_package(data, request)
+        return pkg
 
     def _build_package(self, item: Dict[str, object], request: AgentRequest) -> Optional[TaskPackage]:
         try:
