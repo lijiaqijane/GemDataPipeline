@@ -1,12 +1,14 @@
 from __future__ import annotations
-
+import os
 import json
+import tempfile
 import subprocess
+import nbformat
+import requests
+from nbconvert.preprocessors import ExecutePreprocessor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
-
-import requests
 
 
 @dataclass
@@ -287,6 +289,63 @@ class SandboxFusionTool:
                 "return_code": -1,
                 "raw": {},
             }
+
+
+@dataclass
+class CodeInterpreterTool:
+    """
+    Execute Python code in a temporary Jupyter Notebook and return the output.
+
+    Example usage:
+        interpreter = CodeInterpreterTool()
+
+        # Simple calculation
+        code = '''
+        result = sum(range(1, 11))
+        result
+        '''
+        output = interpreter(code)
+        print(output)
+        # Output: {'status': 'success', 'output': '55'}
+    """
+
+    timeout: int = 60  # Notebook execution timeout in seconds
+    kernel_name: str = "python3"
+
+    def __call__(self, code: str) -> Dict[str, Any]:
+        """
+        Execute the given Python code in a Jupyter Notebook environment.
+
+        Args:
+            code (str): Python code to execute.
+
+        Returns:
+            Dict[str, Any]: A dictionary with execution status and output or error.
+        """
+        nb = nbformat.v4.new_notebook()
+        nb.cells.append(nbformat.v4.new_code_cell(code))
+
+        ep = ExecutePreprocessor(timeout=self.timeout, kernel_name=self.kernel_name)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            nb_path = os.path.join(tmpdir, "temp.ipynb")
+            with open(nb_path, "w", encoding="utf-8") as f:
+                nbformat.write(nb, f)
+
+            try:
+                ep.preprocess(nb, {"metadata": {"path": tmpdir}})
+                outputs = []
+                for cell in nb.cells:
+                    for out in cell.get("outputs", []):
+                        if out.output_type == "stream":
+                            outputs.append(out.text)
+                        elif out.output_type == "execute_result":
+                            outputs.append(str(out.get("data", {}).get("text/plain", "")))
+                        elif out.output_type == "error":
+                            outputs.append("Error: " + "".join(out.get("traceback", [])))
+                return {"status": "success", "output": "\n".join(outputs)}
+            except Exception as e:
+                return {"status": "error", "output": str(e)}
 
 
 @dataclass
