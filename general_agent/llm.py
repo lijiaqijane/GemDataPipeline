@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict, List, Optional
+
 import requests
 
 from .config import LLMConfig
@@ -36,7 +37,15 @@ class LLMClient:
         if self.config.api_key:
             headers["Authorization"] = f"Bearer {self.config.api_key}"
 
-        url = f"{self.config.base_url}/chat/completions"
+        # Handle different API endpoint formats
+        if self.config.provider in {"volcano", "deepseek"}:
+            # Volcano Engine/Deepseek may use different path structure
+            if "/chat/completions" not in self.config.base_url:
+                url = f"{self.config.base_url}/chat/completions"
+            else:
+                url = self.config.base_url
+        else:
+            url = f"{self.config.base_url}/chat/completions"
         resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=self.config.timeout)
         resp.raise_for_status()
         data = resp.json()
@@ -52,4 +61,3 @@ class LLMClient:
             {"role": "user", "content": prompt},
         ]
         return self.chat_completion(messages, **kwargs)
-
