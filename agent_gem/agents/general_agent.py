@@ -3,688 +3,532 @@ from __future__ import annotations
 import json
 import logging
 import re
+import uuid
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from agent_gem.core.task_schema import EvaluationCriteria, TaskDefinition, TaskPackage, ToolSpec
-from agent_gem.core.validation import validate_task_package
 from agent_gem.database import LocalDatabase
-from agent_gem.tools import BashTool, DockerTool, SandboxFusionTool, SearchTool, ToolRegistry
+from agent_gem.sandbox import SandboxExecutor
+from agent_gem.tools import BashTool, JsonRecordsQueryTool, PythonRunnerTool, SearchTool
 
-from .base import AgentRequest, BaseAgent
+from .base import BaseAgent, TaskState
+
+if TYPE_CHECKING:  # pragma: no cover
+    from agent_gem.generator import GenerationRequest
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class GeneralAgentTaskState(TaskState):
+    records: list[dict[str, Any]]
+
+
 class GeneralAgent(BaseAgent):
     agent_type = "general_agent"
-    description = (
-        "Automatic environment-synthesis agent that creates diverse, verifiable tasks with growing toolsets"
-    )
+    description = "Automatic environment-synthesis agent that creates diverse, verifiable tasks with a growing toolset."
 
-    def __init__(
-        self,
-        llm,
-        sandbox: Path,
-        use_sandbox_fusion: bool = True,
-        use_docker: bool = True,
-    ):
-        super().__init__(llm)
+    _RECORDS_FILENAME = "records.json"
 
-        sandbox.mkdir(parents=True, exist_ok=True)
-        self.sandbox = sandbox
-        self.db = LocalDatabase.load(sandbox / "db.json")
+    def register_tools(self) -> None:
+        if self.sandbox is None:
+            return
+        self.sandbox.set_tool_call_callback(self._record_tool_call)
 
-        self.registry = ToolRegistry()
+    def _configure_sandbox(self, sandbox: SandboxExecutor):
+        sandbox.register_tool(BashTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s))
+        sandbox.register_tool(SearchTool(cache_path=sandbox.search_cache_path))
+        sandbox.register_tool(PythonRunnerTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s))
 
-        # Configure bash tool (with optional Docker support)
-        bash_tool = BashTool(
-            workdir=sandbox,
-            use_docker=use_docker,
-            docker_image=os.getenv("DOCKER_IMAGE", "python:3.11-slim"),
+    def generate(self, request: GenerationRequest) -> Optional[TaskPackage]:
+        topic = request.topic or "general knowledge"
+
+        task_id = task_id or str(uuid.uuid4())
+        self.task_state = GeneralAgentTaskState(task_id=task_id)
+        if self.db is None:
+            self.db = LocalDatabase(root=Path(self.taskdb_root))
+
+        sandbox_dir = Path(self.taskdb_root, self.agent_type, f"task-{task_id}", "_sandbox")
+        sandbox = SandboxExecutor(sandbox_dir=sandbox_dir)
+        self._configure_sandbox(sandbox)
+
+        records = self._seed_database(topic)
+        self.db.record_steps(task_id, self.agent_type, self.task_state.steps)
+
+        task_tool_specs = self._synthesize_task_tools(topic, records)
+        self._register_task_tools(task_tool_specs)
+        self.db.record_steps(task_id, self.agent_type, self.task_state.steps)
+
+        package = self._propose_task(
+            request,
+            topic,
+            records,
+            task_tool_specs,
+            task_title=request.topic,
+            difficulty=1,
         )
-        search_tool = SearchTool()
+        package = self._ensure_substantive_task(task_tool_specs, package)
+        package = self._ensure_valid(request, package, topic=topic)
 
-        # Optionally add Docker tool
-        docker_tool = None
-        if use_docker:
-            docker_tool = DockerTool(
-                image=os.getenv("DOCKER_IMAGE", "python:3.11-slim"),
-                timeout=int(os.getenv("DOCKER_TIMEOUT", "30")),
-                workdir=sandbox,
+        for round_idx in range(2, max(1, request.max_refine_rounds) + 1):
+            target = min(int(request.difficulty), round_idx)
+            refined = self._refine_task(
+                topic,
+                records,
+                task_tool_specs,
+                previous=package,
+                difficulty=target,
+            )
+            refined = self._ensure_substantive_task(task_tool_specs, refined)
+            package = self._ensure_valid(request, refined, topic=topic)
+
+        if request.persist_result and self.db is not None:
+            self.db.record_steps(
+                package,
+                [step.to_payload() for step in self.task_state.steps],
+                extra={
+                    "topic": topic,
+                    "difficulty": request.difficulty,
+                    "records_count": len(records),
+                    "task_tools": [spec.name for spec in task_tool_specs],
+                },
             )
 
-        # Optionally add SandboxFusion tool if enabled
-        sandbox_fusion_tool = None
-        if use_sandbox_fusion:
-            import os
+        return package
 
-            base_url = os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080")
-            timeout = int(os.getenv("SANDBOX_FUSION_TIMEOUT", "30"))
-            default_language = os.getenv("SANDBOX_FUSION_LANGUAGE", "python")
-            sandbox_fusion_tool = SandboxFusionTool(
-                base_url=base_url, timeout=timeout, default_language=default_language
-            )
-
-        self.registry.ensure_defaults(
-            bash=bash_tool, search=search_tool, sandbox_fusion=sandbox_fusion_tool
-        )
-
-        # Register Docker tool if enabled
-        if docker_tool:
-            self.registry.register("docker", "Execute code securely in Docker container", docker_tool)
-
-    def seed_database(self, ctx: AgentRequest) -> None:
-        """Seed database using the search tool and LLM for the given category."""
-        try:
-            search_hits = self.registry.tools["search"](f"{ctx.topic} sample data list structured")
-        except Exception as exc:  # pragma: no cover - network/API fallback
-            logger.warning("Search tool failed, falling back to empty results: %s", exc)
-            search_hits = []
+    def _select_task_title(self, topic: str) -> str:
         prompt = (
-            "You are a data curation assistant. Based on the topic and search hits, "
-            "produce 3-5 structured records. Return a JSON array with fields title and summary. Avoid duplicates.\n"
-            f"Topic: {ctx.topic}\n"
+            "Generate a short, descriptive task title (4-80 chars). "
+            'Return ONLY JSON: {"task_title": "..."}.\n'
+            f"Topic: {topic}"
+        )
+        raw = self.llm.simple_complete(prompt, temperature=0.4, max_tokens=80)
+        extracted = self._extract_json(raw)
+        title = ""
+        if isinstance(extracted, dict):
+            title = str(extracted.get("task_title") or "").strip()
+        elif isinstance(extracted, str):
+            title = extracted.strip()
+        if len(title) < 4:
+            title = f"{topic.title()} Task"
+        return title[:80]
+
+    def _record_tool_call(self, record: Any) -> None:
+        try:
+            message = {
+                "type": "tool_call",
+                "tool": getattr(record, "tool", None),
+                "input": getattr(record, "tool_input", None),
+                "output": getattr(record, "tool_output", None),
+                "error": getattr(record, "error", None),
+                "duration_s": getattr(record, "duration_s", None),
+            }
+            self.task_state.add_step(message, request_id=f"tool_{getattr(record, 'call_id', '')}")
+        except Exception:
+            logger.debug("Failed to record tool call step", exc_info=True)
+
+    def _seed_database(self, topic: str) -> list[dict[str, Any]]:
+        """Collect topic-relevant records and write them into the sandbox database."""
+        search_hits: list[dict[str, str]] = []
+        if self.sandbox is not None:
+            result = self.sandbox.execute("search", f"{topic} structured dataset examples", max_results=5)
+            if isinstance(result, list):
+                search_hits = [row for row in result if isinstance(row, dict)]
+
+        self.task_state.add_step(
+            {
+                "type": "seed_database",
+                "topic": topic,
+                "search_hits": search_hits[:3],
+            }
+        )
+
+        prompt = (
+            "You are a data curation assistant.\n"
+            "Create a list of diverse, non-duplicative records for the topic.\n"
+            "Return ONLY a JSON array; each item must be an object with fields: title (string), summary (string).\n"
+            f"Topic: {topic}\n"
             f"Search hits (JSON): {json.dumps(search_hits, ensure_ascii=False)}"
         )
-        generated = self.llm.chat_completion(prompt, temperature=0.4, max_tokens=400)
-        try:
-            records = self._extract_json(generated)
-        except json.JSONDecodeError:
-            records = [{"title": ctx.topic, "summary": generated}]
-        if isinstance(records, dict):
-            records = [records]
-        for row in records:
-            self.db.add_record(row)
+        raw = self.llm.simple_complete(prompt, temperature=0.4, max_tokens=700)
+        extracted = self._extract_json(raw)
 
-    def synthesize_tools(self, ctx: AgentRequest, additional_context: str = "") -> None:
-        """Ask LLM to generate specialized tools based on the database and register them."""
-        context_suffix = f"\nAdditional context: {additional_context}" if additional_context else ""
-        prompt = (
-            "Generate 2-3 specialized tools for the topic. Return a JSON array with fields name and description. "
-            "Tools should rely on existing data or simple logic, not external APIs. "
-            "Tools must accept either a single positional string or keyword 'query'; avoid additional kwargs.\n"
-            f"Topic: {ctx.topic}\n"
-            f"Database examples: {json.dumps(self.db.records[:3], ensure_ascii=False)}{context_suffix}"
+        records: list[dict[str, Any]] = []
+        if isinstance(extracted, list):
+            records = [row for row in extracted if isinstance(row, dict)]
+        elif isinstance(extracted, dict):
+            records = [extracted]
+
+        records = [
+            {
+                "title": str(row.get("title") or topic).strip(),
+                "summary": str(row.get("summary") or "").strip(),
+            }
+            for row in records
+        ]
+
+        records = [row for row in records if row["summary"] != ""]
+
+        self.task_state.add_step(
+            {
+                "type": "seed_database",
+                "topic": topic,
+                "records": records,
+            }
         )
-        raw = self.llm.simple_complete(prompt, temperature=0.5, max_tokens=400)
-        try:
-            tools = self._parse_json(raw)
-        except json.JSONDecodeError:
-            tools = []
-        if not isinstance(tools, list):
-            tools = [tools]
 
-        for spec in tools:
-            name = spec.get("name")
-            desc = spec.get("description", "")
-            if not name:
+        return records
+
+    def _synthesize_task_tools(self, topic: str, records: list[dict[str, Any]]) -> list[ToolSpec]:
+        """Generate schema-level tool specs (ToolSpec) for the task toolset."""
+        prompt = (
+            "Design a task toolset for an RL environment.\n"
+            "Return Python code defining 3-5 tools, each decorated with @mcp.tool(...).\n"
+            "Constraints:\n"
+            "- Tool names must be unique, snake_case, and NOT 'bash'/'search'/'python_runner'.\n"
+            "- Each tool MUST accept (query: str, max_results: int = 5).\n"
+            "- Each tool MUST return list[dict].\n"
+            "- Function bodies must not do any I/O; use 'raise RuntimeError(\"tool spec only\")'.\n"
+            "Only output a single Python code block.\n"
+            f"Topic: {topic}\n"
+            f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
+            "\nExample:\n"
+            "```python\n"
+            '@mcp.tool(name="find_records", description="Find records by keyword.")\n'
+            "def impl(query: str, max_results: int = 5) -> list[dict]:\n"
+            "    raise RuntimeError('tool spec only')\n"
+            "```\n"
+        )
+
+        raw = self.llm.simple_complete(prompt, temperature=0.6, max_tokens=900)
+        blocks = self._extract_mcp_tool_blocks(raw)
+        specs: list[ToolSpec] = []
+        for block in blocks:
+            try:
+                specs.append(ToolSpec.from_function_string(block))
+            except Exception:
+                logger.debug("Failed to parse tool spec block", exc_info=True)
+
+        specs = [spec for spec in specs if spec.name not in {"bash", "search", "python_runner"}]
+        self.task_state.add_step(
+            {
+                "type": "tool_synthesis",
+                "tool_count": len(specs),
+                "tools": [spec.model_dump() for spec in specs],
+            }
+        )
+        return specs
+
+    def _register_task_tools(self, tool_specs: list[ToolSpec]) -> None:
+        if self.sandbox is None:
+            return
+        records_path = self.sandbox.sandbox_dir / self._RECORDS_FILENAME
+        for spec in tool_specs:
+            self.sandbox.register_tool(
+                JsonRecordsQueryTool(
+                    name=spec.name,
+                    description=spec.description,
+                    records_path=records_path,
+                )
+            )
+
+        self.task_state.add_step(
+            {
+                "type": "tool_registration",
+                "registered_tools": [spec.name for spec in tool_specs],
+            }
+        )
+
+    def _propose_task(
+        self,
+        task_id: str,
+        request: GenerationRequest,
+        topic: str,
+        records: list[dict[str, Any]],
+        tool_specs: list[ToolSpec],
+        *,
+        task_title: str,
+        difficulty: int,
+    ) -> TaskPackage:
+        tool_list = [
+            {
+                "name": spec.name,
+                "description": spec.description,
+                "parameters": spec.parameters,
+            }
+            for spec in tool_specs
+        ]
+        prompt = (
+            "You are a task generator.\n"
+            "Create ONE challenging but automatically verifiable task.\n"
+            "Return ONLY JSON with keys: task_title, task_content, submit_result_format, difficulty_level, solution, verification.\n"
+            "Rules:\n"
+            "- solution must define solve(tools) and MUST call at least 2 different tools from the tool list.\n"
+            "- verification must define verify(tools, answer) and must check content/shape, not just type.\n"
+            "- solve/verify must NOT access files or network; only use the provided tools and pure Python.\n"
+            "- Tool calling examples: tools['name']('query') or tools.name('query').\n"
+            f"- task_title MUST be exactly: {task_title}\n"
+            f"Topic: {topic}\n"
+            f"Difficulty_level: {difficulty}\n"
+            f"Tool list (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
+            f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
+        )
+        raw = self.llm.simple_complete(prompt, temperature=0.65, max_tokens=1100)
+        extracted = self._extract_json(raw)
+        data: dict[str, Any] = extracted if isinstance(extracted, dict) else {}
+
+        task_content = str(data.get("task_content") or f"Solve a task about {topic}.").strip()
+
+        submit_result_format = data.get("submit_result_format", "```json\n```")
+        if isinstance(submit_result_format, str):
+            submit_result_format = {"type": submit_result_format}
+
+        solution = data.get("solution")
+        verification = data.get("verification")
+        if not isinstance(solution, str) or len(solution.strip()) < 8:
+            first = tool_specs[0].name if tool_specs else "tool_a"
+            second = tool_specs[1].name if len(tool_specs) > 1 else first
+            solution = (
+                "def solve(tools):\n"
+                f"    a = tools['{first}']('{topic}')\n"
+                f"    b = tools['{second}']('{topic}')\n"
+                "    return {'a_count': len(a), 'b_count': len(b), 'a_sample': a[:1], 'b_sample': b[:1]}\n"
+            )
+        if not isinstance(verification, str) or len(verification.strip()) < 8:
+            verification = (
+                "def verify(tools, answer):\n"
+                "    return isinstance(answer, dict) and 'a_count' in answer and 'b_count' in answer\n"
+            )
+
+        pkg = TaskPackage(
+            task=TaskDefinition(
+                task_id=task_id,
+                task_title=task_title if len(task_title) >= 4 else "Task",
+                task_content=(task_content if len(task_content) >= 10 else f"Solve a task about {topic}."),
+                submit_result_format=submit_result_format,
+                tool_set=tool_specs,
+                evaluation_criteria=EvaluationCriteria(),
+                difficulty_level=int(data.get("difficulty_level") or difficulty),
+            ),
+            solution=solution,
+            verification=verification,
+            agent_type=self.agent_type,
+            metadata={"topic": topic},
+        )
+
+        self.task_state.add_step(
+            {
+                "type": "task_proposed",
+                "task_title": pkg.task.task_title,
+                "difficulty_level": pkg.task.difficulty_level,
+            }
+        )
+        return pkg
+
+    def _refine_task(
+        self,
+        topic: str,
+        records: list[dict[str, Any]],
+        tool_specs: list[ToolSpec],
+        *,
+        previous: TaskPackage,
+        difficulty: int,
+    ) -> TaskPackage:
+        tool_list = [{"name": spec.name, "description": spec.description} for spec in tool_specs]
+        prompt = (
+            "Increase the task difficulty while keeping it verifiable.\n"
+            "Return ONLY JSON with keys: task_content, submit_result_format, difficulty_level, solution, verification.\n"
+            "Keep solve(tools) / verify(tools, answer) signatures unchanged.\n"
+            "Do not introduce new tools; only use tools from the provided list.\n"
+            f"Target difficulty_level: {difficulty}\n"
+            f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
+            f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
+            f"Previous task (JSON): {json.dumps(previous.as_payload(), ensure_ascii=False)}\n"
+        )
+        raw = self.llm.simple_complete(prompt, temperature=0.7, max_tokens=1200)
+        extracted = self._extract_json(raw)
+        data: dict[str, Any] = extracted if isinstance(extracted, dict) else {}
+
+        task_content = str(data.get("task_content") or previous.task.task_content).strip()
+        submit_result_format = data.get("submit_result_format", previous.task.submit_result_format)
+        if isinstance(submit_result_format, str):
+            submit_result_format = {"type": submit_result_format}
+
+        solution = data.get("solution") if isinstance(data.get("solution"), str) else previous.solution
+        verification = (
+            data.get("verification") if isinstance(data.get("verification"), str) else previous.verification
+        )
+
+        pkg = TaskPackage(
+            task=TaskDefinition(
+                task_id=previous.task.task_id,
+                task_title=previous.task.task_title,
+                task_content=(task_content if len(task_content) >= 10 else previous.task.task_content),
+                submit_result_format=submit_result_format,
+                tool_set=tool_specs,
+                evaluation_criteria=previous.task.evaluation_criteria,
+                difficulty_level=int(data.get("difficulty_level") or difficulty),
+            ),
+            solution=solution,
+            verification=verification,
+            agent_type=self.agent_type,
+            metadata={**previous.metadata, "topic": topic, "refined": "true"},
+        )
+        self.task_state.add_step(
+            {
+                "type": "task_refined",
+                "task_title": pkg.task.task_title,
+                "difficulty_level": pkg.task.difficulty_level,
+            }
+        )
+        return pkg
+
+    def _ensure_valid(self, request: GenerationRequest, package: TaskPackage, *, topic: str) -> TaskPackage:
+        if not request.validate or self.sandbox is None:
+            return package
+
+        last_error = ""
+        for attempt in range(1, request.max_validation_rounds + 1):
+            allowed_tools = {spec.name for spec in package.task.tool_set}
+            called_tools = self._extract_tool_calls(package.solution)
+            if len(called_tools) < 2:
+                last_error = (
+                    "solution must call at least 2 different tools; "
+                    f"called={sorted(called_tools)} allowed={sorted(allowed_tools)}"
+                )
+                package = self._repair_package(request, package, error=last_error)
+                continue
+            missing_tools = called_tools - allowed_tools
+            if missing_tools:
+                last_error = (
+                    "solution calls tools not in the declared tool_set; "
+                    f"missing={sorted(missing_tools)} allowed={sorted(allowed_tools)}"
+                )
+                package = self._repair_package(request, package, error=last_error)
                 continue
 
-            def make_handler(key: str):
-                def base_handler(*args: Any, **kwargs: Any) -> Any:
-                    """Flexible lookup handler; tolerates different calling styles from synthesized code."""
-                    logger.debug("Tool '%s' called with args=%s, kwargs=%s", key, args, kwargs)
-                    candidate: Any = None
-                    if args:
-                        candidate = args[0]
-                    if "query" in kwargs:
-                        candidate = kwargs["query"]
-                    if candidate is None and kwargs:
-                        candidate = " ".join(f"{k}:{v}" for k, v in kwargs.items())
-                    if isinstance(candidate, dict):
-                        candidate = json.dumps(candidate, ensure_ascii=False)
-                    if candidate is None:
-                        result = self.db.records
-                    elif not isinstance(candidate, str):
-                        candidate = str(candidate)
-                        result = self.db.query("title", candidate) or [
-                            r
-                            for r in self.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
-                        ]
-                    else:
-                        result = self.db.query("title", candidate) or [
-                            r
-                            for r in self.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
-                        ]
-
-                    # If tool name suggests it should return a dict (e.g., "checker", "analyzer"), convert to dict
-                    if any(word in key.lower() for word in ["checker", "analyzer", "validator", "matcher"]):
-                        if isinstance(result, list) and result:
-                            # Convert list of records to a structured dict
-                            if "component" in key.lower() or "checker" in key.lower():
-                                # For component checkers, return dict with present/missing
-                                all_text = " ".join(
-                                    [r.get("title", "") + " " + r.get("summary", "") for r in result]
-                                )
-                                query_lower = (candidate or "").lower()
-                                present = []
-                                missing = []
-                                # Simple keyword matching
-                                keywords = [
-                                    "transportation",
-                                    "accommodation",
-                                    "activity",
-                                    "reservation",
-                                    "emergency",
-                                    "booking",
-                                ]
-                                for kw in keywords:
-                                    if kw in query_lower:
-                                        present.append(f"{kw} details")
-                                    else:
-                                        missing.append(f"{kw} information")
-                                result = (
-                                    {"present": present[:3], "missing": missing[:2]}
-                                    if missing
-                                    else {"present": present[:3], "missing": []}
-                                )
-                            elif "tool" in key.lower() or "matcher" in key.lower():
-                                # For tool matchers, return dict with recommendations
-                                result = {
-                                    "tools": [r.get("title", "") for r in result[:3]],
-                                    "count": len(result),
-                                }
-                            else:
-                                # Generic: return first record as dict or wrap list
-                                result = result[0] if result else {}
-                    elif isinstance(result, list) and len(result) == 1:
-                        # Single result: return as dict
-                        result = result[0]
-
-                    logger.debug("Tool '%s' returned %s", key, type(result).__name__)
-                    return result
-
-                class GeneratedTool:
-                    """Tool wrapper that supports various calling patterns."""
-
-                    def __call__(self, *args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
-                        return base_handler(*args, **kwargs)
-
-                    def __getattr__(self, _name: str):
-                        # Support tool.method() or tool.attribute patterns
-                        def wrapper(*args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
-                            return base_handler(*args, **kwargs)
-
-                        return wrapper
-
-                    def __getitem__(self, _name: str):
-                        # Support tool['method']() patterns
-                        return self.__getattr__(_name)
-
-                    def __setattr__(self, name: str, value: Any) -> None:
-                        # Allow setting attributes (some code might try this)
-                        object.__setattr__(self, name, value)
-
-                return GeneratedTool()
-
-            self.registry.register(name=name, description=desc, func=make_handler(name))
-
-    def augment_toolset(self, ctx: AgentRequest, bundle: TaskPackage, failure_reason: str) -> bool:
-        """Augment the toolset when current tools are insufficient. Returns True if new tools were added."""
-        # Analyze if the failure might be due to missing tools
-        solution_code = bundle.solution or ""
-
-        called_tools = self._extract_tool_calls(solution_code)
-        available_tools = {tool.name for tool in self.registry.tools.values()}
-        missing_tools = called_tools - available_tools
-
-        # Check if failure suggests missing functionality
-        needs_augmentation = (
-            missing_tools
-            or "not found" in failure_reason.lower()
-            or "missing" in failure_reason.lower()
-            or "no attribute" in failure_reason.lower()
-            or (len(failure_reason) > 50 and "verification returned False" in failure_reason)
-        )
-
-        if not needs_augmentation:
-            return False
-
-        logger.info(
-            "Augmenting toolset: detected missing tools %s or insufficient functionality",
-            missing_tools,
-        )
-
-        # Generate additional tools based on task requirements
-        additional_context = (
-            f"Current task requires tools that are not available. "
-            f"Task description: {bundle.description[:200]}. "
-            f"Solution code attempts to use: {list(called_tools)}. "
-            f"Failure reason: {failure_reason[:200]}. "
-            f"Generate 1-2 additional tools that would help solve this task."
-        )
-
-        prompt = (
-            "Generate 1-2 additional specialized tools to help solve the current task. "
-            "Return a JSON array with fields name and description. "
-            "Tools should complement existing tools and address the specific needs of the task. "
-            "Tools must accept either a single positional string or keyword 'query'.\n"
-            f"Topic: {ctx.topic}\n"
-            f"Current tools: {json.dumps(self.registry.describe(), ensure_ascii=False)}\n"
-            f"Task: {bundle.description[:300]}\n"
-            f"Failure context: {failure_reason[:200]}\n"
-            f"Database examples: {json.dumps(self.db.records[:3], ensure_ascii=False)}"
-        )
-
-        raw = self.llm.chat_completion(prompt, temperature=0.6, max_tokens=400)
-        try:
-            new_tools = self._extract_json(raw)
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse new tools from LLM response")
-            return False
-
-        if not isinstance(new_tools, list):
-            new_tools = [new_tools]
-
-        added_count = 0
-        for spec in new_tools:
-            name = spec.get("name")
-            desc = spec.get("description", "")
-            if not name or name in available_tools:
-                continue  # Skip if already exists
-
-            def make_handler(key: str):
-                def base_handler(*args: Any, **kwargs: Any) -> Any:
-                    """Flexible lookup handler for augmented tools."""
-                    logger.debug(
-                        "Augmented tool '%s' called with args=%s, kwargs=%s",
-                        key,
-                        args,
-                        kwargs,
-                    )
-                    candidate: Any = None
-                    if args:
-                        candidate = args[0]
-                    if "query" in kwargs:
-                        candidate = kwargs["query"]
-                    if candidate is None and kwargs:
-                        candidate = " ".join(f"{k}:{v}" for k, v in kwargs.items())
-                    if isinstance(candidate, dict):
-                        candidate = json.dumps(candidate, ensure_ascii=False)
-                    if candidate is None:
-                        result = self.db.records
-                    elif not isinstance(candidate, str):
-                        candidate = str(candidate)
-                        result = self.db.query("title", candidate) or [
-                            r
-                            for r in self.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
-                        ]
-                    else:
-                        result = self.db.query("title", candidate) or [
-                            r
-                            for r in self.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
-                        ]
-
-                    # Smart return format based on tool name
-                    if any(word in key.lower() for word in ["checker", "analyzer", "validator", "matcher"]):
-                        if isinstance(result, list) and result:
-                            if "component" in key.lower() or "checker" in key.lower():
-                                query_lower = (candidate or "").lower()
-                                present = []
-                                missing = []
-                                keywords = [
-                                    "transportation",
-                                    "accommodation",
-                                    "activity",
-                                    "reservation",
-                                    "emergency",
-                                    "booking",
-                                ]
-                                for kw in keywords:
-                                    if kw in query_lower:
-                                        present.append(f"{kw} details")
-                                    else:
-                                        missing.append(f"{kw} information")
-                                result = (
-                                    {"present": present[:3], "missing": missing[:2]}
-                                    if missing
-                                    else {"present": present[:3], "missing": []}
-                                )
-                            elif "tool" in key.lower() or "matcher" in key.lower():
-                                result = {
-                                    "tools": [r.get("title", "") for r in result[:3]],
-                                    "count": len(result),
-                                }
-                            else:
-                                result = result[0] if result else {}
-                    elif isinstance(result, list) and len(result) == 1:
-                        result = result[0]
-
-                    logger.debug("Augmented tool '%s' returned %s", key, type(result).__name__)
-                    return result
-
-                class GeneratedTool:
-                    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-                        return base_handler(*args, **kwargs)
-
-                    def __getattr__(self, _name: str):
-                        def wrapper(*args: Any, **kwargs: Any) -> Any:
-                            return base_handler(*args, **kwargs)
-
-                        return wrapper
-
-                    def __getitem__(self, _name: str):
-                        return self.__getattr__(_name)
-
-                    def __setattr__(self, name: str, value: Any) -> None:
-                        object.__setattr__(self, name, value)
-
-                return GeneratedTool()
-
-            self.registry.register(name=name, description=desc, func=make_handler(name))
-            added_count += 1
-            logger.info("Added new tool: %s - %s", name, desc)
-
-        return added_count > 0
-
-    def propose_task(self, ctx: AgentRequest, difficulty: int = 1) -> TaskPackage:
-        """Generate a task with solution and verification code."""
-        tool_examples = "\n".join(
-            [
-                f"- {tool['name']}: Call as tools['{tool['name']}']('query') or tools.{tool['name']}('query')"
-                for tool in self.registry.describe()[:3]
-            ]
-        )
-        prompt = (
-            "You are a task generator. Based on the tool list and database, create a verifiable task.\n"
-            "Return JSON with name, description, solution_code, verification_code.\n"
-            "CRITICAL REQUIREMENTS:\n"
-            "1. solution_code MUST ACTUALLY CALL TOOLS using tools['name']('query') or tools.name('query').\n"
-            "2. Call at least 2 different tools and combine their results into a structured output.\n"
-            "3. Do NOT return trivial results like 'list(tools.keys())' or just tool names.\n"
-            "4. It can only access data via tools (no direct DB access).\n"
-            "5. verification_code must define verify(tools, answer) and return bool.\n"
-            "6. The verification must check content/shape, not just type.\n\n"
-            f"Category: {ctx.topic}\n"
-            f"Tool usage examples:\n{tool_examples}\n"
-            f"All tools: {json.dumps(self.registry.describe(), ensure_ascii=False)}\n"
-            f"Database samples: {json.dumps(self.db.records[:5], ensure_ascii=False)}\n"
-            f"Difficulty: {difficulty}\n\n"
-            "Example solution pattern:\n"
-            "def solve(tools):\n"
-            "    data1 = tools['tool1']('query1')\n"
-            "    data2 = tools['tool2']('query2')\n"
-            "    return {'result': data1 + data2}\n"
-        )
-        raw = self.llm.chat_completion(prompt, temperature=0.6, max_tokens=800)
-        try:
-            parsed = self._extract_json(raw)
-        except json.JSONDecodeError:
-            parsed = {
-                "name": f"{ctx.topic}-task",
-                "description": raw[:200],
-                "solution_code": "def solve(tools):\n    return list(tools.keys())",
-                "verification_code": "def verify(tools, answer):\n    return isinstance(answer, list)",
-            }
-        return TaskPackage(
-            name=parsed.get("name", "generated-task"),
-            description=parsed.get("description", ""),
-            difficulty=difficulty,
-            solution_code=parsed.get("solution_code", ""),
-            verification_code=parsed.get("verification_code", ""),
-        )
-
-    def refine_task(self, ctx: AgentRequest, prev: TaskPackage) -> TaskPackage:
-        """Increase task difficulty while keeping it verifiable."""
-        prompt = (
-            "Increase the task difficulty while keeping it verifiable. "
-            "Input: previous task with solution and verification code. Output: same JSON schema. "
-            "Keep solve and verify signatures unchanged. Keep tool calls simple: positional string or keyword 'query' only.\n"
-            f"Previous: {json.dumps(prev.__dict__, ensure_ascii=False)}"
-        )
-        raw = self.llm.chat_completion(prompt, temperature=0.7, max_tokens=800)
-        try:
-            data = self._extract_json(raw)
-        except json.JSONDecodeError:
-            data = prev.__dict__ | {"difficulty": prev.difficulty + 1}
-        return TaskPackage(
-            name=data.get("name", prev.name),
-            description=data.get("description", prev.description),
-            difficulty=data.get("difficulty", prev.difficulty + 1),
-            solution_code=data.get("solution_code", prev.solution_code),
-            verification_code=data.get("verification_code", prev.verification_code),
-        )
-
-    def repair_bundle(self, ctx: AgentRequest, bundle: TaskPackage, failure_reason: str) -> TaskPackage:
-        """Ask LLM to repair the bundle when validation fails."""
-        prompt = (
-            "The current solution or verification failed. Produce a new JSON with name, description, solution_code, verification_code. "
-            "Constraints: solve(tools) must only use tools (no direct DB access); verify(tools, answer) must return bool. "
-            "Keep tool calls simple: positional string or keyword 'query' only; avoid extra kwargs.\n"
-            f"Failure reason: {failure_reason}\n"
-            f"Original task: {json.dumps(bundle.__dict__, ensure_ascii=False)}\n"
-            f"Tools: {json.dumps(self.registry.describe(), ensure_ascii=False)}\n"
-            f"Database examples: {json.dumps(self.db.records[:5], ensure_ascii=False)}"
-        )
-        raw = self.llm.chat_completion(prompt, temperature=0.6, max_tokens=800)
-        try:
-            data = self._extract_json(raw)
-        except json.JSONDecodeError:
-            logger.warning("LLM repair did not return JSON; keeping original task: %s", raw)
-            data = bundle.__dict__
-        return TaskPackage(
-            name=data.get("name", bundle.name),
-            description=data.get("description", bundle.description),
-            difficulty=data.get("difficulty", bundle.difficulty),
-            solution_code=data.get("solution_code", bundle.solution),
-            verification_code=data.get("verification_code", bundle.verification),
-            use_docker=bundle.use_docker,  # Preserve use_docker flag
-        )
-
-    def ensure_valid(
-        self, ctx: AgentRequest, bundle: TaskPackage, fail_soft: bool = False
-    ) -> Tuple[TaskPackage, Any]:
-        """Execute and verify a bundle; repair via LLM when needed. If fail_soft, return last attempt instead of raising."""
-        base_tools = self.registry.as_callable_dict()
-
-        # Ensure the task is not trivial before running executions
-        bundle = self._ensure_substantive_task(ctx, bundle, "Initial validation quality gate")
-
-        def fallback(*args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
-            # Generic fallback: return all records or filtered by keyword.
-            logger.debug("Fallback tool called with args=%s, kwargs=%s", args, kwargs)
-            candidate = None
-            if args:
-                candidate = args[0]
-            if "query" in kwargs:
-                candidate = kwargs["query"]
-            if isinstance(candidate, dict):
-                candidate = json.dumps(candidate, ensure_ascii=False)
-            if candidate is None:
-                result = self.db.records
-            else:
-                text = candidate if isinstance(candidate, str) else str(candidate)
-                result = self.db.query("title", text) or [
-                    r for r in self.db.records if text in r.get("title", "") or text in r.get("summary", "")
-                ]
-            logger.debug("Fallback tool returned %d records", len(result))
-            return result
-
-        class ToolProxy(dict):
-            """Proxy that supports both dict access and attribute access for tools."""
-
-            def __missing__(self, key: str):
-                # Return a callable wrapper that always calls fallback
-                class FallbackTool:
-                    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-                        return fallback(*args, **kwargs)
-
-                    def __getattr__(self, name: str):
-                        # Support tool.method() calls
-                        return self.__call__
-
-                    def __getitem__(self, name: str):
-                        # Support tool['method']() calls
-                        return self.__call__
-
-                return FallbackTool()
-
-            def __getattr__(self, key: str):
-                # Support tools.tool_name() access
-                if key in self:
-                    return self[key]
-                return self.__missing__(key)
-
-        tools: Dict[str, Any] = ToolProxy(**base_tools)
-        last_error = ""
-        augmentation_attempted = False
-
-        for attempt in range(self.max_validation_rounds + 1):
-            # Refresh tools dict after potential augmentation
-            base_tools = self.registry.as_callable_dict()
-            tools = ToolProxy(**base_tools)
-
-            try:
-                answer = bundle.run_solution(tools)
-                valid = bundle.verify(tools, answer)
-            except Exception as exc:  # pragma: no cover - runtime defense
-                last_error = str(exc)
-                logger.warning("Task %s raised during execution: %s", bundle.name, last_error)
-                valid = False
-            else:
-                if not valid:
-                    last_error = "verification returned False"
-
-            if valid:
-                return bundle, answer
-
-            # Try augmenting toolset if we haven't tried yet and we're past first attempt
-            if attempt >= 1 and not augmentation_attempted:
-                if self.augment_toolset(ctx, bundle, last_error):
-                    augmentation_attempted = True
-                    logger.info("Toolset augmented, retrying validation...")
-                    continue  # Retry with augmented tools
-
-            bundle = self.repair_bundle(ctx, bundle, last_error or "unknown failure")
-            bundle = self._ensure_substantive_task(ctx, bundle, "Post-repair quality gate")
-
-        if fail_soft:
-            logger.warning(
-                "Task failed validation repeatedly (soft): %s; last error: %s",
-                bundle.name,
-                last_error,
+            run = self.sandbox.run_task(package)
+            self.task_state.add_step(
+                {
+                    "type": "task_validation",
+                    "attempt": attempt,
+                    "verified": run.verified,
+                    "error": run.error,
+                    "verification_error": run.verification_error,
+                }
             )
-            return bundle, None
-        raise RuntimeError(f"Task failed validation repeatedly: {bundle.name}; last error: {last_error}")
+            if run.verified is True:
+                return package
 
-    def _looks_trivial(self, bundle: TaskPackage) -> bool:
-        """Heuristic check to reject trivial solution/verifier pairs."""
-        sol = bundle.solution or ""
-        ver = bundle.verification or ""
+            last_error = run.error or run.verification_error or "unknown validation failure"
+            package = self._repair_package(request, package, topic=topic, error=last_error)
+            package = self._ensure_substantive_task(package.task.tool_set, package)
 
-        # Check for trivial solution patterns
-        for pat in self._trivial_solution_patterns:
-            if re.search(pat, sol):
-                return True
+        logger.warning(
+            "Task failed validation after %d attempt(s): %s",
+            request.max_validation_rounds,
+            last_error,
+        )
+        return package
 
-        # Check if solution actually calls tools
-        if not re.search(r"tools\[['\"]\w+['\"]\]|tools\.\w+", sol):
-            return True  # No tool calls found
-
-        # Check for trivial verifier patterns
-        for pat in self._trivial_verifier_patterns:
-            if re.search(pat, ver):
-                return True
-        if "answer" in ver and "return" in ver and "if" not in ver:
-            return True
-        return False
-
-    def _ensure_substantive_task(
-        self, ctx: AgentRequest, bundle: TaskPackage, reason: str = ""
-    ) -> TaskPackage:
-        """Repair tasks that are trivial or do not use enough tools."""
-        base_reason = reason or "Task too trivial or lacks multiple tool calls"
-        for _ in range(3):
-            tool_calls = self._extract_tool_calls(bundle.solution)
-            if not self._looks_trivial(bundle) and len(tool_calls) >= 2:
-                return bundle
-            bundle = self.repair_bundle(ctx, bundle, f"{base_reason}; tool_calls={list(tool_calls)}")
-        return bundle
-
-    def _persist(self, ctx: AgentRequest, bundles: List[TaskPackage]) -> None:
-        """Persist synthesis results to the sandbox for later reproduction."""
-        payload = {
-            "category": ctx.topic,
-            "tooling": self.registry.describe(),
-            "records": self.db.records,
-            "tasks": [bundle.__dict__ for bundle in bundles],
-        }
-        target = ctx.sandbox / "tasks.json"
-        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
-        logger.info("Synthesis artifacts saved to %s", target)
-
-    def generate(
+    def _repair_package(
         self,
-        category: str,
-        sandbox: Path,
-        rounds: int = 2,
-        validate: bool = True,
-        fail_soft: bool = True,
-        persist: bool = True,
-        use_sandbox_fusion: bool = False,
-        use_docker: bool = False,
-    ) -> List[TaskPackage]:
-        """Main entry point for environment + task synthesis.
-
-        Args:
-            category: Task category
-            sandbox: Sandbox directory
-            rounds: Number of difficulty refinement rounds
-            validate: Whether to validate tasks
-            fail_soft: Whether to fail softly (warn instead of raise)
-            persist: Whether to persist results
-            use_sandbox_fusion: Whether to use SandboxFusion for secure code execution
-            use_docker: Whether to use Docker for secure code execution
-        """
-        ctx = self.build_context(
-            category,
-            sandbox,
-            use_sandbox_fusion=use_sandbox_fusion,
-            use_docker=use_docker,
+        request: GenerationRequest,
+        package: TaskPackage,
+        *,
+        error: str,
+    ) -> TaskPackage:
+        tool_list = [{"name": spec.name, "description": spec.description} for spec in package.task.tool_set]
+        prompt = (
+            "Repair the provided solution/verification so that verify(tools, solve(tools)) returns True.\n"
+            "Return ONLY JSON with keys: solution, verification.\n"
+            "Constraints:\n"
+            "- Keep solve(tools) and verify(tools, answer) signatures unchanged.\n"
+            "- Only call tools from the provided tool list.\n"
+            "- Do not use file/network access.\n"
+            f"Topic: {request.topic}\n"
+            f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
+            f"Task (title/content): {package.task.task_title} / {package.task.task_content}\n"
+            f"Current solution:\n{package.solution}\n"
+            f"Current verification:\n{package.verification}\n"
+            f"Observed error:\n{error}\n"
         )
-        self.seed_database(ctx)
-        self.synthesize_tools(ctx)
+        raw = self.llm.simple_complete(prompt, temperature=0.55, max_tokens=1100)
+        extracted = self._extract_json(raw)
+        data: dict[str, Any] = extracted if isinstance(extracted, dict) else {}
 
-        bundles: List[TaskPackage] = []
-        current = self._ensure_substantive_task(
-            ctx, self.propose_task(ctx, difficulty=1), "Initial task quality gate"
+        solution = data.get("solution") if isinstance(data.get("solution"), str) else package.solution
+        verification = (
+            data.get("verification") if isinstance(data.get("verification"), str) else package.verification
         )
-        # Set use_docker flag if enabled
-        if use_docker:
-            current.use_docker = True
-        if validate:
-            current, _ = self.ensure_valid(ctx, current, fail_soft=fail_soft)
-        bundles.append(current)
+        repaired = package.copy(update={"solution": solution, "verification": verification})
+        self.task_state.add_step({"type": "task_repaired", "error": error[:300]})
+        return repaired
 
-        for step in range(1, rounds):
-            current = self._ensure_substantive_task(
-                ctx,
-                self.refine_task(ctx, current),
-                f"Refined task quality gate (round {step})",
-            )
-            if use_docker:
-                current.use_docker = True
-            if validate:
-                # Before validating, check if the refined task might need additional tools
-                # by analyzing the solution code for tool calls
-                called_tools = self._extract_tool_calls(current.solution)
-                available_tools = {tool.name for tool in self.registry.tools.values()}
-                missing_tools = called_tools - available_tools
+    def _ensure_substantive_task(self, tool_specs: list[ToolSpec], package: TaskPackage) -> TaskPackage:
+        allowed = {spec.name for spec in tool_specs}
+        called = self._extract_tool_calls(package.solution)
 
-                if missing_tools:
-                    logger.info("Refined task requires additional tools: %s", missing_tools)
-                    # Try to augment toolset proactively
-                    self.augment_toolset(ctx, current, f"Task requires tools: {missing_tools}")
+        if called and called.issubset(allowed) and len(called) >= 2:
+            return package
 
-                current, _ = self.ensure_valid(ctx, current, fail_soft=fail_soft)
-            bundles.append(current)
+        self.task_state.add_step(
+            {
+                "type": "task_quality_gate",
+                "reason": "insufficient_tool_usage",
+                "called_tools": sorted(called),
+                "allowed_tools": sorted(allowed),
+            }
+        )
+        return package
 
-        if persist:
-            self._persist(ctx, bundles)
+    @staticmethod
+    def _extract_tool_calls(solution_code: str) -> set[str]:
+        tool_calls = re.findall(
+            r"tools\\[['\"](\\w+)['\"]\\]|tools\\.(\\w+)\\s*\\(",
+            solution_code or "",
+        )
+        called_tools = {name for pair in tool_calls for name in pair if name}
+        dict_methods = {
+            "keys",
+            "values",
+            "items",
+            "get",
+            "pop",
+            "update",
+            "clear",
+            "copy",
+        }
+        return called_tools - dict_methods
 
-        return bundles
+    @staticmethod
+    def _extract_mcp_tool_blocks(raw: str) -> list[str]:
+        text = (raw or "").strip()
+        if not text:
+            return []
+
+        # Prefer fenced code blocks if present.
+        if "```" in text:
+            parts = text.split("```")
+            candidates = [part for part in parts if "@mcp.tool" in part]
+            if candidates:
+                text = max(candidates, key=len)
+
+        indices: list[int] = []
+        start = 0
+        while True:
+            idx = text.find("@mcp.tool", start)
+            if idx == -1:
+                break
+            indices.append(idx)
+            start = idx + 1
+
+        blocks: list[str] = []
+        for i, idx in enumerate(indices):
+            end = indices[i + 1] if i + 1 < len(indices) else len(text)
+            block = text[idx:end].strip()
+            if "def " in block:
+                blocks.append(block)
+        return blocks

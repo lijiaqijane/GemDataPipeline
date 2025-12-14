@@ -9,16 +9,20 @@ def validate_task_package(package: TaskPackage) -> TaskPackage:
     """Lightweight validation guardrails for generated tasks."""
     task = package.task
     if not task.tool_set:
-        raise ValueError(f"Task '{task.task_title}' must declare at least one tool.")
+        package.validated = False
+        package.validation_reason = f"Task '{task.task_title}' must declare at least one tool."
 
     if len(task.task_content.split()) < 8:
-        raise ValueError(f"Task '{task.task_title}' lacks sufficient detail.")
+        package.validated = False
+        package.validation_reason = f"Task '{task.task_title}' lacks sufficient detail."
 
     if not _looks_runnable(package.solution):
-        raise ValueError(f"Solution for '{task.task_title}' is not runnable.")
+        package.validated = False
+        package.validation_reason = f"Solution for '{task.task_title}' is not runnable."
 
     if "verify" not in package.verification:
-        raise ValueError(f"Verification for '{task.task_title}' must define a check.")
+        package.validated = False
+        package.validation_reason = f"Verification for '{task.task_title}' must define a check."
 
     return package
 

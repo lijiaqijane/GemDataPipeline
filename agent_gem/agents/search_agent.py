@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from agent_gem.core.task_schema import ToolSpec
 
-from .base import AgentRequest, BaseAgent
+from .base import BaseAgent
+
+if TYPE_CHECKING:  # pragma: no cover
+    from agent_gem.generator import GenerationRequest
 
 
 class SearchAgent(BaseAgent):
     agent_type = "search_agent"
     description = "Generates long-tail QA and retrieval-heavy tasks"
 
-    def _build_prompt(self, request: AgentRequest) -> str:
+    def _build_prompt(self, request: GenerationRequest) -> str:
         return (
             "You are the Search Agent crafting retrieval-heavy QA tasks. "
             f"Generate exactly 1 task targeting long-tail entities within '{request.topic or 'a topic you choose'}'. "
@@ -24,15 +27,15 @@ class SearchAgent(BaseAgent):
         )
 
     def _default_tools(self) -> List[ToolSpec]:
+        def search(query: str, k: int = 5) -> list[str]:
+            """Retrieve passages from mirrored web corpora."""
+            raise RuntimeError("tool spec only")
+
+        def summarize(texts: list[str]) -> str:
+            """Summarize retrieved passages."""
+            raise RuntimeError("tool spec only")
+
         return [
-            ToolSpec(
-                tool_name="search",
-                tool_description="Retrieve passages from mirrored web corpora.",
-                tool_functionality="search(query: str, k: int = 5) -> list[str]",
-            ),
-            ToolSpec(
-                tool_name="summarize",
-                tool_description="Summarize retrieved passages.",
-                tool_functionality="summarize(texts: list[str]) -> str",
-            ),
+            ToolSpec.from_function(search, name="search"),
+            ToolSpec.from_function(summarize, name="summarize"),
         ]

@@ -5,16 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Type
 
-from agent_gem.agents import (
-    AgentRequest,
-    BaseAgent,
-    CodeAgent,
-    CodeInterpreterAgent,
-    GeneralAgent,
-    SearchAgent,
-)
-from agent_gem.core import TaskPackage, score_task, validate_task_package
-from agent_gem.sandbox import SandboxManager
+from agent_gem.agents import BaseAgent, CodeAgent, CodeInterpreterAgent, GeneralAgent, SearchAgent
+from agent_gem.core import TaskPackage, ToolSpec, score_task, validate_task_package
+from agent_gem.database import LocalDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +16,24 @@ logger = logging.getLogger(__name__)
 class GenerationRequest:
     agent_type: str
     topic: Optional[str] = None
-    count: int = 1
-    difficulty: str = "Medium"
-    sandbox_root: Path = Path("sandbox")
+    num: int = 1
+    difficulty: int = 1
     validate: bool = True
-    submit_result_format: str = "json"
+    use_sandbox_fusion: bool = False
+    use_docker: bool = False
+    max_refine_rounds: int = 1
+    max_validation_rounds: int = 1
+    persist_result: bool = True
+    fail_soft: bool = False
+    seed_tools: Optional[List[ToolSpec]] = None
 
 
 class EnvironmentGenerator:
     """Central orchestrator that routes generation to the right agent and persists sandboxes."""
 
-    def __init__(self, llm, sandbox_root: Path | str = "sandbox") -> None:
+    def __init__(self, llm, taskdb: Path | str = "taskdb") -> None:
         self.llm = llm
-        self.sandbox = SandboxManager(Path(sandbox_root))
+        self.localdb = LocalDatabase(root=Path(taskdb))
         self.agent_factories: Dict[str, Type[BaseAgent]] = {
             "search_agent": SearchAgent,
             "code_agent": CodeAgent,
@@ -48,35 +46,25 @@ class EnvironmentGenerator:
             "Starting generation: agent=%s topic=%s count=%d difficulty=%s sandbox_root=%s",
             request.agent_type,
             request.topic or "auto-generate",
-            request.count,
+            request.num,
             request.difficulty,
-            request.sandbox_root,
         )
         agent = self._resolve_agent(request.agent_type)
         packages: List[TaskPackage] = []
-        for idx in range(request.count):
-            logger.debug("Invoking agent iteration %d/%d", idx + 1, request.count)
-            agent_request = AgentRequest(
-                topic=request.topic,
-                difficulty=request.difficulty,
-                submit_result_format=request.submit_result_format,
-            )
-            generated = agent.generate(agent_request)
+        for idx in range(request.num):
+            logger.debug("Invoking agent iteration %d/%d", idx + 1, request.num)
+            generated = agent.generate(request)
             if generated:
-                packages.append(generated[0])
+                if request.validate:
+                    logger.info("Validating package %d", idx + 1)
+                    generated = validate_task_package(generated)
+                packages.append(generated)
+
             else:
                 logger.warning("Agent returned no packages on iteration %d", idx + 1)
-        if request.validate:
-            logger.info("Validating %d package(s)", len(packages))
-            packages = [validate_task_package(pkg) for pkg in packages]
 
-        packages = self.sandbox.persist(packages)
-        logger.info(
-            "Persisted %d package(s) to sandbox root '%s'",
-            len(packages),
-            self.sandbox.root,
-        )
-        return self._prioritize(packages)
+        persisted = self.localdb.persist(packages) if request.persist_result else packages
+        return self._prioritize(persisted)
 
     def _prioritize(self, packages: List[TaskPackage]) -> List[TaskPackage]:
         scored = [(score_task(pkg.task).composite, pkg) for pkg in packages]

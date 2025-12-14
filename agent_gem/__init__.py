@@ -1,10 +1,9 @@
-from .agents import AgentRequest, BaseAgent, CodeAgent, CodeInterpreterAgent, GeneralAgent, SearchAgent
-from .config import LLMConfig
-from .env_generator import EnvironmentGenerator, GenerationRequest
-from .llm import LLMClient
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
 
 __all__ = [
-    "AgentRequest",
     "BaseAgent",
     "CodeAgent",
     "CodeInterpreterAgent",
@@ -15,3 +14,25 @@ __all__ = [
     "GenerationRequest",
     "LLMClient",
 ]
+
+_LAZY_IMPORTS: dict[str, tuple[str, str]] = {
+    "BaseAgent": ("agent_gem.agents", "BaseAgent"),
+    "CodeAgent": ("agent_gem.agents", "CodeAgent"),
+    "CodeInterpreterAgent": ("agent_gem.agents", "CodeInterpreterAgent"),
+    "GeneralAgent": ("agent_gem.agents", "GeneralAgent"),
+    "SearchAgent": ("agent_gem.agents", "SearchAgent"),
+    "LLMConfig": ("agent_gem.config", "LLMConfig"),
+    "EnvironmentGenerator": ("agent_gem.env", "EnvironmentGenerator"),
+    "GenerationRequest": ("agent_gem.env", "GenerationRequest"),
+    "LLMClient": ("agent_gem.llm", "LLMClient"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name not in _LAZY_IMPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = _LAZY_IMPORTS[name]
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value

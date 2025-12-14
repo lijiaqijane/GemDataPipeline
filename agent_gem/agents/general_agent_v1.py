@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from agent_gem.core.task_schema import EvaluationCriteria, TaskDefinition, TaskPackage, ToolSpec
 from agent_gem.core.validation import validate_task_package
 
-from .base import AgentRequest, BaseAgent
+from .base import BaseAgent
+
+if TYPE_CHECKING:  # pragma: no cover
+    from agent_gem.generator import GenerationRequest
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +22,9 @@ class GeneralAgent(BaseAgent):
         "Automatic environment-synthesis agent that creates diverse, verifiable tasks with growing toolsets"
     )
 
-    def generate(self, request: AgentRequest) -> List[TaskPackage]:
+    def generate(self, request: GenerationRequest) -> Optional[TaskPackage]:
         """Generate tasks following the agentic workflow"""
+        self._configure_for_request(request)
         logger.info(
             "[agent:%s] Starting task synthesis workflow (topic=%s, difficulty=%s)",
             self.agent_type,
@@ -127,7 +132,7 @@ class GeneralAgent(BaseAgent):
             logger.warning("[agent:%s] Failed to synthesize tools: %s", self.agent_type, e)
             # Use default tools as fallback
 
-    def _iterative_task_synthesis(self, request: AgentRequest) -> List[TaskPackage]:
+    def _iterative_task_synthesis(self, request: GenerationRequest) -> List[TaskPackage]:
         """Generate tasks iteratively with increasing difficulty"""
         packages = []
 
@@ -177,7 +182,7 @@ class GeneralAgent(BaseAgent):
 
         return packages if packages else [self._fallback_package(request)]
 
-    def _generate_single_task(self, request: AgentRequest, difficulty: str) -> Optional[TaskPackage]:
+    def _generate_single_task(self, request: GenerationRequest, difficulty: str) -> Optional[TaskPackage]:
         """Generate a single task at specified difficulty"""
         prompt = self._build_task_generation_prompt(request, difficulty)
 
@@ -190,7 +195,7 @@ class GeneralAgent(BaseAgent):
         packages = self._parse_response(raw, request)
         return packages[0] if packages else None
 
-    def _build_task_generation_prompt(self, request: AgentRequest, difficulty: str) -> str:
+    def _build_task_generation_prompt(self, request: GenerationRequest, difficulty: str) -> str:
         """Build prompt for task generation with current context"""
         tools_description = "\n".join(
             [
@@ -395,16 +400,20 @@ Provide fixed versions. Return as JSON:
 
     def _execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Any:
         """Execute a tool in the sandbox"""
-        if tool_name == "bash" and self.sandbox:
-            return self.sandbox.execute_bash(parameters.get("command", ""))
-        elif tool_name == "search" and self.sandbox:
-            return self.sandbox.execute_search(parameters.get("query", ""))
-        else:
-            # For synthesized tools, we would execute the implementation
-            if tool_name in self.task_state.tool_implementations:
-                # In production, this would execute the code in a sandbox
-                logger.debug("[agent:%s] Would execute tool: %s", self.agent_type, tool_name)
-                return {"result": f"Executed {tool_name}"}
+        if self.sandbox:
+            result = self.sandbox.execute(tool_name, parameters)
+            if not (
+                isinstance(result, dict)
+                and isinstance(result.get("error"), str)
+                and result["error"].startswith("Tool not available:")
+            ):
+                return result
+
+        # For synthesized tools, we would execute the implementation
+        if tool_name in self.task_state.tool_implementations:
+            # In production, this would execute the code in a sandbox
+            logger.debug("[agent:%s] Would execute tool: %s", self.agent_type, tool_name)
+            return {"result": f"Executed {tool_name}"}
 
         logger.warning("[agent:%s] Tool not available: %s", self.agent_type, tool_name)
         return None
@@ -430,7 +439,9 @@ Provide fixed versions. Return as JSON:
         except ValueError:
             return "medium"
 
-    def _validate_packages(self, packages: List[TaskPackage], request: AgentRequest) -> List[TaskPackage]:
+    def _validate_packages(
+        self, packages: List[TaskPackage], request: GenerationRequest
+    ) -> List[TaskPackage]:
         """Validate generated packages"""
         validated = []
         for idx, pkg in enumerate(packages, start=1):

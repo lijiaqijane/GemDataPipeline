@@ -8,7 +8,7 @@ from pathlib import Path
 import coloredlogs
 import dotenv
 
-from agent_gem.env_generator import EnvironmentGenerator, GenerationRequest
+from agent_gem.env import EnvironmentGenerator, GenerationRequest
 from agent_gem.llm import LLMClient
 
 dotenv.load_dotenv()
@@ -35,11 +35,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional domain/topic for the generated task; if omitted, the agent will pick one.",
     )
     parser.add_argument("--num", type=int, default=1, help="Number of tasks to generate.")
-    parser.add_argument("--difficulty", default="Medium", help="Target difficulty label.")
+    parser.add_argument(
+        "--difficulty",
+        default="Medium",
+        help="Target difficulty level (int or Easy/Medium/Hard).",
+    )
     parser.add_argument(
         "--sandbox-root",
-        default="sandbox",
-        help="Root directory for generated sandboxes.",
+        default="taskdb",
+        help="Root directory for generated task sandboxes (taskdb).",
     )
     parser.add_argument("--no-validate", action="store_true", help="Skip schema validation guards.")
     parser.add_argument(
@@ -52,22 +56,37 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _parse_difficulty(value: str) -> int:
+    try:
+        return int(value)
+    except Exception:
+        pass
+    lowered = (value or "").strip().lower()
+    if lowered in {"easy", "e"}:
+        return 1
+    if lowered in {"medium", "med", "m"}:
+        return 2
+    if lowered in {"hard", "h"}:
+        return 3
+    return 1
+
+
 def _handle_generate(args: argparse.Namespace) -> None:
     llm = LLMClient.from_env()
-    generator = EnvironmentGenerator(llm, sandbox_root=Path(args.sandbox_root))
+    generator = EnvironmentGenerator(llm)
     request = GenerationRequest(
         agent_type=args.agent_type,
         topic=args.topic,
-        count=args.num,
-        difficulty=args.difficulty,
-        sandbox_root=Path(args.sandbox_root),
+        num=args.num,
+        difficulty=_parse_difficulty(args.difficulty),
+        taskdb=Path(args.sandbox_root),
         validate=not args.no_validate,
     )
     packages = generator.generate(request)
 
     print(f"Generated {len(packages)} task(s) with agent={args.agent_type}:")
     for pkg in packages:
-        print(f"- {pkg.task.summary()} @ {pkg.sandbox_path}")
+        print(f"- {pkg.task.summary()} @ {pkg.task_path}")
 
 
 def main(argv: list[str] | None = None) -> None:

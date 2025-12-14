@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from agent_gem.core.task_schema import ToolSpec
 
-from .base import AgentRequest, BaseAgent
+from .base import BaseAgent
+
+if TYPE_CHECKING:  # pragma: no cover
+    from agent_gem.env.generator import GenerationRequest
 
 
 class CodeAgent(BaseAgent):
     agent_type = "code_agent"
     description = "Synthesizes code issue + patch validation tasks"
 
-    def _build_prompt(self, request: AgentRequest) -> str:
+    def _build_prompt(self, request: GenerationRequest) -> str:
         return (
             "You are the Code Agent creating repository repair tasks. "
             f"Generate exactly 1 task for topic '{request.topic or 'a codebase you choose'}' that mimics issue/PR workflows. "
@@ -22,20 +25,20 @@ class CodeAgent(BaseAgent):
         )
 
     def _default_tools(self) -> List[ToolSpec]:
+        def git(command: str) -> str:
+            """Inspect repository state and apply patches."""
+            raise RuntimeError("tool spec only")
+
+        def tests(target: str = "all") -> dict[str, object]:
+            """Run the project's test suite."""
+            raise RuntimeError("tool spec only")
+
+        def analyzer(file: str) -> list[str]:
+            """Static analysis for code quality."""
+            raise RuntimeError("tool spec only")
+
         return [
-            ToolSpec(
-                tool_name="git",
-                tool_description="Inspect repository state and apply patches.",
-                tool_functionality="git(command: str) -> str",
-            ),
-            ToolSpec(
-                tool_name="tests",
-                tool_description="Run the project's test suite.",
-                tool_functionality="tests(target: str = 'all') -> {stdout, stderr, returncode}",
-            ),
-            ToolSpec(
-                tool_name="analyzer",
-                tool_description="Static analysis for code quality.",
-                tool_functionality="analyzer(file: str) -> list[str]",
-            ),
+            ToolSpec.from_function(git, name="git"),
+            ToolSpec.from_function(tests, name="tests"),
+            ToolSpec.from_function(analyzer, name="analyzer"),
         ]

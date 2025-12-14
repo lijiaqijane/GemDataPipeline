@@ -21,4 +21,4 @@ dist/
 .vscode/
 
 # Generated data
-sandbox/
+taskdb/
