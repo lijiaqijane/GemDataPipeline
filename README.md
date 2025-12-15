@@ -6,14 +6,14 @@ Lightweight automatic environment and task synthesis agent. It generates special
 
 - **Automatic Tool Synthesis**: Generates specialized Python tools based on topic data.
 - **Task Generation**: Creates challenging tasks with corresponding solutions and verifiers.
-- **Secure Execution**: Supports **SandboxFusion** (remote execution) and **Docker** for running untrusted code.
+- **Secure Execution**: Runs untrusted code via **SandboxFusion** remote sandbox.
 - **Iterative Refinement**: Automatically increases task difficulty and repairs failing tasks.
 
 ## Quick Start
 
 ### Run Demo (No setup required)
 
-To see the agent workflow in action without configuring external services (LLM/Docker/Sandbox), run the self-contained demo:
+To see the agent workflow in action without configuring external services (LLM/Sandbox), run the self-contained demo:
 
 ```bash
 python run_demo.py

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import json
-import subprocess
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
 import requests
+
+from .executor import SandboxFusionExecutor
 
 
 @dataclass
@@ -20,141 +21,34 @@ class Tool:
 
 
 @dataclass
-class DockerTool:
-    """Execute code and commands in Docker container for secure isolation."""
-
-    image: str = "python:3.11-slim"
-    timeout: int = 30
-    workdir: Path | None = None
-    memory_limit: str = "512m"
-    cpu_limit: str = "1.0"
-
-    def __call__(self, code: str | None = None, command: str | None = None, language: str = "python") -> Dict[str, Any]:
-        """Execute code or command in Docker container.
-        
-        Args:
-            code: Python code to execute (for language='python')
-            command: Shell command to execute (for language='bash')
-            language: 'python' or 'bash'
-            
-        Returns:
-            Dict with execution results
-        """
-        if code is None and command is None:
-            return {
-                "returncode": -1,
-                "stdout": "",
-                "stderr": "Either 'code' or 'command' must be provided",
-            }
-        
-        # Prepare Docker command
-        if language == "python" and code:
-            # Execute Python code
-            docker_cmd = [
-                "docker", "run",
-                "--rm",
-                f"--memory={self.memory_limit}",
-                f"--cpus={self.cpu_limit}",
-                "--network=none",  # Disable network for security
-                "--read-only",  # Read-only root filesystem
-                "--tmpfs=/tmp:rw,noexec,nosuid,size=100m",  # Temporary writable space
-            ]
-            
-            if self.workdir:
-                docker_cmd.extend(["-v", f"{self.workdir}:/workspace:ro"])
-                docker_cmd.extend(["-w", "/workspace"])
-            
-            docker_cmd.extend([
-                self.image,
-                "python", "-c", code
-            ])
-        elif language == "bash" and command:
-            # Execute bash command
-            docker_cmd = [
-                "docker", "run",
-                "--rm",
-                f"--memory={self.memory_limit}",
-                f"--cpus={self.cpu_limit}",
-                "--network=none",
-                "--read-only",
-                "--tmpfs=/tmp:rw,noexec,nosuid,size=100m",
-            ]
-            
-            if self.workdir:
-                docker_cmd.extend(["-v", f"{self.workdir}:/workspace:ro"])
-                docker_cmd.extend(["-w", "/workspace"])
-            
-            docker_cmd.extend([
-                self.image,
-                "bash", "-c", command
-            ])
-        else:
-            return {
-                "returncode": -1,
-                "stdout": "",
-                "stderr": f"Invalid combination: language={language}, code={code is not None}, command={command is not None}",
-            }
-        
-        try:
-            proc = subprocess.run(
-                docker_cmd,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-            )
-            return {
-                "returncode": proc.returncode,
-                "stdout": proc.stdout,
-                "stderr": proc.stderr,
-            }
-        except subprocess.TimeoutExpired:
-            return {
-                "returncode": -1,
-                "stdout": "",
-                "stderr": f"Execution timeout after {self.timeout} seconds",
-            }
-        except Exception as e:
-            return {
-                "returncode": -1,
-                "stdout": "",
-                "stderr": f"Docker execution failed: {str(e)}",
-            }
-
-
-@dataclass
 class BashTool:
-    """Restricted bash tool with configurable working directory.
-    
-    Note: For better security, consider using DockerTool instead.
-    """
+    """Bash tool that executes commands inside SandboxFusion, not on the host."""
 
-    workdir: Path
+    workdir: Path  # kept for compatibility; not used on host anymore
     timeout: int = 20
-    use_docker: bool = False
-    docker_image: str = "python:3.11-slim"
+    executor: SandboxFusionExecutor | None = None
+
+    def __post_init__(self) -> None:
+        if self.executor is None:
+            self.executor = SandboxFusionExecutor(
+                base_url=os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080"),
+                timeout=int(os.getenv("SANDBOX_FUSION_TIMEOUT", str(self.timeout))),
+            )
 
     def __call__(self, command: str) -> Dict[str, Any]:
-        if self.use_docker:
-            docker_tool = DockerTool(
-                image=self.docker_image,
-                timeout=self.timeout,
-                workdir=self.workdir,
-            )
-            return docker_tool(command=command, language="bash")
-        
-        # Fallback to local execution
-        proc = subprocess.run(
-            command,
-            shell=True,
-            cwd=self.workdir,
-            capture_output=True,
-            text=True,
-            timeout=self.timeout,
-        )
+        if self.executor is None:
+            return {
+                "returncode": -1,
+                "stdout": "",
+                "stderr": "SandboxFusion executor is not configured",
+            }
+
+        # Delegate bash execution to SandboxFusion service
+        result = self.executor(command, language="bash")
         return {
-            "returncode": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr": proc.stderr,
+            "returncode": result.get("return_code", 0),
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
         }
 
 

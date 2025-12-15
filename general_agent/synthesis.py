@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Tuple
 from .database import LocalDatabase
 from .executor import SandboxFusionExecutor
 from .llm import LLMClient
-from .tools import BashTool, DockerTool, SearchTool, ToolRegistry
+from .tools import BashTool, SearchTool, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,6 @@ class TaskBundle:
     difficulty: int
     solution_code: str
     verification_code: str
-    use_docker: bool = False
     use_sandbox_fusion: bool = False
 
     def run_solution(self, tools: Dict[str, Any], force_local: bool = False) -> Any:
@@ -47,8 +46,6 @@ class TaskBundle:
         if not force_local:
             if self.use_sandbox_fusion:
                 return self._run_in_sandbox_fusion(code, tools, "solve")
-            if self.use_docker:
-                return self._run_in_docker(code, tools, "solve")
         
         # Local execution (used for validation or when sandbox is disabled)
         env = self._build_exec_env(tools)
@@ -69,9 +66,6 @@ class TaskBundle:
         if not force_local:
             if self.use_sandbox_fusion:
                 result = self._run_in_sandbox_fusion(code, tools, "verify", answer)
-                return bool(result)
-            if self.use_docker:
-                result = self._run_in_docker(code, tools, "verify", answer)
                 return bool(result)
         
         # Local execution (used for validation or when sandbox is disabled)
@@ -157,99 +151,6 @@ elif '{func_name}' == 'verify':
             except:
                 raise RuntimeError(f"Failed to parse SandboxFusion output: {output[:200]}. Error: {e}")
     
-    def _run_in_docker(self, code: str, tools: Dict[str, Any], func_name: str, *args: Any) -> Any:
-        """Execute code in Docker container.
-        
-        Note: Tools cannot be directly passed to Docker, so we create a simplified
-        tool interface that uses subprocess to call back to the host.
-        """
-        import json
-        import os
-        import base64
-        
-        # Serialize tools metadata (names and descriptions only)
-        tools_meta = {name: {"name": name} for name in tools.keys()}
-        tools_meta_json = json.dumps(tools_meta)
-        
-        # Create a wrapper that provides a mock tools interface
-        # In a real implementation, tools would communicate via a shared mechanism
-        # For now, we'll create a simplified version that works with the code structure
-        wrapper_code = f"""
-import json
-import sys
-
-# Simplified tools interface - tools are accessed but execution happens locally
-class ToolProxy:
-    def __init__(self, tool_names):
-        self._names = tool_names
-    
-    def __getitem__(self, key):
-        return self
-    
-    def __getattr__(self, key):
-        return self
-    
-    def __call__(self, *args, **kwargs):
-        # Return mock data for tool calls
-        return {{"result": "tool_executed", "args": str(args), "kwargs": str(kwargs)}}
-
-tools_meta = json.loads('{tools_meta_json}')
-tools = ToolProxy(tools_meta.keys())
-
-{code}
-
-if '{func_name}' == 'solve':
-    result = solve(tools)
-    print(json.dumps(result, default=str))
-elif '{func_name}' == 'verify':
-    answer_str = sys.argv[1] if len(sys.argv) > 1 else 'null'
-    try:
-        answer = json.loads(answer_str)
-    except:
-        answer = answer_str
-    result = verify(tools, answer)
-    print(json.dumps(result, default=str))
-"""
-        
-        docker_tool = DockerTool(
-            image=os.getenv("DOCKER_IMAGE", "python:3.11-slim"),
-            timeout=int(os.getenv("DOCKER_TIMEOUT", "30")),
-        )
-        
-        # For verify, pass answer as JSON string argument
-        if func_name == "verify" and args:
-            answer_json = json.dumps(args[0], default=str)
-            # Escape for shell
-            answer_json_escaped = answer_json.replace("'", "'\"'\"'")
-            wrapper_code = wrapper_code.replace("sys.argv[1]", f"'{answer_json_escaped}'")
-        
-        result = docker_tool(code=wrapper_code, language="python")
-        
-        if result["returncode"] != 0:
-            raise RuntimeError(f"Docker execution failed: {result['stderr']}")
-        
-        try:
-            output = result["stdout"].strip()
-            # Remove any non-JSON prefix (like print statements)
-            if output:
-                # Try to find JSON in output
-                start = output.find('{')
-                end = output.rfind('}') + 1
-                if start >= 0 and end > start:
-                    output = output[start:end]
-                elif output.startswith('['):
-                    end = output.rfind(']') + 1
-                    if end > 0:
-                        output = output[:end]
-                return json.loads(output)
-            return None
-        except json.JSONDecodeError as e:
-            # Fallback: try to evaluate as Python literal
-            try:
-                return eval(output)
-            except:
-                raise RuntimeError(f"Failed to parse Docker output: {output[:200]}. Error: {e}")
-
     @staticmethod
     def _build_exec_env(tools: Dict[str, Any]) -> Dict[str, Any]:
         safe_builtins = {
@@ -350,35 +251,20 @@ class EnvironmentSynthesizer:
         dict_methods = {"keys", "values", "items", "get", "pop", "update", "clear", "copy"}
         return called_tools - dict_methods
 
-    def build_context(self, category: str, sandbox: Path, use_sandbox_fusion: bool = True, use_docker: bool = True) -> SynthesisContext:
+    def build_context(self, category: str, sandbox: Path, use_sandbox_fusion: bool = True) -> SynthesisContext:
         sandbox.mkdir(parents=True, exist_ok=True)
         db = LocalDatabase.load(sandbox / "db.json")
 
         registry = ToolRegistry()
         
-        # Configure bash tool (with optional Docker support)
+        # Configure bash tool (local within sandbox path)
         import os
         bash_tool = BashTool(
             workdir=sandbox,
-            use_docker=use_docker,
-            docker_image=os.getenv("DOCKER_IMAGE", "python:3.11-slim")
         )
         search_tool = SearchTool()
-        
-        # Optionally add Docker tool
-        docker_tool = None
-        if use_docker:
-            docker_tool = DockerTool(
-                image=os.getenv("DOCKER_IMAGE", "python:3.11-slim"),
-                timeout=int(os.getenv("DOCKER_TIMEOUT", "30")),
-                workdir=sandbox,
-            )
-        
+
         registry.ensure_defaults(bash=bash_tool, search=search_tool)
-        
-        # Register Docker tool if enabled
-        if docker_tool:
-            registry.register("docker", "Execute code securely in Docker container", docker_tool)
         
         # Register SandboxFusion executor if enabled (for information only, actual execution is in TaskBundle)
         if use_sandbox_fusion:
@@ -913,7 +799,6 @@ class EnvironmentSynthesizer:
             difficulty=data.get("difficulty", bundle.difficulty),
             solution_code=data.get("solution_code", bundle.solution_code),
             verification_code=data.get("verification_code", bundle.verification_code),
-            use_docker=bundle.use_docker,  # Preserve use_docker flag
             use_sandbox_fusion=bundle.use_sandbox_fusion,  # Preserve use_sandbox_fusion flag
         )
 
@@ -977,11 +862,14 @@ class EnvironmentSynthesizer:
             # Refresh tools dict after potential augmentation
             base_tools = ctx.registry.as_callable_dict()
             tools = ToolProxy(**base_tools)
-            
+
             try:
-                # Use local execution for validation to access real tools/database
-                answer = bundle.run_solution(tools, force_local=True)
-                valid = bundle.verify(tools, answer, force_local=True)
+                # Choose execution location based on bundle flags:
+                # - If use_sandbox_fusion is True, run inside SandboxFusion
+                # - Otherwise, fall back to local execution
+                use_sandbox = getattr(bundle, "use_sandbox_fusion", False)
+                answer = bundle.run_solution(tools, force_local=not use_sandbox)
+                valid = bundle.verify(tools, answer, force_local=not use_sandbox)
             except Exception as exc:  # pragma: no cover - runtime defense
                 last_error = str(exc)
                 logger.warning("Task %s raised during execution: %s", bundle.name, last_error)
@@ -1069,7 +957,6 @@ class EnvironmentSynthesizer:
         fail_soft: bool = True,
         persist: bool = True,
         use_sandbox_fusion: bool = True,
-        use_docker: bool = False,
     ) -> List[TaskBundle]:
         """Main entry point for environment + task synthesis.
         
@@ -1081,10 +968,6 @@ class EnvironmentSynthesizer:
             fail_soft: Whether to fail softly (warn instead of raise)
             persist: Whether to persist results
             use_sandbox_fusion: Whether to use SandboxFusion for secure code execution (default: True)
-            use_docker: Whether to use Docker for secure code execution (default: False)
-        
-        Note: use_sandbox_fusion and use_docker are mutually exclusive execution modes.
-              If both are enabled, use_sandbox_fusion takes priority.
         """
         print(f"\n{'='*60}")
         print(f"🚀 开始任务合成: {category}")
@@ -1092,8 +975,8 @@ class EnvironmentSynthesizer:
         
         # Step 1: Build context
         print(f"\n📁 [1/5] 初始化环境...")
-        ctx = self.build_context(category, sandbox, use_sandbox_fusion=use_sandbox_fusion, use_docker=use_docker)
-        exec_mode = "SandboxFusion" if use_sandbox_fusion else ("Docker" if use_docker else "本地")
+        ctx = self.build_context(category, sandbox, use_sandbox_fusion=use_sandbox_fusion)
+        exec_mode = "SandboxFusion" if use_sandbox_fusion else "本地"
         print(f"   ✓ 沙箱目录: {sandbox}")
         print(f"   ✓ 执行模式: {exec_mode}")
         
@@ -1117,13 +1000,9 @@ class EnvironmentSynthesizer:
         current = self._ensure_substantive_task(ctx, self.propose_task(ctx, difficulty=1), "Initial task quality gate")
         print(f"   ✓ 任务名称: {current.name}")
         
-        # Set execution mode flags (SandboxFusion takes priority over Docker)
+        # Set execution mode flags
         if use_sandbox_fusion:
             current.use_sandbox_fusion = True
-            current.use_docker = False
-        elif use_docker:
-            current.use_docker = True
-            current.use_sandbox_fusion = False
             
         if validate:
             print(f"   ⏳ 验证任务...")
@@ -1153,10 +1032,6 @@ class EnvironmentSynthesizer:
             # Set execution mode flags
             if use_sandbox_fusion:
                 current.use_sandbox_fusion = True
-                current.use_docker = False
-            elif use_docker:
-                current.use_docker = True
-                current.use_sandbox_fusion = False
                 
             if validate:
                 # Before validating, check if the refined task might need additional tools
