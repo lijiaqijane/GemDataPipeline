@@ -180,64 +180,6 @@ class SearchTool:
 
 
 @dataclass
-class SandboxFusionTool:
-    """Secure code execution tool using SandboxFusion service.
-    
-    SandboxFusion is a secure code sandbox that supports 23+ programming languages.
-    It provides safe execution environment for LLM-generated code.
-    """
-
-    base_url: str = "http://localhost:8080"
-    timeout: int = 30
-    default_language: str = "python"
-
-    def __call__(self, code: str, language: str | None = None) -> Dict[str, Any]:
-        """Execute code in SandboxFusion sandbox.
-        
-        Args:
-            code: Code to execute
-            language: Programming language (default: python)
-            
-        Returns:
-            Dict with execution results including:
-            - status: Execution status
-            - stdout: Standard output
-            - stderr: Standard error
-            - execution_time: Execution time in seconds
-            - return_code: Return code (if applicable)
-        """
-        url = f"{self.base_url.rstrip('/')}/run_code"
-        payload = {
-            "code": code,
-            "language": language or self.default_language,
-        }
-        
-        try:
-            resp = requests.post(url, json=payload, timeout=self.timeout)
-            resp.raise_for_status()
-            result = resp.json()
-            
-            # Normalize response format
-            return {
-                "status": result.get("status", "unknown"),
-                "stdout": result.get("stdout", ""),
-                "stderr": result.get("stderr", ""),
-                "execution_time": result.get("execution_time", 0),
-                "return_code": result.get("return_code", 0),
-                "raw": result,  # Keep raw response for debugging
-            }
-        except requests.exceptions.RequestException as e:
-            return {
-                "status": "error",
-                "stdout": "",
-                "stderr": f"SandboxFusion request failed: {str(e)}",
-                "execution_time": 0,
-                "return_code": -1,
-                "raw": {},
-            }
-
-
-@dataclass
 class ToolRegistry:
     """Registry that manages tools exposed to synthesis and verification."""
 
@@ -246,13 +188,12 @@ class ToolRegistry:
     def register(self, name: str, description: str, func: Callable[..., Any]) -> None:
         self.tools[name] = Tool(name=name, description=description, handler=func)
 
-    def ensure_defaults(self, bash: BashTool, search: SearchTool, sandbox_fusion: SandboxFusionTool | None = None) -> None:
+    def ensure_defaults(self, bash: BashTool, search: SearchTool) -> None:
+        """Register default tools. Note: SandboxFusion is an execution environment, not a tool."""
         if "bash" not in self.tools:
             self.register("bash", "Execute bash commands inside the sandbox", bash)
         if "search" not in self.tools:
             self.register("search", "Search the web via DuckDuckGo", search)
-        if sandbox_fusion is not None and "sandbox_fusion" not in self.tools:
-            self.register("sandbox_fusion", "Execute code securely in SandboxFusion sandbox (supports 23+ languages)", sandbox_fusion)
 
     def as_callable_dict(self) -> Dict[str, Callable[..., Any]]:
         return {name: tool.handler for name, tool in self.tools.items()}

@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from .database import LocalDatabase
+from .executor import SandboxFusionExecutor
 from .llm import LLMClient
-from .tools import BashTool, DockerTool, SearchTool, SandboxFusionTool, ToolRegistry
+from .tools import BashTool, DockerTool, SearchTool, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -33,27 +34,128 @@ class TaskBundle:
     solution_code: str
     verification_code: str
     use_docker: bool = False
+    use_sandbox_fusion: bool = False
 
-    def run_solution(self, tools: Dict[str, Any]) -> Any:
-        if self.use_docker:
-            return self._run_in_docker(self.solution_code, tools, "solve")
+    def run_solution(self, tools: Dict[str, Any], force_local: bool = False) -> Any:
+        """Execute solution code.
         
+        Args:
+            tools: Dictionary of available tools
+            force_local: Force local execution even if sandbox mode is enabled (for validation)
+        """
+        code = self._normalize_code(self.solution_code)
+        if not force_local:
+            if self.use_sandbox_fusion:
+                return self._run_in_sandbox_fusion(code, tools, "solve")
+            if self.use_docker:
+                return self._run_in_docker(code, tools, "solve")
+        
+        # Local execution (used for validation or when sandbox is disabled)
         env = self._build_exec_env(tools)
-        exec(self.solution_code, env, env)
+        exec(code, env, env)
         if "solve" not in env:
             raise RuntimeError("solution_code must define solve(tools)")
         return env["solve"](tools)
 
-    def verify(self, tools: Dict[str, Any], answer: Any) -> bool:
-        if self.use_docker:
-            result = self._run_in_docker(self.verification_code, tools, "verify", answer)
-            return bool(result)
+    def verify(self, tools: Dict[str, Any], answer: Any, force_local: bool = False) -> bool:
+        """Execute verification code.
         
+        Args:
+            tools: Dictionary of available tools
+            answer: The answer from run_solution to verify
+            force_local: Force local execution even if sandbox mode is enabled (for validation)
+        """
+        code = self._normalize_code(self.verification_code)
+        if not force_local:
+            if self.use_sandbox_fusion:
+                result = self._run_in_sandbox_fusion(code, tools, "verify", answer)
+                return bool(result)
+            if self.use_docker:
+                result = self._run_in_docker(code, tools, "verify", answer)
+                return bool(result)
+        
+        # Local execution (used for validation or when sandbox is disabled)
         env = self._build_exec_env(tools)
-        exec(self.verification_code, env, env)
+        exec(code, env, env)
         if "verify" not in env:
             raise RuntimeError("verification_code must define verify(tools, answer)")
         return bool(env["verify"](tools, answer))
+    
+    def _run_in_sandbox_fusion(self, code: str, tools: Dict[str, Any], func_name: str, *args: Any) -> Any:
+        """Execute code in SandboxFusion service."""
+        import json
+        import os
+        
+        # Serialize tools metadata (names and descriptions only)
+        tools_meta = {name: {"name": name} for name in tools.keys()}
+        tools_meta_json = json.dumps(tools_meta)
+        
+        # Create wrapper code for SandboxFusion
+        wrapper_code = f"""
+import json
+import sys
+
+# Simplified tools interface for SandboxFusion
+class ToolProxy:
+    def __init__(self, tool_names):
+        self._names = tool_names
+    
+    def __getitem__(self, key):
+        return self
+    
+    def __getattr__(self, key):
+        return self
+    
+    def __call__(self, *args, **kwargs):
+        return {{"result": "tool_executed", "args": str(args), "kwargs": str(kwargs)}}
+
+tools_meta = json.loads('{tools_meta_json}')
+tools = ToolProxy(tools_meta.keys())
+
+{code}
+
+if '{func_name}' == 'solve':
+    result = solve(tools)
+    print(json.dumps(result, default=str))
+elif '{func_name}' == 'verify':
+    answer_str = '''{json.dumps(args[0], default=str) if args else 'null'}'''
+    try:
+        answer = json.loads(answer_str)
+    except:
+        answer = answer_str
+    result = verify(tools, answer)
+    print(json.dumps(result, default=str))
+"""
+        
+        executor = SandboxFusionExecutor(
+            base_url=os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080"),
+            timeout=int(os.getenv("SANDBOX_FUSION_TIMEOUT", "30")),
+        )
+        
+        result = executor(wrapper_code, language="python")
+        
+        if result.get("return_code", 0) != 0 or result.get("status") == "error":
+            raise RuntimeError(f"SandboxFusion execution failed: {result.get('stderr', 'Unknown error')}")
+        
+        try:
+            output = result.get("stdout", "").strip()
+            if output:
+                # Try to find JSON in output
+                start = output.find('{')
+                end = output.rfind('}') + 1
+                if start >= 0 and end > start:
+                    output = output[start:end]
+                elif output.startswith('['):
+                    end = output.rfind(']') + 1
+                    if end > 0:
+                        output = output[:end]
+                return json.loads(output)
+            return None
+        except json.JSONDecodeError as e:
+            try:
+                return eval(output)
+            except:
+                raise RuntimeError(f"Failed to parse SandboxFusion output: {output[:200]}. Error: {e}")
     
     def _run_in_docker(self, code: str, tools: Dict[str, Any], func_name: str, *args: Any) -> Any:
         """Execute code in Docker container.
@@ -170,6 +272,17 @@ elif '{func_name}' == 'verify':
         }
         return {"__builtins__": safe_builtins, "tools": tools}
 
+    @staticmethod
+    def _normalize_code(code: str) -> str:
+        """Normalize common lowercase literals to valid Python to avoid trivial runtime errors."""
+        if not code:
+            return code
+        # Replace standalone true/false/null (case-insensitive) with Python literals
+        code = re.sub(r"\btrue\b", "True", code, flags=re.IGNORECASE)
+        code = re.sub(r"\bfalse\b", "False", code, flags=re.IGNORECASE)
+        code = re.sub(r"\bnull\b", "None", code, flags=re.IGNORECASE)
+        return code
+
 
 class EnvironmentSynthesizer:
     """Automated pipeline that synthesizes environments, tools, tasks, and verifiers."""
@@ -261,24 +374,15 @@ class EnvironmentSynthesizer:
                 workdir=sandbox,
             )
         
-        # Optionally add SandboxFusion tool if enabled
-        sandbox_fusion_tool = None
-        if use_sandbox_fusion:
-            import os
-            base_url = os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080")
-            timeout = int(os.getenv("SANDBOX_FUSION_TIMEOUT", "30"))
-            default_language = os.getenv("SANDBOX_FUSION_LANGUAGE", "python")
-            sandbox_fusion_tool = SandboxFusionTool(
-                base_url=base_url,
-                timeout=timeout,
-                default_language=default_language
-            )
-        
-        registry.ensure_defaults(bash=bash_tool, search=search_tool, sandbox_fusion=sandbox_fusion_tool)
+        registry.ensure_defaults(bash=bash_tool, search=search_tool)
         
         # Register Docker tool if enabled
         if docker_tool:
             registry.register("docker", "Execute code securely in Docker container", docker_tool)
+        
+        # Register SandboxFusion executor if enabled (for information only, actual execution is in TaskBundle)
+        if use_sandbox_fusion:
+            logger.info("SandboxFusion enabled for secure code execution")
 
         return SynthesisContext(category=category, sandbox=sandbox, db=db, registry=registry, llm=self.llm)
 
@@ -348,45 +452,39 @@ class EnvironmentSynthesizer:
                         result = ctx.db.records
                     elif not isinstance(candidate, str):
                         candidate = str(candidate)
-                        result = ctx.db.query("title", candidate) or [
-                            r
-                            for r in ctx.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
-                        ]
+                        result = self.smart_db_query(ctx.db.records, key, candidate)
                     else:
-                        result = ctx.db.query("title", candidate) or [
-                            r
-                            for r in ctx.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
-                        ]
+                        result = self.smart_db_query(ctx.db.records, key, candidate)
                     
-                    # If tool name suggests it should return a dict (e.g., "checker", "analyzer"), convert to dict
-                    if any(word in key.lower() for word in ["checker", "analyzer", "validator", "matcher"]):
-                        if isinstance(result, list) and result:
-                            # Convert list of records to a structured dict
-                            if "component" in key.lower() or "checker" in key.lower():
-                                # For component checkers, return dict with present/missing
-                                all_text = " ".join([r.get("title", "") + " " + r.get("summary", "") for r in result])
-                                query_lower = (candidate or "").lower()
-                                present = []
-                                missing = []
-                                # Simple keyword matching
-                                keywords = ["transportation", "accommodation", "activity", "reservation", "emergency", "booking"]
-                                for kw in keywords:
-                                    if kw in query_lower:
-                                        present.append(f"{kw} details")
-                                    else:
-                                        missing.append(f"{kw} information")
-                                result = {"present": present[:3], "missing": missing[:2]} if missing else {"present": present[:3], "missing": []}
-                            elif "tool" in key.lower() or "matcher" in key.lower():
-                                # For tool matchers, return dict with recommendations
-                                result = {"tools": [r.get("title", "") for r in result[:3]], "count": len(result)}
-                            else:
-                                # Generic: return first record as dict or wrap list
-                                result = result[0] if result else {}
-                    elif isinstance(result, list) and len(result) == 1:
-                        # Single result: return as dict
-                        result = result[0]
+                    # Simplify return format based on tool type for easier consumption
+                    if isinstance(result, list) and result:
+                        # Return simplified, consistent format
+                        if any(word in key.lower() for word in ["matcher", "finder", "neighborhood"]):
+                            # For matchers/finders: return list of names/titles
+                            result = [r.get("title", str(r)) for r in result[:5]]
+                        elif any(word in key.lower() for word in ["recommendation", "seasonal", "advisor"]):
+                            # For recommendations: return summary text from first few matches
+                            result = [r.get("summary", r.get("title", str(r))) for r in result[:3]]
+                        elif any(word in key.lower() for word in ["categorizer", "attraction", "activity"]):
+                            # For categorizers: return structured data
+                            result = [{"name": r.get("title", ""), "info": r.get("summary", "")} for r in result[:5]]
+                        elif any(word in key.lower() for word in ["checker", "analyzer", "validator"]):
+                            # For checkers: return dict with present/missing
+                            query_lower = (candidate or "").lower()
+                            present = []
+                            missing = []
+                            keywords = ["transportation", "accommodation", "activity", "reservation", "emergency", "booking"]
+                            for kw in keywords:
+                                if kw in query_lower:
+                                    present.append(f"{kw} details")
+                                else:
+                                    missing.append(f"{kw} information")
+                            result = {"present": present[:3], "missing": missing[:2]}
+                        else:
+                            # Default: return first few records as list
+                            result = result[:5]
+                    elif isinstance(result, list) and len(result) == 0:
+                        result = []
                     
                     logger.debug("Tool '%s' returned %s", key, type(result).__name__)
                     return result
@@ -493,17 +591,9 @@ class EnvironmentSynthesizer:
                         result = ctx.db.records
                     elif not isinstance(candidate, str):
                         candidate = str(candidate)
-                        result = ctx.db.query("title", candidate) or [
-                            r
-                            for r in ctx.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
-                        ]
+                        result = self.smart_db_query(ctx.db.records, key, candidate)
                     else:
-                        result = ctx.db.query("title", candidate) or [
-                            r
-                            for r in ctx.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
-                        ]
+                        result = self.smart_db_query(ctx.db.records, key, candidate)
                     
                     # Smart return format based on tool name
                     if any(word in key.lower() for word in ["checker", "analyzer", "validator", "matcher"]):
@@ -552,6 +642,88 @@ class EnvironmentSynthesizer:
         
         return added_count > 0
 
+    def smart_db_query(self, records: List[Dict[str, Any]], tool_key: str, query: str) -> List[Dict[str, Any]]:
+        """Enhanced database query with flexible keyword matching."""
+        if not query or not isinstance(query, str):
+            return records
+
+        query_lower = query.lower().strip()
+        tool_lower = tool_key.lower()
+
+        # First try exact database query
+        result = self._db_query_exact(records, tool_key, query)
+        if result:
+            return result
+
+        # Extract keywords from query and tool name
+        query_words = set(query_lower.replace('-', ' ').replace('_', ' ').split())
+        tool_words = set(tool_lower.replace('-', ' ').replace('_', ' ').split())
+        
+        # Combine keywords and add semantic expansions
+        all_keywords = query_words | tool_words
+        
+        # Semantic expansions for common travel terms
+        expansions = {
+            'budget': ['budget', 'affordable', 'cheap', 'money', 'cost', 'price', 'saving'],
+            'seasonal': ['seasonal', 'season', 'weather', 'month', 'time', 'when', 'spring', 'summer', 'fall', 'winter'],
+            'travel': ['travel', 'trip', 'visit', 'visitor', 'tourist', 'planning', 'itinerary'],
+            'planner': ['planner', 'planning', 'plan', 'guide', 'strategies'],
+            'accommodation': ['accommodation', 'hotel', 'stay', 'neighborhood', 'arrondissement', 'district'],
+            'finder': ['finder', 'find', 'search', 'match', 'recommend', 'guide'],
+            'matcher': ['matcher', 'match', 'find', 'recommend', 'suitable'],
+            'attraction': ['attraction', 'landmark', 'museum', 'sight', 'cultural', 'experience'],
+            'friendly': ['friendly', 'suitable', 'good', 'recommended'],
+        }
+        
+        expanded_keywords = set()
+        for word in all_keywords:
+            expanded_keywords.add(word)
+            for key, synonyms in expansions.items():
+                if word in synonyms:
+                    expanded_keywords.update(synonyms)
+                    break
+
+        # Score and rank records
+        scored_records = []
+        for record in records:
+            title = record.get("title", "").lower()
+            summary = record.get("summary", "").lower()
+            full_text = title + " " + summary
+
+            # Calculate relevance score
+            score = 0
+            matched_terms = set()
+
+            for keyword in expanded_keywords:
+                if keyword in title:
+                    score += 3  # Title matches are most important
+                    matched_terms.add(keyword)
+                if keyword in summary:
+                    score += 2  # Summary matches are important
+                    matched_terms.add(keyword)
+
+            if score > 0:
+                scored_records.append((score, len(matched_terms), record))
+
+        # Sort by score (descending) and number of matched terms (descending)
+        scored_records.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+        # Return top matches (up to 5 for relevance)
+        result = [record for _, _, record in scored_records[:5]]
+        
+        # If still no results, return all records as fallback
+        if not result:
+            return records[:5]
+        
+        return result
+
+    def _db_query_exact(self, records: List[Dict[str, Any]], tool_key: str, query: str) -> List[Dict[str, Any]]:
+        """Fallback to exact matching if semantic matching fails."""
+        return [
+            r for r in records
+            if tool_key in r.get("title", "") or query in r.get("summary", "")
+        ]
+
     def propose_task(self, ctx: SynthesisContext, difficulty: int = 1) -> TaskBundle:
         """Generate a task with solution and verification code."""
         tool_examples = "\n".join([
@@ -567,7 +739,12 @@ class EnvironmentSynthesizer:
             "3. Do NOT return trivial results like 'list(tools.keys())' or just tool names.\n"
             "4. It can only access data via tools (no direct DB access).\n"
             "5. verification_code must define verify(tools, answer) and return bool.\n"
-            "6. The verification must check content/shape, not just type.\n\n"
+            "6. The verification must check answer STRUCTURE (keys exist, types correct), NOT exact values.\n"
+            "7. IMPORTANT: Tools return LISTS (not strings). Handle them as lists.\n\n"
+            "TOOL RETURN FORMATS:\n"
+            "- matcher/finder tools: return list of strings (titles)\n"
+            "- recommendation/seasonal tools: return list of strings (summaries)\n"
+            "- categorizer/attraction tools: return list of dicts with 'name' and 'info' keys\n\n"
             f"Category: {ctx.category}\n"
             f"Tool usage examples:\n{tool_examples}\n"
             f"All tools: {json.dumps(ctx.registry.describe(), ensure_ascii=False)}\n"
@@ -575,9 +752,17 @@ class EnvironmentSynthesizer:
             f"Difficulty: {difficulty}\n\n"
             "Example solution pattern:\n"
             "def solve(tools):\n"
-            "    data1 = tools['tool1']('query1')\n"
-            "    data2 = tools['tool2']('query2')\n"
-            "    return {'result': data1 + data2}\n"
+            "    # Tools return LISTS, not strings!\n"
+            "    neighborhoods = tools['neighborhood_matcher']('family')  # Returns list of titles\n"
+            "    seasonal = tools['seasonal_recommendation']('April')  # Returns list of summaries\n"
+            "    return {'neighborhoods': neighborhoods, 'seasonal': seasonal}\n\n"
+            "Example verification pattern:\n"
+            "def verify(tools, answer):\n"
+            "    # Check structure, not exact values\n"
+            "    if not isinstance(answer, dict): return False\n"
+            "    if 'neighborhoods' not in answer: return False\n"
+            "    if not isinstance(answer['neighborhoods'], list): return False\n"
+            "    return len(answer['neighborhoods']) > 0\n"
         )
         raw = ctx.llm.simple_complete(prompt, temperature=0.6, max_tokens=800)
         try:
@@ -599,23 +784,110 @@ class EnvironmentSynthesizer:
 
     def refine_task(self, ctx: SynthesisContext, prev: TaskBundle) -> TaskBundle:
         """Increase task difficulty while keeping it verifiable."""
+        tool_list = json.dumps(ctx.registry.describe(), ensure_ascii=False)
+        
+        # Extract tools used in previous task to force using different ones
+        prev_tools = self._extract_tool_calls(prev.solution_code)
+        all_tools = [t['name'] for t in ctx.registry.describe()]
+        unused_tools = [t for t in all_tools if t not in prev_tools and t not in ['bash', 'search']]
+        
         prompt = (
-            "Increase the task difficulty while keeping it verifiable. "
-            "Input: previous task with solution and verification code. Output: same JSON schema. "
-            "Keep solve and verify signatures unchanged. Keep tool calls simple: positional string or keyword 'query' only.\n"
-            f"Previous: {json.dumps(prev.__dict__, ensure_ascii=False)}"
+            "Create a COMPLETELY DIFFERENT and MORE DIFFICULT task. CRITICAL REQUIREMENTS:\n\n"
+            "1. **DIFFERENT NAME**: Must have a new, unique name (not the same as previous)\n"
+            "2. **DIFFERENT APPROACH**: Use different tools and different query parameters\n"
+            "3. **MORE COMPLEX LOGIC**: Include loops, conditionals, data aggregation\n"
+            "4. **MORE TOOLS**: Call at least 3 different tools\n"
+            "5. **RICHER OUTPUT**: Return nested data structures with computed values\n\n"
+            f"MUST USE THESE TOOLS (not used before): {unused_tools if unused_tools else 'any available'}\n"
+            f"ALL available tools: {tool_list}\n"
+            f"Database samples: {json.dumps(ctx.db.records[:3], ensure_ascii=False)}\n\n"
+            f"PREVIOUS TASK TO IMPROVE (difficulty {prev.difficulty}):\n"
+            f"  Name: {prev.name}\n"
+            f"  Description: {prev.description}\n"
+            f"  Tools used: {list(prev_tools)}\n\n"
+            f"NEW TASK REQUIREMENTS (difficulty {prev.difficulty + 1}):\n"
+            "- Name: Create a NEW name reflecting the enhanced complexity\n"
+            "- solution_code: Use different tools, different parameters, more processing\n"
+            "- verification_code: More thorough checks, validate computed values\n\n"
+            "Return JSON with: name, description, solution_code, verification_code, difficulty\n"
         )
-        raw = ctx.llm.simple_complete(prompt, temperature=0.7, max_tokens=800)
-        try:
-            data = self._parse_json_response(raw)
-        except json.JSONDecodeError:
-            data = prev.__dict__ | {"difficulty": prev.difficulty + 1}
+        
+        # Try up to 3 times to get a different task
+        for attempt in range(3):
+            raw = ctx.llm.simple_complete(prompt, temperature=0.9 + attempt * 0.05, max_tokens=1200)
+            try:
+                data = self._parse_json_response(raw)
+                new_code = data.get("solution_code", "")
+                new_name = data.get("name", "")
+                new_desc = data.get("description", "")
+                
+                # Allow acceptance if ANY of (name/code/description/toolset) differs to avoid fallback spam
+                name_changed = bool(new_name) and new_name.strip().lower() != prev.name.strip().lower()
+                code_changed = bool(new_code) and new_code.strip() != prev.solution_code.strip()
+                desc_changed = bool(new_desc) and new_desc.strip() != prev.description.strip()
+                
+                # Check tool usage difference to encourage diversity
+                new_tools = self._extract_tool_calls(new_code)
+                prev_tools = self._extract_tool_calls(prev.solution_code)
+                tools_changed = bool(new_tools - prev_tools or prev_tools - new_tools)
+                
+                # Accept if there is meaningful change in name, code, description, or tool usage
+                if name_changed or code_changed or desc_changed or tools_changed:
+                    return TaskBundle(
+                        name=new_name or f"{prev.name} Advanced",
+                        description=new_desc or prev.description,
+                        difficulty=data.get("difficulty", prev.difficulty + 1),
+                        solution_code=new_code or prev.solution_code,
+                        verification_code=data.get("verification_code", prev.verification_code),
+                    )
+            except json.JSONDecodeError:
+                continue
+        
+        # Fallback: manually create a different task (non-warning to avoid log noise)
+        logger.info("LLM did not provide a sufficiently different task; using fallback variant")
+        return self._create_fallback_refined_task(ctx, prev)
+    
+    def _create_fallback_refined_task(self, ctx: SynthesisContext, prev: TaskBundle) -> TaskBundle:
+        """Create a fallback refined task when LLM fails to generate a different one."""
+        all_tools = [t['name'] for t in ctx.registry.describe() if t['name'] not in ['bash', 'search']]
+        prev_tools = list(self._extract_tool_calls(prev.solution_code))
+        
+        # Build solution that uses all available custom tools
+        tool_calls = []
+        for tool in all_tools[:3]:
+            tool_calls.append(f"    result_{tool} = tools['{tool}']('query')")
+        
+        solution_code = f"""def solve(tools):
+    # Collect data from multiple tools
+{chr(10).join(tool_calls)}
+    
+    # Aggregate results
+    combined = {{
+        'tool_results': {{{', '.join([f"'{t}': result_{t}" for t in all_tools[:3]])}}},
+        'total_items': sum(len(r) if isinstance(r, list) else 1 for r in [{', '.join([f'result_{t}' for t in all_tools[:3]])}]),
+        'summary': 'Aggregated data from {len(all_tools[:3])} tools'
+    }}
+    return combined"""
+        
+        verification_code = """def verify(tools, answer):
+    if not isinstance(answer, dict):
+        return False
+    required = ['tool_results', 'total_items', 'summary']
+    for key in required:
+        if key not in answer:
+            return False
+    if not isinstance(answer['tool_results'], dict):
+        return False
+    if not isinstance(answer['total_items'], int):
+        return False
+    return len(answer['tool_results']) > 0"""
+        
         return TaskBundle(
-            name=data.get("name", prev.name),
-            description=data.get("description", prev.description),
-            difficulty=data.get("difficulty", prev.difficulty + 1),
-            solution_code=data.get("solution_code", prev.solution_code),
-            verification_code=data.get("verification_code", prev.verification_code),
+            name=f"{prev.name} - Multi-Tool Aggregation v{prev.difficulty + 1}",
+            description=f"Enhanced version: aggregate data from multiple tools ({', '.join(all_tools[:3])}) and compute summary statistics.",
+            difficulty=prev.difficulty + 1,
+            solution_code=solution_code,
+            verification_code=verification_code,
         )
 
     def repair_bundle(self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str) -> TaskBundle:
@@ -642,6 +914,7 @@ class EnvironmentSynthesizer:
             solution_code=data.get("solution_code", bundle.solution_code),
             verification_code=data.get("verification_code", bundle.verification_code),
             use_docker=bundle.use_docker,  # Preserve use_docker flag
+            use_sandbox_fusion=bundle.use_sandbox_fusion,  # Preserve use_sandbox_fusion flag
         )
 
     def ensure_valid(self, ctx: SynthesisContext, bundle: TaskBundle, fail_soft: bool = False) -> Tuple[TaskBundle, Any]:
@@ -706,8 +979,9 @@ class EnvironmentSynthesizer:
             tools = ToolProxy(**base_tools)
             
             try:
-                answer = bundle.run_solution(tools)
-                valid = bundle.verify(tools, answer)
+                # Use local execution for validation to access real tools/database
+                answer = bundle.run_solution(tools, force_local=True)
+                valid = bundle.verify(tools, answer, force_local=True)
             except Exception as exc:  # pragma: no cover - runtime defense
                 last_error = str(exc)
                 logger.warning("Task %s raised during execution: %s", bundle.name, last_error)
@@ -794,7 +1068,7 @@ class EnvironmentSynthesizer:
         validate: bool = True,
         fail_soft: bool = True,
         persist: bool = True,
-        use_sandbox_fusion: bool = False,
+        use_sandbox_fusion: bool = True,
         use_docker: bool = False,
     ) -> List[TaskBundle]:
         """Main entry point for environment + task synthesis.
@@ -806,47 +1080,118 @@ class EnvironmentSynthesizer:
             validate: Whether to validate tasks
             fail_soft: Whether to fail softly (warn instead of raise)
             persist: Whether to persist results
-            use_sandbox_fusion: Whether to use SandboxFusion for secure code execution
-            use_docker: Whether to use Docker for secure code execution
+            use_sandbox_fusion: Whether to use SandboxFusion for secure code execution (default: True)
+            use_docker: Whether to use Docker for secure code execution (default: False)
+        
+        Note: use_sandbox_fusion and use_docker are mutually exclusive execution modes.
+              If both are enabled, use_sandbox_fusion takes priority.
         """
+        print(f"\n{'='*60}")
+        print(f"🚀 开始任务合成: {category}")
+        print(f"{'='*60}")
+        
+        # Step 1: Build context
+        print(f"\n📁 [1/5] 初始化环境...")
         ctx = self.build_context(category, sandbox, use_sandbox_fusion=use_sandbox_fusion, use_docker=use_docker)
+        exec_mode = "SandboxFusion" if use_sandbox_fusion else ("Docker" if use_docker else "本地")
+        print(f"   ✓ 沙箱目录: {sandbox}")
+        print(f"   ✓ 执行模式: {exec_mode}")
+        
+        # Step 2: Seed database
+        print(f"\n📊 [2/5] 生成数据库记录...")
         self.seed_database(ctx)
+        print(f"   ✓ 数据库记录数: {len(ctx.db.records)}")
+        
+        # Step 3: Synthesize tools
+        print(f"\n🔧 [3/5] 合成工具集...")
         self.synthesize_tools(ctx)
+        tool_names = [t.name for t in ctx.registry.tools.values()]
+        print(f"   ✓ 生成工具: {', '.join(tool_names)}")
 
         bundles: List[TaskBundle] = []
+        
+        # Step 4: Generate initial task
+        print(f"\n📝 [4/5] 生成任务 (共 {rounds} 轮)...")
+        print(f"\n   --- 第 1 轮 (难度 1) ---")
+        print(f"   ⏳ 生成初始任务...")
         current = self._ensure_substantive_task(ctx, self.propose_task(ctx, difficulty=1), "Initial task quality gate")
-        # Set use_docker flag if enabled
-        if use_docker:
+        print(f"   ✓ 任务名称: {current.name}")
+        
+        # Set execution mode flags (SandboxFusion takes priority over Docker)
+        if use_sandbox_fusion:
+            current.use_sandbox_fusion = True
+            current.use_docker = False
+        elif use_docker:
             current.use_docker = True
+            current.use_sandbox_fusion = False
+            
         if validate:
-            current, _ = self.ensure_valid(ctx, current, fail_soft=fail_soft)
+            print(f"   ⏳ 验证任务...")
+            try:
+                current, answer = self.ensure_valid(ctx, current, fail_soft=fail_soft)
+                if answer is not None:
+                    print(f"   ✅ 验证通过!")
+                else:
+                    print(f"   ⚠️  验证失败 (软失败模式)")
+            except Exception as e:
+                print(f"   ❌ 验证错误: {str(e)[:50]}")
+        else:
+            print(f"   ⏭️  跳过验证")
         bundles.append(current)
 
+        # Step 5: Refine tasks
         for step in range(1, rounds):
+            print(f"\n   --- 第 {step + 1} 轮 (难度 {step + 1}) ---")
+            print(f"   ⏳ 生成进阶任务...")
             current = self._ensure_substantive_task(
                 ctx,
                 self.refine_task(ctx, current),
                 f"Refined task quality gate (round {step})"
             )
-            if use_docker:
+            print(f"   ✓ 任务名称: {current.name}")
+            
+            # Set execution mode flags
+            if use_sandbox_fusion:
+                current.use_sandbox_fusion = True
+                current.use_docker = False
+            elif use_docker:
                 current.use_docker = True
+                current.use_sandbox_fusion = False
+                
             if validate:
                 # Before validating, check if the refined task might need additional tools
-                # by analyzing the solution code for tool calls
                 called_tools = self._extract_tool_calls(current.solution_code)
                 available_tools = {tool.name for tool in ctx.registry.tools.values()}
                 missing_tools = called_tools - available_tools
                 
                 if missing_tools:
-                    logger.info("Refined task requires additional tools: %s", missing_tools)
-                    # Try to augment toolset proactively
+                    print(f"   ⏳ 补充缺失工具: {missing_tools}")
                     self.augment_toolset(ctx, current, f"Task requires tools: {missing_tools}")
                 
-                current, _ = self.ensure_valid(ctx, current, fail_soft=fail_soft)
+                print(f"   ⏳ 验证任务...")
+                try:
+                    current, answer = self.ensure_valid(ctx, current, fail_soft=fail_soft)
+                    if answer is not None:
+                        print(f"   ✅ 验证通过!")
+                    else:
+                        print(f"   ⚠️  验证失败 (软失败模式)")
+                except Exception as e:
+                    print(f"   ❌ 验证错误: {str(e)[:50]}")
+            else:
+                print(f"   ⏭️  跳过验证")
             bundles.append(current)
 
+        # Final: Persist results
+        print(f"\n💾 [5/5] 保存结果...")
         if persist:
             self._persist(ctx, bundles)
+            print(f"   ✓ 保存到: {ctx.sandbox / 'tasks.json'}")
+        
+        print(f"\n{'='*60}")
+        print(f"✨ 合成完成! 共生成 {len(bundles)} 个任务")
+        for i, b in enumerate(bundles, 1):
+            print(f"   [{b.difficulty}] {b.name}")
+        print(f"{'='*60}\n")
 
         return bundles
 

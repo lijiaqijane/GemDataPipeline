@@ -20,3 +20,4 @@ venv/
 # Project specific
 sandbox/
 *.log
+docs/
