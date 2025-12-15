@@ -1,4 +1,3 @@
-import __future__
 from __future__ import annotations
 
 import ast
@@ -11,6 +10,7 @@ import os
 import textwrap
 import typing
 import uuid
+from datetime import datetime, timezone
 from functools import cached_property
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional
@@ -28,6 +28,29 @@ def _is_async_callable(obj: Any) -> bool:
     return inspect.iscoroutinefunction(obj) or (
         callable(obj) and inspect.iscoroutinefunction(getattr(obj, "__call__", None))
     )
+
+
+class TaskStep(BaseModel):
+    parentUuid: uuid.UUID | None
+    sessionId: uuid.UUID | None
+    message: dict[str, Any]
+    requestId: str
+    taskId: str
+    uuid: uuid.UUID
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "parentUuid": str(self.parentUuid) if self.parentUuid else None,
+            "sessionId": str(self.sessionId) if self.sessionId else None,
+            "taskId": str(self.taskId) if self.taskId else None,
+            "message": self.message,
+            "requestId": self.requestId,
+            "uuid": str(self.uuid),
+            "timestamp": self.timestamp,
+        }
 
 
 class ToolSpec(BaseModel):
@@ -200,7 +223,7 @@ class ToolSpec(BaseModel):
                 sanitized_module,
                 filename=filename,
                 mode="exec",
-                flags=__future__.annotations.compiler_flag,
+                flags=annotations.compiler_flag,
                 dont_inherit=True,
             ),
             safe_globals,
@@ -445,20 +468,24 @@ class TaskDefinition(BaseModel):
     task_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     task_title: str = Field(..., min_length=4)
     task_content: str = Field(..., min_length=10)
-    submit_result_format: dict = Field(default_factory=dict)
+    submit_result_format: Any = None
     tool_set: List[ToolSpec] = Field(default_factory=list)
     evaluation_criteria: EvaluationCriteria = Field(default_factory=EvaluationCriteria)
     difficulty_level: int = Field(default=1)
 
     def summary(self) -> str:
-        return f"# {self.task_title} \n\n {self.task_content} \n\n ## Submit Result Format\n\n {self.submit_result_format}\n\n## Tool Set\n\n"
+        return (
+            f"# {self.task_title} \n\n {self.task_content} \n\n"
+            f"## Submit Result Format\n {self.submit_result_format}\n\n"
+            f"## Tool Set \n{'\n'.join([json.dumps(tool.output_schema, sort_keys=True, indent=2) for tool in self.tool_set])}\n\n"
+        )
 
 
 class TaskPackage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     task: TaskDefinition
-    solution: str = Field(..., min_length=3)
-    verification: str = Field(..., min_length=3)
+    solution: str | None = None
+    verification: str | None = None
     agent_type: str = Field(..., min_length=3)
     metadata: Dict[str, str] = Field(default_factory=dict)
     task_path: Optional[str] = None

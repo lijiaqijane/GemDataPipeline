@@ -8,7 +8,7 @@ from pathlib import Path
 import coloredlogs
 import dotenv
 
-from agent_gem.env import EnvironmentGenerator, GenerationRequest
+from agent_gem.generator import EnvironmentGenerator, GenerationRequest
 from agent_gem.llm import LLMClient
 
 dotenv.load_dotenv()
@@ -37,13 +37,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num", type=int, default=1, help="Number of tasks to generate.")
     parser.add_argument(
         "--difficulty",
-        default="Medium",
-        help="Target difficulty level (int or Easy/Medium/Hard).",
+        default=3,
+        type=int,
+        help="Target difficulty level (int).",
     )
     parser.add_argument(
-        "--sandbox-root",
+        "--taskdb-root",
         default="taskdb",
-        help="Root directory for generated task sandboxes (taskdb).",
+        help="Root directory for generated task taskdb.",
     )
     parser.add_argument("--no-validate", action="store_true", help="Skip schema validation guards.")
     parser.add_argument(
@@ -56,30 +57,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _parse_difficulty(value: str) -> int:
-    try:
-        return int(value)
-    except Exception:
-        pass
-    lowered = (value or "").strip().lower()
-    if lowered in {"easy", "e"}:
-        return 1
-    if lowered in {"medium", "med", "m"}:
-        return 2
-    if lowered in {"hard", "h"}:
-        return 3
-    return 1
-
-
 def _handle_generate(args: argparse.Namespace) -> None:
     llm = LLMClient.from_env()
-    generator = EnvironmentGenerator(llm)
+    generator = EnvironmentGenerator(llm, taskdb=Path(args.taskdb_root))
     request = GenerationRequest(
         agent_type=args.agent_type,
         topic=args.topic,
         num=args.num,
-        difficulty=_parse_difficulty(args.difficulty),
-        taskdb=Path(args.sandbox_root),
+        difficulty=args.difficulty,
         validate=not args.no_validate,
     )
     packages = generator.generate(request)

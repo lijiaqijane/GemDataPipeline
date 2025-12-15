@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from agent_gem.core.task_schema import EvaluationCriteria, TaskDefinition, TaskPackage, ToolSpec
+from agent_gem.core.task_schema import EvaluationCriteria, TaskDefinition, TaskPackage, TaskStep, ToolSpec
 from agent_gem.core.validation import validate_task_package
 from agent_gem.database import LocalDatabase
 from agent_gem.llm import LLMClient
@@ -23,35 +23,15 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class TaskStep:
-    parentUuid: uuid.UUID | None
-    sessionId: uuid.UUID | None
-    message: dict[str, Any]
-    requestId: str
-    uuid: uuid.UUID
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    )
-
-    def to_payload(self) -> dict[str, Any]:
-        return {
-            "parentUuid": str(self.parentUuid) if self.parentUuid else None,
-            "sessionId": str(self.sessionId) if self.sessionId else None,
-            "message": self.message,
-            "requestId": self.requestId,
-            "uuid": str(self.uuid),
-            "timestamp": self.timestamp,
-        }
-
-
-@dataclass
-class TaskState:
+class TaskContext:
     """Tracks the current state during task synthesis"""
 
-    current_difficulty: str = "easy"
-    steps: List[TaskStep] = field(default_factory=list)
+    request: GenerationRequest
+    current_difficulty: int = 1
+    history: List[TaskStep] = field(default_factory=list)
     session_id: uuid.UUID = field(default_factory=uuid.uuid4)
-    task_id: uuid.UUID = field(default_factory=lambda _: f"req_{uuid.uuid4().hex}")
+    task_id: str = field(default_factory=lambda: f"task-{uuid.uuid4()}")
+    request_id: str = field(default_factory=lambda: f"req_{uuid.uuid4().hex}")
 
     def add_step(
         self,
@@ -59,17 +39,17 @@ class TaskState:
         *,
         task_id: str | None = None,
         parent_id: uuid.UUID | None = None,
-    ) -> TaskStep:
+        request_id: str | None = None,
+    ):
         step = TaskStep(
-            parentUuid=(parent_id or self.steps[-1].uuid if len(self.steps) > 0 else None),
+            parentUuid=(parent_id or self.history[-1].uuid if len(self.history) > 0 else None),
             sessionId=self.session_id,
             message=message,
-            task_id=task_id or self.task_id,
+            taskId=task_id or self.task_id,
+            requestId=request_id or f"req_{uuid.uuid4().hex}",
             uuid=uuid.uuid4(),
         )
-        self.steps.append(step)
-        self.parent_uuid = step.uuid
-        return step
+        self.history.append(step)
 
 
 class BaseAgent:
@@ -78,11 +58,10 @@ class BaseAgent:
 
     def __init__(self, llm: LLMClient, taskdb_root: str = "taskdb") -> None:
         self.llm = llm
-        self.sandbox: Optional[SandboxExecutor] = None
         self.taskdb_root = taskdb_root
         self.taskdb = LocalDatabase(Path(taskdb_root))
 
-        self.db: Optional[LocalDatabase] = None
+        self.task_writer = LocalDatabase(root=Path(self.taskdb_root))
         self._trivial_solution_patterns = [
             r"return\s+list\(tools\.keys\(\)\)",
             r"return\s+tools\.keys\(\)",
@@ -98,7 +77,6 @@ class BaseAgent:
         """Hook for subclasses to register additional tools on the sandbox."""
 
     def generate(self, request: GenerationRequest) -> Optional[TaskPackage]:
-        self.reset()
         logger.info(
             "[agent:%s] Generating 1 task (topic=%s, difficulty=%s)",
             self.agent_type,
@@ -236,7 +214,7 @@ class BaseAgent:
     def _default_verification(self) -> str:
         return "def verify(tools, answer):\n" "    return isinstance(answer, dict) and 'status' in answer\n"
 
-    def _extract_json(self, raw: str) -> object:
+    def _extract_json(self, raw: str) -> dict:
         text = raw.strip()
         if not text:
             return None
@@ -246,6 +224,8 @@ class BaseAgent:
             pass
         fence = text.split("```")
         for block in fence:
+            if block.startswith("json"):
+                block = block[len("json") :]
             block = block.strip()
             if not block:
                 continue
@@ -253,16 +233,16 @@ class BaseAgent:
                 return json.loads(block)
             except json.JSONDecodeError:
                 continue
-        if "[" in text and "]" in text:
-            start = text.find("[")
-            end = text.rfind("]")
+        if "{" in text and "}" in text:
+            start = text.find("{")
+            end = text.rfind("}")
             try:
                 return json.loads(text[start : end + 1])
             except json.JSONDecodeError:
                 return None
-        if "{" in text and "}" in text:
-            start = text.find("{")
-            end = text.rfind("}")
+        if "[" in text and "]" in text:
+            start = text.find("[")
+            end = text.rfind("]")
             try:
                 return json.loads(text[start : end + 1])
             except json.JSONDecodeError:

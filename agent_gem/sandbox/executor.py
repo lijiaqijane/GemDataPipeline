@@ -8,6 +8,7 @@ import threading
 import time
 import traceback
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -441,25 +442,59 @@ class DockerAPIRunner:
         )
 
 
+@dataclass
 class SandboxFusionExecutor:
-    def __init__(
-        self,
-        *,
-        timeout_length: int = 10,
-        use_china_mirror: bool = True,
-    ) -> None:
-        self.timeout_length = timeout_length
-        self.runner = DockerAPIRunner(use_china_mirror=use_china_mirror)
-        if not self.runner.start():
-            raise RuntimeError("Failed to start SandboxFusion Docker container")
-        self.runner.wait_ready()
-        set_endpoint(f"http://localhost:{self.runner.port}")
+    """Secure code execution environment using SandboxFusion service.
 
-    def cleanup(self) -> None:
-        self.runner.stop()
+    This is an execution environment, not a tool. It executes the entire
+    solution/verification logic in an isolated container.
+    """
 
-    def __del__(self) -> None:
+    base_url: str = "http://localhost:8080"
+    timeout: int = 30
+    default_language: str = "python"
+
+    def __call__(self, code: str, language: str | None = None) -> Dict[str, Any]:
+        """Execute code in SandboxFusion sandbox.
+
+        Args:
+            code: Code to execute
+            language: Programming language (default: python)
+
+        Returns:
+            Dict with execution results including:
+            - status: Execution status
+            - stdout: Standard output
+            - stderr: Standard error
+            - execution_time: Execution time in seconds
+            - return_code: Return code (if applicable)
+        """
+        url = f"{self.base_url.rstrip('/')}/run_code"
+        payload = {
+            "code": code,
+            "language": language or self.default_language,
+        }
+
         try:
-            self.cleanup()
-        except Exception:
-            return
+            resp = requests.post(url, json=payload, timeout=self.timeout)
+            resp.raise_for_status()
+            result = resp.json()
+
+            # Normalize response format
+            return {
+                "status": result.get("status", "unknown"),
+                "stdout": result.get("stdout", ""),
+                "stderr": result.get("stderr", ""),
+                "execution_time": result.get("execution_time", 0),
+                "return_code": result.get("return_code", 0),
+                "raw": result,  # Keep raw response for debugging
+            }
+        except requests.exceptions.RequestException as e:
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": f"SandboxFusion request failed: {str(e)}",
+                "execution_time": 0,
+                "return_code": -1,
+                "raw": {},
+            }

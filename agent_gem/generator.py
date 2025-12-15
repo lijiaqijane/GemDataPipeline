@@ -43,11 +43,12 @@ class EnvironmentGenerator:
 
     def generate(self, request: GenerationRequest) -> List[TaskPackage]:
         logger.info(
-            "Starting generation: agent=%s topic=%s count=%d difficulty=%s sandbox_root=%s",
+            "Starting generation: agent=%s topic=%s count=%d difficulty=%s taskdb_root=%s",
             request.agent_type,
             request.topic or "auto-generate",
             request.num,
             request.difficulty,
+            self.localdb.root,
         )
         agent = self._resolve_agent(request.agent_type)
         packages: List[TaskPackage] = []

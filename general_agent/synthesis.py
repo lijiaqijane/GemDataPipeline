@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from .database import LocalDatabase
+from .executor import SandboxFusionExecutor
 from .llm import LLMClient
 from .tools import BashTool, DockerTool, SandboxFusionTool, SearchTool, ToolRegistry
 
@@ -33,27 +34,113 @@ class TaskBundle:
     solution_code: str
     verification_code: str
     use_docker: bool = False
+    use_sandbox_fusion: bool = False
 
-    def run_solution(self, tools: Dict[str, Any]) -> Any:
-        if self.use_docker:
-            return self._run_in_docker(self.solution_code, tools, "solve")
+    def run_solution(self, tools: Dict[str, Any], force_local: bool = False) -> Any:
+        code = self._normalize_code(self.solution_code)
+        if not force_local:
+            if self.use_sandbox_fusion:
+                return self._run_in_sandbox_fusion(code, tools, "solve")
+            if self.use_docker:
+                return self._run_in_docker(code, tools, "solve")
 
         env = self._build_exec_env(tools)
-        exec(self.solution_code, env, env)
+        exec(code, env, env)
         if "solve" not in env:
             raise RuntimeError("solution_code must define solve(tools)")
         return env["solve"](tools)
 
-    def verify(self, tools: Dict[str, Any], answer: Any) -> bool:
-        if self.use_docker:
-            result = self._run_in_docker(self.verification_code, tools, "verify", answer)
-            return bool(result)
+    def verify(self, tools: Dict[str, Any], answer: Any, force_local: bool = False) -> bool:
+        code = self._normalize_code(self.verification_code)
+        if not force_local:
+            if self.use_sandbox_fusion:
+                result = self._run_in_sandbox_fusion(code, tools, "verify", answer)
+                return bool(result)
+            if self.use_docker:
+                result = self._run_in_docker(code, tools, "verify", answer)
+                return bool(result)
 
         env = self._build_exec_env(tools)
-        exec(self.verification_code, env, env)
+        exec(code, env, env)
         if "verify" not in env:
             raise RuntimeError("verification_code must define verify(tools, answer)")
         return bool(env["verify"](tools, answer))
+
+    def _run_in_sandbox_fusion(self, code: str, tools: Dict[str, Any], func_name: str, *args: Any) -> Any:
+        """Execute code in SandboxFusion service."""
+        import json
+        import os
+
+        # Serialize tools metadata (names and descriptions only)
+        tools_meta = {name: {"name": name} for name in tools.keys()}
+        tools_meta_json = json.dumps(tools_meta)
+
+        # Create wrapper code for SandboxFusion
+        wrapper_code = f"""
+import json
+import sys
+
+# Simplified tools interface for SandboxFusion
+class ToolProxy:
+    def __init__(self, tool_names):
+        self._names = tool_names
+    
+    def __getitem__(self, key):
+        return self
+    
+    def __getattr__(self, key):
+        return self
+    
+    def __call__(self, *args, **kwargs):
+        return {{"result": "tool_executed", "args": str(args), "kwargs": str(kwargs)}}
+
+tools_meta = json.loads('{tools_meta_json}')
+tools = ToolProxy(tools_meta.keys())
+
+{code}
+
+if '{func_name}' == 'solve':
+    result = solve(tools)
+    print(json.dumps(result, default=str))
+elif '{func_name}' == 'verify':
+    answer_str = '''{json.dumps(args[0], default=str) if args else 'null'}'''
+    try:
+        answer = json.loads(answer_str)
+    except:
+        answer = answer_str
+    result = verify(tools, answer)
+    print(json.dumps(result, default=str))
+"""
+
+        executor = SandboxFusionExecutor(
+            base_url=os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080"),
+            timeout=int(os.getenv("SANDBOX_FUSION_TIMEOUT", "30")),
+        )
+
+        result = executor(wrapper_code, language="python")
+
+        if result.get("return_code", 0) != 0 or result.get("status") == "error":
+            raise RuntimeError(f"SandboxFusion execution failed: {result.get('stderr', 'Unknown error')}")
+
+        try:
+            output = result.get("stdout", "").strip()
+            if output:
+                # Try to find JSON in output
+                start = output.find("{")
+                end = output.rfind("}") + 1
+                if start >= 0 and end > start:
+                    output = output[start:end]
+                elif output.startswith("["):
+                    end = output.rfind("]") + 1
+                    if end > 0:
+                        output = output[:end]
+                return json.loads(output)
+            return None
+        except json.JSONDecodeError as e:
+            try:
+                return eval(output)
+            except Exception:
+                raise RuntimeError(f"Failed to parse SandboxFusion output: {output[:200]}. Error: {e}")
 
     def _run_in_docker(self, code: str, tools: Dict[str, Any], func_name: str, *args: Any) -> Any:
         """Execute code in Docker container.
@@ -147,6 +234,16 @@ elif '{func_name}' == 'verify':
                 return eval(output)
             except:
                 raise RuntimeError(f"Failed to parse Docker output: {output[:200]}. Error: {e}")
+
+    @staticmethod
+    def _normalize_code(code: str) -> str:
+        """Normalize common lowercase literals to valid Python to avoid trivial runtime errors."""
+        if not code:
+            return code
+        code = re.sub(r"\btrue\b", "True", code, flags=re.IGNORECASE)
+        code = re.sub(r"\bfalse\b", "False", code, flags=re.IGNORECASE)
+        code = re.sub(r"\bnull\b", "None", code, flags=re.IGNORECASE)
+        return code
 
     @staticmethod
     def _build_exec_env(tools: Dict[str, Any]) -> Dict[str, Any]:
@@ -652,6 +749,8 @@ class EnvironmentSynthesizer:
             difficulty=data.get("difficulty", prev.difficulty + 1),
             solution_code=data.get("solution_code", prev.solution_code),
             verification_code=data.get("verification_code", prev.verification_code),
+            use_docker=prev.use_docker,
+            use_sandbox_fusion=prev.use_sandbox_fusion,
         )
 
     def repair_bundle(self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str) -> TaskBundle:
@@ -678,6 +777,7 @@ class EnvironmentSynthesizer:
             solution_code=data.get("solution_code", bundle.solution_code),
             verification_code=data.get("verification_code", bundle.verification_code),
             use_docker=bundle.use_docker,  # Preserve use_docker flag
+            use_sandbox_fusion=bundle.use_sandbox_fusion,  # Preserve sandbox fusion flag
         )
 
     def ensure_valid(
@@ -744,8 +844,8 @@ class EnvironmentSynthesizer:
             tools = ToolProxy(**base_tools)
 
             try:
-                answer = bundle.run_solution(tools)
-                valid = bundle.verify(tools, answer)
+                answer = bundle.run_solution(tools, force_local=True)
+                valid = bundle.verify(tools, answer, force_local=True)
             except Exception as exc:  # pragma: no cover - runtime defense
                 last_error = str(exc)
                 logger.warning("Task %s raised during execution: %s", bundle.name, last_error)
@@ -830,7 +930,7 @@ class EnvironmentSynthesizer:
         validate: bool = True,
         fail_soft: bool = True,
         persist: bool = True,
-        use_sandbox_fusion: bool = False,
+        use_sandbox_fusion: bool = True,
         use_docker: bool = False,
     ) -> List[TaskBundle]:
         """Main entry point for environment + task synthesis.
@@ -842,7 +942,7 @@ class EnvironmentSynthesizer:
             validate: Whether to validate tasks
             fail_soft: Whether to fail softly (warn instead of raise)
             persist: Whether to persist results
-            use_sandbox_fusion: Whether to use SandboxFusion for secure code execution
+            use_sandbox_fusion: Whether to use SandboxFusion for secure code execution (default: True)
             use_docker: Whether to use Docker for secure code execution
         """
         ctx = self.build_context(
@@ -855,8 +955,11 @@ class EnvironmentSynthesizer:
         current = self._ensure_substantive_task(
             ctx, self.propose_task(ctx, difficulty=1), "Initial task quality gate"
         )
-        # Set use_docker flag if enabled
-        if use_docker:
+        # Set execution mode flags (SandboxFusion takes priority)
+        if use_sandbox_fusion:
+            current.use_sandbox_fusion = True
+            current.use_docker = False
+        elif use_docker:
             current.use_docker = True
         if validate:
             current, _ = self.ensure_valid(ctx, current, fail_soft=fail_soft)
@@ -866,7 +969,10 @@ class EnvironmentSynthesizer:
             current = self._ensure_substantive_task(
                 ctx, self.refine_task(ctx, current), f"Refined task quality gate (round {step})"
             )
-            if use_docker:
+            if use_sandbox_fusion:
+                current.use_sandbox_fusion = True
+                current.use_docker = False
+            elif use_docker:
                 current.use_docker = True
             if validate:
                 # Before validating, check if the refined task might need additional tools

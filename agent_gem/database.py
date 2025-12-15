@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from agent_gem.core.task_schema import TaskPackage
+from agent_gem.core.task_schema import TaskPackage, TaskStep
 from agent_gem.core.utils import dump_json, slugify
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class LocalDatabase:
         return updated
 
     def task_dir(self, task_id: str, agent_type: str) -> Path:
-        return self.root / agent_type / f"task-{task_id}"
+        return Path(self.root, agent_type, f"task-{task_id}")
 
     def record_steps(
         self,
@@ -60,10 +60,12 @@ class LocalDatabase:
         payload: Dict[str, Any] = {
             "task_id": task_id,
             "agent_type": agent_type,
-            "steps": steps,
         }
         if extra:
             payload.update(extra)
-        path = task_dir / f"{task_id}.jsonl"
+        path = Path(task_dir, f"{task_id}.json")
         dump_json(path, payload)
+        with open(Path(task_dir, f"{task_id}.jsonl"), "w") as f:
+            for step in steps:
+                f.write(json.dumps(step.to_payload() if isinstance(step, TaskStep) else step) + "\n")
         return path

@@ -7,7 +7,7 @@ from agent_gem.core.task_schema import ToolSpec
 from .base import BaseAgent
 
 if TYPE_CHECKING:  # pragma: no cover
-    from agent_gem.env.generator import GenerationRequest
+    from agent_gem.generator import GenerationRequest
 
 
 class CodeAgent(BaseAgent):
