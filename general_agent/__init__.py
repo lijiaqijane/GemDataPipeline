@@ -8,6 +8,7 @@ from .config import LLMConfig
 from .llm import LLMClient
 from .database import LocalDatabase
 from .tools import BashTool, SearchTool, ToolRegistry
+from .executor import SandboxFusionExecutor
 from .synthesis import (
     EnvironmentSynthesizer,
     SynthesisContext,
@@ -21,8 +22,8 @@ __all__ = [
     "BashTool",
     "SearchTool",
     "ToolRegistry",
+    "SandboxFusionExecutor",
     "EnvironmentSynthesizer",
     "SynthesisContext",
     "TaskBundle",
 ]
-
