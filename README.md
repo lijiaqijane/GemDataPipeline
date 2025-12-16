@@ -1,64 +1,72 @@
-# General Agent Synthesis
+# AgentGEM: Agent Generative Environment Maker
 
-Lightweight automatic environment and task synthesis agent. It generates specialized tools, tasks, and verification logic for a given topic, verifying them in a secure execution environment.
+High-performance generator for RL-ready agentic tasks. It ships four pipelines (Search, Code, Code Interpreter, General) and packages each task into isolated sandboxes for large-scale training.
 
-## Features
+## Install
 
-- **Automatic Tool Synthesis**: Generates specialized Python tools based on topic data.
-- **Task Generation**: Creates challenging tasks with corresponding solutions and verifiers.
-- **Secure Execution**: Runs untrusted code via **SandboxFusion** remote sandbox.
-- **Iterative Refinement**: Automatically increases task difficulty and repairs failing tasks.
-
-## Quick Start
-
-### Run Demo (No setup required)
-
-To see the agent workflow in action without configuring external services (LLM/Sandbox), run the self-contained demo:
+### With uv (recommended)
 
 ```bash
-python run_demo.py
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv sync --group dev
+uv run pre-commit install
 ```
 
-### Run with Real Services
+### With pip
 
-1. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-   *(Note: requests is the main dependency)*
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
 
-2. **Configure Environment**
-   Set environment variables for your LLM provider (vLLM, OpenAI, or Deepseek/Volcano) and Sandbox.
+Copy your environment template to `.env` and fill in provider keys:
 
-   ```bash
-   # Example for Deepseek/Volcano
-   export LLM_PROVIDER=deepseek
-   export VOLCANO_API_KEY="your-api-key"
-   
-   # Example for SandboxFusion (if running locally)
-   export SANDBOX_FUSION_URL="http://localhost:8080"
-   ```
+```bash
+cp .env.example .env
+# then edit .env with your API keys/models
+```
 
-3. **Run Synthesis**
-   ```bash
-   # Run for a specific category
-   python -m general_agent --category "travel planning" --sandbox ./sandbox/travel
-   
-   # Or use the helper script
-   ./run.sh
-   ```
+## Model Configuration (DeepSeek-first)
 
-## Project Structure
+- Default provider: `deepseek`. Set `DEEPSEEK_API_KEY` (or `DEEPSEEK_API`) and optionally `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL`.
+- Other providers: `LLM_PROVIDER=openai` with `OPENAI_API_KEY`/`OPENAI_MODEL`, or `LLM_PROVIDER=vllm` with `VLLM_BASE_URL`/`VLLM_MODEL`.
+- Tunables: `LLM_TIMEOUT` (seconds), `LLM_MAX_RETRIES` (default 3).
 
-- `general_agent/`: Main package source
-  - `synthesis.py`: Core logic for environment and task synthesis.
-  - `executor.py`: SandboxFusion execution environment client.
-  - `tools.py`: Tool definitions (Bash, Search, etc.).
-  - `llm.py`: Unified LLM client.
-- `run_demo.py`: Mocked demonstration script.
-- `examples/`: Usage examples.
-- `tests/`: Integration tests.
+## Sandbox Configuration
 
-## License
+Build the image locally:
 
-MIT
+```bash
+# change the base image in Dockerfile.server
+docker build -f ./sandbox_fusion/scripts/Dockerfile.server -t code_sandbox:server .
+docker run -d --rm --privileged --it \
+  -v "$PWD/sandbox_fusion":/root/sandbox \
+  -p 8080:8080 code_sandbox:server
+```
+
+## Quickstart
+
+Generate two general tasks about retrieval:
+
+```bash
+agent_gem --agent-type general_agent --topic "retrieval-augmented QA" --count 2 --sandbox-root sandbox/raq
+```
+
+Run a code-focused batch:
+
+```bash
+agent_gem --agent-type code_agent --topic "python data pipelines" --count 1 --difficulty Hard
+```
+
+## Project Layout
+
+- `agent_gem/config.py`, `agent_gem/llm.py`: DeepSeek-first client with retries.
+- `agent_gem/core/`: task schema, validation, scoring, and helpers.
+- `agent_gem/agents/`: agent implementations (search, code, code interpreter, general).
+- `agent_gem/env_generator/`: orchestrator for routing requests and prioritizing tasks.
+- `agent_gem/sandbox/`: isolation and persistence of generated tasks.
+
+## Output
+
+Tasks are saved as `sandbox/<agent>/task-<task-id>/task.json` with task schema, reference solution, verification snippet, and metadata. Use these sandboxes directly for RL rollouts or dataset curation.

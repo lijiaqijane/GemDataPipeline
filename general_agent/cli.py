@@ -79,9 +79,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     llm = LLMClient.from_env()
-    synthesizer = EnvironmentSynthesizer(
-        llm=llm, max_validation_rounds=args.max_validation_rounds
-    )
+    synthesizer = EnvironmentSynthesizer(llm=llm, max_validation_rounds=args.max_validation_rounds)
 
     bundles = synthesizer.synthesize(
         category=args.category,
@@ -98,4 +96,3 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -5,8 +5,10 @@ Lightweight automatic environment and task synthesis agent that supports local v
 """
 
 from .config import LLMConfig
-from .llm import LLMClient
 from .database import LocalDatabase
+from .executor import SandboxFusionExecutor
+from .llm import LLMClient
+from .synthesis import EnvironmentSynthesizer, SynthesisContext, TaskBundle
 from .tools import BashTool, SearchTool, ToolRegistry
 from .executor import SandboxFusionExecutor
 from .constraints import (

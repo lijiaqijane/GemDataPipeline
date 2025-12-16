@@ -1,0 +1,25 @@
+repos:
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # uv version.
+    rev: 0.9.17
+    hooks:
+      - id: uv-lock
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        name: black
+        args: ["--line-length", "108"]
+        language_version: python3
+        files: "\\.(py)$"
+        exclude: "^.venv/|^\\.uv-cache/"
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort
+        args: ["--profile", "black", "--line-length", "108"]
+        language_version: python3
+        files: "\\.(py)$"
+        exclude: "^.venv/|^\\.uv-cache/"

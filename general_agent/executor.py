@@ -4,10 +4,11 @@ import requests
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+
 @dataclass
 class SandboxFusionExecutor:
     """Secure code execution environment using SandboxFusion service.
-    
+
     This is an execution environment, not a tool. It executes the entire
     solution/verification logic in an isolated container.
     """
@@ -18,11 +19,11 @@ class SandboxFusionExecutor:
 
     def __call__(self, code: str, language: str | None = None) -> Dict[str, Any]:
         """Execute code in SandboxFusion sandbox.
-        
+
         Args:
             code: Code to execute
             language: Programming language (default: python)
-            
+
         Returns:
             Dict with execution results including:
             - status: Execution status
@@ -36,12 +37,12 @@ class SandboxFusionExecutor:
             "code": code,
             "language": language or self.default_language,
         }
-        
+
         try:
             resp = requests.post(url, json=payload, timeout=self.timeout)
             resp.raise_for_status()
             result = resp.json()
-            
+
             # Normalize response format
             return {
                 "status": result.get("status", "unknown"),

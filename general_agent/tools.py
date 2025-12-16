@@ -4,7 +4,6 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List
-import json
 import requests
 
 from .executor import SandboxFusionExecutor
@@ -54,19 +53,19 @@ class BashTool:
 
 @dataclass
 class KnowledgeBaseTool:
-    """知识库检索工具：从本地知识库或预定义数据中检索信息。"""
+    """Knowledge base retrieval tool: retrieves information from local knowledge base or predefined data."""
     
     knowledge_base: List[Dict[str, Any]] = field(default_factory=list)
     
     def __call__(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:
-        """从知识库中检索相关信息。
+        """Retrieve relevant information from the knowledge base.
         
         Args:
-            query: 查询关键词
-            max_results: 最大返回结果数
+            query: Search keywords
+            max_results: Maximum number of results to return
             
         Returns:
-            包含title和url的结果列表
+            List of results containing title and url
         """
         if not self.knowledge_base:
             return []
@@ -78,7 +77,7 @@ class KnowledgeBaseTool:
             title = str(item.get("title", "")).lower()
             content = str(item.get("content", item.get("summary", ""))).lower()
             
-            # 计算相关性分数
+            # Calculate relevance score
             score = 0
             query_words = query_lower.split()
             for word in query_words:
@@ -90,7 +89,7 @@ class KnowledgeBaseTool:
             if score > 0:
                 scored_results.append((score, item))
         
-        # 按分数排序
+        # Sort by score
         scored_results.sort(key=lambda x: x[0], reverse=True)
         
         results: List[Dict[str, str]] = []
@@ -106,7 +105,7 @@ class KnowledgeBaseTool:
 
 @dataclass
 class SearchTool:
-    """增强的搜索工具：支持多种搜索源（Serper API、知识库等）。"""
+    """Enhanced search tool: supports multiple search sources (Serper API, knowledge base, etc.)."""
 
     knowledge_base: List[Dict[str, Any]] | None = None
     use_web_search: bool = True
@@ -114,28 +113,28 @@ class SearchTool:
     serper_api_key: str | None = None
 
     def __post_init__(self) -> None:
-        """初始化知识库工具（如果提供）。"""
+        """Initialize knowledge base tool (if provided)."""
         if self.knowledge_base is None:
             self.knowledge_base = []
         self.kb_tool = KnowledgeBaseTool(knowledge_base=self.knowledge_base)
-        # 从环境变量或默认值获取Serper API key
+        # Get Serper API key from environment variable or default value
         if self.serper_api_key is None:
             self.serper_api_key = os.getenv("SERPER_API_KEY", "bcfbc1b1cccf74f1ee580d7f5fe53665eb56f92b")
 
     def __call__(self, query: str, max_results: int = 5, source: str = "auto") -> List[Dict[str, str]]:
-        """搜索相关信息，支持网络搜索和知识库检索。
+        """Search for relevant information, supporting web search and knowledge base retrieval.
         
         Args:
-            query: 搜索查询
-            max_results: 最大返回结果数
-            source: 搜索源，"auto"（自动选择）、"web"（仅网络）、"kb"（仅知识库）
+            query: Search query
+            max_results: Maximum number of results to return
+            source: Search source, "auto" (auto-select), "web" (web only), "kb" (knowledge base only)
             
         Returns:
-            包含title和url的结果列表
+            List of results containing title and url
         """
         all_results: List[Dict[str, str]] = []
         
-        # 确定搜索源
+        # Determine search source
         if source == "auto":
             use_web = self.use_web_search
             use_kb = self.use_knowledge_base and len(self.knowledge_base) > 0
@@ -149,16 +148,16 @@ class SearchTool:
             use_web = self.use_web_search
             use_kb = self.use_knowledge_base and len(self.knowledge_base) > 0
         
-        # 网络搜索
+        # Web search
         if use_web:
             try:
                 web_results = self._web_search(query, max_results)
                 all_results.extend(web_results)
             except Exception as e:
-                # 如果网络搜索失败，继续使用知识库
+                # If web search fails, continue using knowledge base
                 pass
         
-        # 知识库检索
+        # Knowledge base retrieval
         if use_kb:
             try:
                 kb_results = self.kb_tool(query, max_results)
@@ -166,7 +165,7 @@ class SearchTool:
             except Exception:
                 pass
         
-        # 去重（基于title）
+        # Deduplicate (based on title)
         seen_titles = set()
         unique_results = []
         for result in all_results:
@@ -180,7 +179,7 @@ class SearchTool:
         return unique_results[:max_results]
     
     def _web_search(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:
-        """使用Serper API进行网络搜索（Google搜索）。"""
+        """Perform web search using Serper API (Google search)."""
         if not self.serper_api_key:
             raise ValueError("Serper API key is not configured. Set SERPER_API_KEY environment variable.")
         
@@ -199,7 +198,7 @@ class SearchTool:
             resp.raise_for_status()
             data = resp.json()
             
-            # Serper API返回格式: {"organic": [{"title": "...", "link": "...", "snippet": "..."}]}
+            # Serper API response format: {"organic": [{"title": "...", "link": "...", "snippet": "..."}]}
             organic_results = data.get("organic", [])
             results: List[Dict[str, str]] = []
             
@@ -207,10 +206,10 @@ class SearchTool:
                 results.append({
                     "title": item.get("title", ""),
                     "url": item.get("link", ""),
-                    "summary": item.get("snippet", ""),  # 添加摘要信息
+                    "summary": item.get("snippet", ""),  # Add summary information
                 })
             
-            # 如果没有organic结果，尝试使用answerBox或knowledgeGraph
+            # If no organic results, try using answerBox or knowledgeGraph
             if not results:
                 if "answerBox" in data:
                     answer = data["answerBox"]
@@ -230,12 +229,11 @@ class SearchTool:
             return results
             
         except requests.exceptions.RequestException as e:
-            # 如果Serper API失败，记录错误但不抛出异常（允许fallback到知识库）
+            # If Serper API fails, log error but don't raise exception (allow fallback to knowledge base)
             import logging
             logger = logging.getLogger(__name__)
-            logger.warning(f"Serper API搜索失败: {e}")
+            logger.warning(f"Serper API search failed: {e}")
             return []
-
 
 @dataclass
 class ToolRegistry:
