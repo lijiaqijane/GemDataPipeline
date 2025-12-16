@@ -49,5 +49,5 @@ fi
 
 # ---------- Execute main program ----------
 # Environment checking and logging handling have been moved to Python code
-PYTHONUNBUFFERED=1 PYTHONPATH="$(pwd)/general_agent_bundle:${PYTHONPATH:-}" python -u -m general_agent "${args[@]}" "$@"
+PYTHONUNBUFFERED=1 PYTHONPATH="$(pwd)/general_agent_bundle:${PYTHONPATH:-}" python -u -m agent_gem synthesize "${args[@]}" "$@"
 

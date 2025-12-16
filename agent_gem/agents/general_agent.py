@@ -15,6 +15,7 @@ from agent_gem.core.task_schema import (
     TaskPackage,
     ToolSpec,
 )
+from agent_gem.core.validation import CodeValidator
 from agent_gem.writer import TaskWriter
 from agent_gem.sandbox import SandboxExecutor
 from agent_gem.tools import BashTool, JsonRecordsQueryTool, PythonRunnerTool, SearchTool
@@ -161,6 +162,12 @@ class GeneralAgent(BaseAgent):
         ]
 
         records = [row for row in records if row["summary"] != ""]
+
+        # Save records to writer (which persists to db.json)
+        self.writer.records = records
+        self.writer.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"records": records}
+        self.writer.path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
 
         ctx.add_step(
             {
@@ -501,7 +508,7 @@ class GeneralAgent(BaseAgent):
         last_error = ""
         for attempt in range(1, request.max_validation_rounds + 1):
             allowed_tools = {spec.name for spec in package.task.tool_set}
-            called_tools = self._extract_tool_calls(package.solution)
+            called_tools = CodeValidator.extract_tool_calls(package.solution)
             if len(called_tools) < 2:
                 last_error = (
                     "solution must call at least 2 different tools; "
@@ -597,7 +604,7 @@ class GeneralAgent(BaseAgent):
         ctx: TaskContext,
     ) -> TaskPackage:
         allowed = {spec.name for spec in tool_specs}
-        called = self._extract_tool_calls(package.solution)
+        called = CodeValidator.extract_tool_calls(package.solution)
 
         if called and called.issubset(allowed) and len(called) >= 2:
             return package
@@ -612,16 +619,6 @@ class GeneralAgent(BaseAgent):
         )
         return package
 
-    @staticmethod
-    def _extract_tool_calls(solution_code: str) -> set[str]:
-        if not solution_code:
-            return set()
-        tool_calls = re.findall(
-            r"\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(",
-            solution_code,
-        )
-        called_tools = [fn for fn in tool_calls if fn not in BUILTIN_FUNCTIONS]
-        return set(called_tools)
 
     @staticmethod
     def _extract_code_blocks(raw: str) -> list[str]:

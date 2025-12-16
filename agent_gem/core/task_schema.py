@@ -474,10 +474,17 @@ class TaskDefinition(BaseModel):
     difficulty_level: int = Field(default=1)
 
     def summary(self) -> str:
+        # Build tool schemas string separately to avoid complex expressions in f-strings.
+        tool_schemas = "\n".join(
+            [
+                json.dumps(tool.output_schema, sort_keys=True, indent=2)
+                for tool in self.tool_set
+            ]
+        )
         return (
             f"# {self.task_title} \n\n {self.task_content} \n\n"
             f"## Submit Result Format\n {self.submit_result_format}\n\n"
-            f"## Tool Set \n{'\n'.join([json.dumps(tool.output_schema, sort_keys=True, indent=2) for tool in self.tool_set])}\n\n"
+            f"## Tool Set \n{tool_schemas}\n\n"
         )
 
 
