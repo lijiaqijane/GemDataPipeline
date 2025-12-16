@@ -94,7 +94,6 @@ class KnowledgeBaseTool:
         scored_results.sort(key=lambda x: x[0], reverse=True)
         
         results: List[Dict[str, str]] = []
-<<<<<<< HEAD
         for _, item in scored_results[:max_results]:
             results.append({
                 "title": item.get("title", ""),
@@ -102,20 +101,10 @@ class KnowledgeBaseTool:
                 "summary": item.get("summary", item.get("content", "")),
             })
         
-=======
-        for item in topics:
-            if "Text" in item and "FirstURL" in item:
-                results.append(
-                    {"title": item.get("Text", ""), "url": item.get("FirstURL", "")}
-                )
-        if not results and data.get("Heading"):
-            results.append({"title": data["Heading"], "url": url})
->>>>>>> 17dc7132827460a629d18aba41316928577074f0
         return results
 
 
 @dataclass
-<<<<<<< HEAD
 class SearchTool:
     """增强的搜索工具：支持多种搜索源（Serper API、知识库等）。"""
 
@@ -246,62 +235,6 @@ class SearchTool:
             logger = logging.getLogger(__name__)
             logger.warning(f"Serper API搜索失败: {e}")
             return []
-=======
-class SerperSearchTool:
-    """Serper API search wrapper for high-quality web search results."""
-
-    api_key: str
-    base_url: str = "https://google.serper.dev"
-
-    def __call__(
-        self,
-        query: str,
-        max_results: int = 10,
-        search_type: str = "search",
-    ) -> Dict[str, Any]:
-        """
-        Search using Serper API.
-
-        Args:
-            query: Search query string
-            max_results: Maximum number of results to return
-            search_type: Type of search - "search" (default) or "images" or "videos"
-
-        Returns:
-            Dictionary containing organic results, answerBox, knowledgeGraph, etc.
-        """
-        url = f"{self.base_url}/{search_type}"
-        headers = {
-            "X-API-KEY": self.api_key,
-            "Content-Type": "application/json",
-        }
-        payload = json.dumps(
-            {
-                "q": query,
-                "num": max_results,
-            }
-        )
-
-        response = requests.request("POST", url, headers=headers, data=payload)
-        return json.loads(response.text)
-
-    def get_organic_results(
-        self, query: str, max_results: int = 10
-    ) -> List[Dict[str, Any]]:
-        """Get only organic search results."""
-        data = self(query, max_results=max_results)
-        return data.get("organic", [])[:max_results]
-
-    def get_answer_box(self, query: str) -> Dict[str, Any]:
-        """Get answer box if available."""
-        data = self(query, max_results=1)
-        return data.get("answerBox", {})
-
-    def get_knowledge_graph(self, query: str) -> Dict[str, Any]:
-        """Get knowledge graph if available."""
-        data = self(query, max_results=1)
-        return data.get("knowledgeGraph", {})
->>>>>>> 17dc7132827460a629d18aba41316928577074f0
 
 
 @dataclass
