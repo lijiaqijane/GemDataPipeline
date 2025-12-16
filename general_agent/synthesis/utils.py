@@ -44,13 +44,13 @@ def parse_json_response(raw: str, max_retries: int = 3) -> Any:
         
         raise json.JSONDecodeError(f"Unable to parse JSON: {candidate[:100]}", candidate, 0)
     
-    # 尝试1: 直接解析整个文本
+    # Attempt 1: Directly parse entire text
     try:
         return try_load(text)
     except json.JSONDecodeError:
         pass
 
-    # 尝试2: 从Markdown代码块中提取
+    # Attempt 2: Extract from Markdown code blocks
     fence = re.search(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```", text, re.S | re.MULTILINE)
     if fence:
         candidate = fence.group(1)
@@ -59,7 +59,7 @@ def parse_json_response(raw: str, max_retries: int = 3) -> Any:
         except json.JSONDecodeError:
             pass
 
-    # 尝试3: 查找第一个完整的JSON对象
+    # Attempt 3: Find first complete JSON object
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
@@ -69,7 +69,7 @@ def parse_json_response(raw: str, max_retries: int = 3) -> Any:
         except json.JSONDecodeError:
             pass
 
-    # 尝试4: 查找第一个完整的JSON数组
+    # Attempt 4: Find first complete JSON array
     start = text.find("[")
     end = text.rfind("]")
     if start != -1 and end != -1 and end > start:
