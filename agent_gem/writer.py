@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class LocalDatabase:
+class TaskWriter:
     """Lightweight JSON storage for scraped or generated data."""
 
     root: Path
@@ -67,5 +67,10 @@ class LocalDatabase:
         dump_json(path, payload)
         with open(Path(task_dir, f"{task_id}.jsonl"), "w") as f:
             for step in steps:
-                f.write(json.dumps(step.to_payload() if isinstance(step, TaskStep) else step) + "\n")
+                f.write(
+                    json.dumps(
+                        step.to_payload() if isinstance(step, TaskStep) else step
+                    )
+                    + "\n"
+                )
         return path

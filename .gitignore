@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Bytecode and cache
 __pycache__/
 .pytest_cache/
@@ -22,3 +23,27 @@ dist/
 
 # Generated data
 taskdb/
+=======
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project specific
+sandbox/
+*.log
+>>>>>>> main

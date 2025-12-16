@@ -1,12 +1,14 @@
 from __future__ import annotations
-
+import os
 import json
+import tempfile
 import subprocess
+import nbformat
+import requests
+from nbconvert.preprocessors import ExecutePreprocessor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
-
-import requests
 
 
 @dataclass
@@ -29,16 +31,26 @@ class DockerTool:
     memory_limit: str = "512m"
     cpu_limit: str = "1.0"
 
+<<<<<<< HEAD
     def __call__(
         self, code: str | None = None, command: str | None = None, language: str = "python"
     ) -> Dict[str, Any]:
         """Execute code or command in Docker container.
 
+=======
+    def __call__(self, code: str | None = None, command: str | None = None, language: str = "python") -> Dict[str, Any]:
+        """Execute code or command in Docker container.
+        
+>>>>>>> main
         Args:
             code: Python code to execute (for language='python')
             command: Shell command to execute (for language='bash')
             language: 'python' or 'bash'
+<<<<<<< HEAD
 
+=======
+            
+>>>>>>> main
         Returns:
             Dict with execution results
         """
@@ -48,13 +60,21 @@ class DockerTool:
                 "stdout": "",
                 "stderr": "Either 'code' or 'command' must be provided",
             }
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> main
         # Prepare Docker command
         if language == "python" and code:
             # Execute Python code
             docker_cmd = [
+<<<<<<< HEAD
                 "docker",
                 "run",
+=======
+                "docker", "run",
+>>>>>>> main
                 "--rm",
                 f"--memory={self.memory_limit}",
                 f"--cpus={self.cpu_limit}",
@@ -62,6 +82,7 @@ class DockerTool:
                 "--read-only",  # Read-only root filesystem
                 "--tmpfs=/tmp:rw,noexec,nosuid,size=100m",  # Temporary writable space
             ]
+<<<<<<< HEAD
 
             if self.workdir:
                 docker_cmd.extend(["-v", f"{self.workdir}:/workspace:ro"])
@@ -73,6 +94,21 @@ class DockerTool:
             docker_cmd = [
                 "docker",
                 "run",
+=======
+            
+            if self.workdir:
+                docker_cmd.extend(["-v", f"{self.workdir}:/workspace:ro"])
+                docker_cmd.extend(["-w", "/workspace"])
+            
+            docker_cmd.extend([
+                self.image,
+                "python", "-c", code
+            ])
+        elif language == "bash" and command:
+            # Execute bash command
+            docker_cmd = [
+                "docker", "run",
+>>>>>>> main
                 "--rm",
                 f"--memory={self.memory_limit}",
                 f"--cpus={self.cpu_limit}",
@@ -80,19 +116,35 @@ class DockerTool:
                 "--read-only",
                 "--tmpfs=/tmp:rw,noexec,nosuid,size=100m",
             ]
+<<<<<<< HEAD
 
             if self.workdir:
                 docker_cmd.extend(["-v", f"{self.workdir}:/workspace:ro"])
                 docker_cmd.extend(["-w", "/workspace"])
 
             docker_cmd.extend([self.image, "bash", "-c", command])
+=======
+            
+            if self.workdir:
+                docker_cmd.extend(["-v", f"{self.workdir}:/workspace:ro"])
+                docker_cmd.extend(["-w", "/workspace"])
+            
+            docker_cmd.extend([
+                self.image,
+                "bash", "-c", command
+            ])
+>>>>>>> main
         else:
             return {
                 "returncode": -1,
                 "stdout": "",
                 "stderr": f"Invalid combination: language={language}, code={code is not None}, command={command is not None}",
             }
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> main
         try:
             proc = subprocess.run(
                 docker_cmd,
@@ -122,7 +174,11 @@ class DockerTool:
 @dataclass
 class BashTool:
     """Restricted bash tool with configurable working directory.
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> main
     Note: For better security, consider using DockerTool instead.
     """
 
@@ -139,7 +195,11 @@ class BashTool:
                 workdir=self.workdir,
             )
             return docker_tool(command=command, language="bash")
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> main
         # Fallback to local execution
         proc = subprocess.run(
             command,
@@ -175,6 +235,173 @@ class SearchTool:
         if not results and data.get("Heading"):
             results.append({"title": data["Heading"], "url": url})
         return results
+
+@dataclass
+class SerperSearchTool:
+    """Serper API search wrapper for high-quality web search results."""
+
+    api_key: str
+    base_url: str = "https://google.serper.dev"
+
+    def __call__(
+        self,
+        query: str,
+        max_results: int = 10,
+        search_type: str = "search",
+    ) -> Dict[str, Any]:
+        """
+        Search using Serper API.
+        
+        Args:
+            query: Search query string
+            max_results: Maximum number of results to return
+            search_type: Type of search - "search" (default) or "images" or "videos"
+        
+        Returns:
+            Dictionary containing organic results, answerBox, knowledgeGraph, etc.
+        """
+        url = f"{self.base_url}/{search_type}"
+        headers = {
+            "X-API-KEY": self.api_key,
+            "Content-Type": "application/json",
+        }
+        payload = json.dumps({
+            "q": query,
+            "num": max_results,
+        })
+        
+        response = requests.request("POST", url, headers=headers, data=payload)
+        return json.loads(response.text)
+
+    def get_organic_results(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """Get only organic search results."""
+        data = self(query, max_results=max_results)
+        return data.get("organic", [])[:max_results]
+
+    def get_answer_box(self, query: str) -> Dict[str, Any]:
+        """Get answer box if available."""
+        data = self(query, max_results=1)
+        return data.get("answerBox", {})
+
+    def get_knowledge_graph(self, query: str) -> Dict[str, Any]:
+        """Get knowledge graph if available."""
+        data = self(query, max_results=1)
+        return data.get("knowledgeGraph", {})
+
+
+@dataclass
+class SandboxFusionTool:
+    """Secure code execution tool using SandboxFusion service.
+    
+    SandboxFusion is a secure code sandbox that supports 23+ programming languages.
+    It provides safe execution environment for LLM-generated code.
+    """
+
+    base_url: str = "http://localhost:8080"
+    timeout: int = 30
+    default_language: str = "python"
+
+    def __call__(self, code: str, language: str | None = None) -> Dict[str, Any]:
+        """Execute code in SandboxFusion sandbox.
+        
+        Args:
+            code: Code to execute
+            language: Programming language (default: python)
+            
+        Returns:
+            Dict with execution results including:
+            - status: Execution status
+            - stdout: Standard output
+            - stderr: Standard error
+            - execution_time: Execution time in seconds
+            - return_code: Return code (if applicable)
+        """
+        url = f"{self.base_url.rstrip('/')}/run_code"
+        payload = {
+            "code": code,
+            "language": language or self.default_language,
+        }
+        
+        try:
+            resp = requests.post(url, json=payload, timeout=self.timeout)
+            resp.raise_for_status()
+            result = resp.json()
+            
+            # Normalize response format
+            return {
+                "status": result.get("status", "unknown"),
+                "stdout": result.get("stdout", ""),
+                "stderr": result.get("stderr", ""),
+                "execution_time": result.get("execution_time", 0),
+                "return_code": result.get("return_code", 0),
+                "raw": result,  # Keep raw response for debugging
+            }
+        except requests.exceptions.RequestException as e:
+            return {
+                "status": "error",
+                "stdout": "",
+                "stderr": f"SandboxFusion request failed: {str(e)}",
+                "execution_time": 0,
+                "return_code": -1,
+                "raw": {},
+            }
+
+
+@dataclass
+class CodeInterpreterTool:
+    """
+    Execute Python code in a temporary Jupyter Notebook and return the output.
+
+    Example usage:
+        interpreter = CodeInterpreterTool()
+
+        # Simple calculation
+        code = '''
+        result = sum(range(1, 11))
+        result
+        '''
+        output = interpreter(code)
+        print(output)
+        # Output: {'status': 'success', 'output': '55'}
+    """
+
+    timeout: int = 60  # Notebook execution timeout in seconds
+    kernel_name: str = "python3"
+
+    def __call__(self, code: str) -> Dict[str, Any]:
+        """
+        Execute the given Python code in a Jupyter Notebook environment.
+
+        Args:
+            code (str): Python code to execute.
+
+        Returns:
+            Dict[str, Any]: A dictionary with execution status and output or error.
+        """
+        nb = nbformat.v4.new_notebook()
+        nb.cells.append(nbformat.v4.new_code_cell(code))
+
+        ep = ExecutePreprocessor(timeout=self.timeout, kernel_name=self.kernel_name)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            nb_path = os.path.join(tmpdir, "temp.ipynb")
+            with open(nb_path, "w", encoding="utf-8") as f:
+                nbformat.write(nb, f)
+
+            try:
+                ep.preprocess(nb, {"metadata": {"path": tmpdir}})
+                outputs = []
+                for cell in nb.cells:
+                    for out in cell.get("outputs", []):
+                        if out.output_type == "stream":
+                            outputs.append(out.text)
+                        elif out.output_type == "execute_result":
+                            outputs.append(str(out.get("data", {}).get("text/plain", "")))
+                        elif out.output_type == "error":
+                            outputs.append("Error: " + "".join(out.get("traceback", [])))
+                return {"status": "success", "output": "\n".join(outputs)}
+            except Exception as e:
+                return {"status": "error", "output": str(e)}
 
 
 @dataclass
@@ -244,19 +471,27 @@ class ToolRegistry:
     def register(self, name: str, description: str, func: Callable[..., Any]) -> None:
         self.tools[name] = Tool(name=name, description=description, handler=func)
 
+<<<<<<< HEAD
     def ensure_defaults(
         self, bash: BashTool, search: SearchTool, sandbox_fusion: SandboxFusionTool | None = None
     ) -> None:
+=======
+    def ensure_defaults(self, bash: BashTool, search: SearchTool, sandbox_fusion: SandboxFusionTool | None = None) -> None:
+>>>>>>> main
         if "bash" not in self.tools:
             self.register("bash", "Execute bash commands inside the sandbox", bash)
         if "search" not in self.tools:
             self.register("search", "Search the web via DuckDuckGo", search)
         if sandbox_fusion is not None and "sandbox_fusion" not in self.tools:
+<<<<<<< HEAD
             self.register(
                 "sandbox_fusion",
                 "Execute code securely in SandboxFusion sandbox (supports 23+ languages)",
                 sandbox_fusion,
             )
+=======
+            self.register("sandbox_fusion", "Execute code securely in SandboxFusion sandbox (supports 23+ languages)", sandbox_fusion)
+>>>>>>> main
 
     def as_callable_dict(self) -> Dict[str, Callable[..., Any]]:
         return {name: tool.handler for name, tool in self.tools.items()}

@@ -9,9 +9,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from agent_gem.core.task_schema import EvaluationCriteria, TaskDefinition, TaskPackage, TaskStep, ToolSpec
+from agent_gem.core.task_schema import (
+    EvaluationCriteria,
+    TaskDefinition,
+    TaskPackage,
+    TaskStep,
+    ToolSpec,
+)
 from agent_gem.core.validation import validate_task_package
-from agent_gem.database import LocalDatabase
+from agent_gem.writer import TaskWriter
 from agent_gem.llm import LLMClient
 from agent_gem.sandbox import SandboxExecutor
 
@@ -42,7 +48,9 @@ class TaskContext:
         request_id: str | None = None,
     ):
         step = TaskStep(
-            parentUuid=(parent_id or self.history[-1].uuid if len(self.history) > 0 else None),
+            parentUuid=(
+                parent_id or self.history[-1].uuid if len(self.history) > 0 else None
+            ),
             sessionId=self.session_id,
             message=message,
             taskId=task_id or self.task_id,
@@ -59,9 +67,8 @@ class BaseAgent:
     def __init__(self, llm: LLMClient, taskdb_root: str = "taskdb") -> None:
         self.llm = llm
         self.taskdb_root = taskdb_root
-        self.taskdb = LocalDatabase(Path(taskdb_root))
 
-        self.task_writer = LocalDatabase(root=Path(self.taskdb_root))
+        self.writer = TaskWriter(root=Path(self.taskdb_root))
         self._trivial_solution_patterns = [
             r"return\s+list\(tools\.keys\(\)\)",
             r"return\s+tools\.keys\(\)",
@@ -84,16 +91,22 @@ class BaseAgent:
             request.difficulty,
         )
         prompt = self._build_prompt(request)
-        logger.debug("[agent:%s] Prompt preview: %s", self.agent_type, _preview_text(prompt))
+        logger.debug(
+            "[agent:%s] Prompt preview: %s", self.agent_type, _preview_text(prompt)
+        )
         raw = self.llm.chat_completion(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.55,
             max_tokens=1800,
         )
-        logger.debug("[agent:%s] Raw completion: %s", self.agent_type, _preview_text(raw))
+        logger.debug(
+            "[agent:%s] Raw completion: %s", self.agent_type, _preview_text(raw)
+        )
         package = self._parse_response(raw, request)
         if not package:
-            logger.warning("[agent:%s] No tasks parsed; using fallback task.", self.agent_type)
+            logger.warning(
+                "[agent:%s] No tasks parsed; using fallback task.", self.agent_type
+            )
             return None
         if not request.validate:
             return package
@@ -126,7 +139,9 @@ class BaseAgent:
 
     def _build_prompt(self, request: GenerationRequest) -> str:
         topic_hint = (
-            f"Topic: {request.topic}." if request.topic else "Topic: choose a high-value category yourself."
+            f"Topic: {request.topic}."
+            if request.topic
+            else "Topic: choose a high-value category yourself."
         )
         return (
             f"You are the {self.agent_type} for RL environment generation. "
@@ -136,7 +151,9 @@ class BaseAgent:
             "Return only JSON."
         )
 
-    def _parse_response(self, raw: str, request: GenerationRequest) -> Optional[TaskPackage]:
+    def _parse_response(
+        self, raw: str, request: GenerationRequest
+    ) -> Optional[TaskPackage]:
         data = self._extract_json(raw)
         if not data:
             return None
@@ -146,12 +163,15 @@ class BaseAgent:
             return None
         return self._build_package(data, request)
 
-    def _build_package(self, item: Dict[str, object], request: GenerationRequest) -> Optional[TaskPackage]:
+    def _build_package(
+        self, item: Dict[str, object], request: GenerationRequest
+    ) -> Optional[TaskPackage]:
         try:
             tool_specs: List[ToolSpec] = []
             if request.seed_tools:
                 tool_specs = [
-                    spec if isinstance(spec, ToolSpec) else ToolSpec(**spec) for spec in request.seed_tools
+                    spec if isinstance(spec, ToolSpec) else ToolSpec(**spec)
+                    for spec in request.seed_tools
                 ]
             else:
                 tool_specs = self._default_tools()
@@ -167,12 +187,18 @@ class BaseAgent:
             if isinstance(submit_result_format, str):
                 submit_result_format = {"type": submit_result_format}
             task = TaskDefinition(
-                task_title=str(item.get("task_title") or f"{self.agent_type.title()} Task"),
-                task_content=str(item.get("task_content") or f"Create a task about {fallback_topic}."),
+                task_title=str(
+                    item.get("task_title") or f"{self.agent_type.title()} Task"
+                ),
+                task_content=str(
+                    item.get("task_content") or f"Create a task about {fallback_topic}."
+                ),
                 submit_result_format=submit_result_format,  # type: ignore[arg-type]
                 tool_set=tool_specs,
                 evaluation_criteria=criteria,
-                difficulty_level=int(item.get("difficulty_level") or request.difficulty),
+                difficulty_level=int(
+                    item.get("difficulty_level") or request.difficulty
+                ),
             )
             solution = item.get("solution") or self._default_solution(task.task_title)
             verification = item.get("verification") or self._default_verification()
@@ -212,7 +238,10 @@ class BaseAgent:
         )
 
     def _default_verification(self) -> str:
-        return "def verify(tools, answer):\n" "    return isinstance(answer, dict) and 'status' in answer\n"
+        return (
+            "def verify(tools, answer):\n"
+            "    return isinstance(answer, dict) and 'status' in answer\n"
+        )
 
     def _extract_json(self, raw: str) -> dict:
         text = raw.strip()

@@ -5,9 +5,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Type
 
-from agent_gem.agents import BaseAgent, CodeAgent, CodeInterpreterAgent, GeneralAgent, SearchAgent
+from agent_gem.agents import (
+    BaseAgent,
+    CodeAgent,
+    CodeInterpreterAgent,
+    GeneralAgent,
+    SearchAgent,
+)
 from agent_gem.core import TaskPackage, ToolSpec, score_task, validate_task_package
-from agent_gem.database import LocalDatabase
+from agent_gem.writer import TaskWriter
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +39,7 @@ class EnvironmentGenerator:
 
     def __init__(self, llm, taskdb: Path | str = "taskdb") -> None:
         self.llm = llm
-        self.localdb = LocalDatabase(root=Path(taskdb))
+        self.task_writer = TaskWriter(root=Path(taskdb))
         self.agent_factories: Dict[str, Type[BaseAgent]] = {
             "search_agent": SearchAgent,
             "code_agent": CodeAgent,
@@ -48,7 +54,7 @@ class EnvironmentGenerator:
             request.topic or "auto-generate",
             request.num,
             request.difficulty,
-            self.localdb.root,
+            self.task_writer.root,
         )
         agent = self._resolve_agent(request.agent_type)
         packages: List[TaskPackage] = []
@@ -64,14 +70,18 @@ class EnvironmentGenerator:
             else:
                 logger.warning("Agent returned no packages on iteration %d", idx + 1)
 
-        persisted = self.localdb.persist(packages) if request.persist_result else packages
+        persisted = (
+            self.task_writer.persist(packages) if request.persist_result else packages
+        )
         return self._prioritize(persisted)
 
     def _prioritize(self, packages: List[TaskPackage]) -> List[TaskPackage]:
         scored = [(score_task(pkg.task).composite, pkg) for pkg in packages]
         scored.sort(key=lambda pair: pair[0], reverse=True)
         for rank, (composite, pkg) in enumerate(scored, start=1):
-            logger.info("Rank #%d: %s (score=%.3f)", rank, pkg.task.summary(), composite)
+            logger.info(
+                "Rank #%d: %s (score=%.3f)", rank, pkg.task.summary(), composite
+            )
         return [pkg for composite, pkg in scored]
 
     def _resolve_agent(self, agent_type: str) -> BaseAgent:

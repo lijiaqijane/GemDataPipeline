@@ -9,8 +9,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from agent_gem.core.task_schema import EvaluationCriteria, TaskDefinition, TaskPackage, ToolSpec
-from agent_gem.database import LocalDatabase
+from agent_gem.core.task_schema import (
+    EvaluationCriteria,
+    TaskDefinition,
+    TaskPackage,
+    ToolSpec,
+)
+from agent_gem.writer import TaskWriter
 from agent_gem.sandbox import SandboxExecutor
 from agent_gem.tools import BashTool, JsonRecordsQueryTool, PythonRunnerTool, SearchTool
 
@@ -32,9 +37,13 @@ class GeneralAgent(BaseAgent):
     _RECORDS_FILENAME = "records.json"
 
     def _configure_sandbox(self, sandbox: SandboxExecutor):
-        sandbox.register_tool(BashTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s))
+        sandbox.register_tool(
+            BashTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s)
+        )
         sandbox.register_tool(SearchTool(cache_path=sandbox.search_cache_path))
-        sandbox.register_tool(PythonRunnerTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s))
+        sandbox.register_tool(
+            PythonRunnerTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s)
+        )
         sandbox.set_tool_call_callback(self._record_tool_call)
 
     def generate(self, request: GenerationRequest) -> Optional[TaskPackage]:
@@ -43,27 +52,25 @@ class GeneralAgent(BaseAgent):
 
         task_id = str(uuid.uuid4())
         ctx = TaskContext(task_id=task_id, request=request)
-        if self.task_writer is None:
-            self.task_writer = LocalDatabase(root=Path(self.taskdb_root))
 
-        sandbox_dir = Path(self.task_writer.task_dir(task_id, self.agent_type), "_sandbox")
+        sandbox_dir = Path(self.writer.task_dir(task_id, self.agent_type), "_sandbox")
         sandbox = SandboxExecutor(sandbox_dir=sandbox_dir)
         self._configure_sandbox(sandbox)
 
         logger.info(
-            f"Generating task: {task_id}, topic: {request.topic}, path: {self.task_writer.task_dir(task_id, self.agent_type)}"
+            f"Generating task: {task_id}, topic: {request.topic}, path: {self.writer.task_dir(task_id, self.agent_type)}"
         )
 
         records = self._seed_database(request.topic, ctx, sandbox)
 
         task_tool_specs = self._synthesize_task_tools(request.topic, records, ctx)
-        self.task_writer.record_steps(task_id, self.agent_type, ctx.history)
+        self.writer.record_steps(task_id, self.agent_type, ctx.history)
         self._register_task_tools(task_tool_specs, sandbox, ctx)
 
         package = self._propose_task(task_id, request, records, task_tool_specs, ctx)
         package = self._ensure_substantive_task(task_tool_specs, package, ctx)
         package = self._ensure_valid(request, package, ctx, sandbox)
-        self.task_writer.record_steps(task_id, self.agent_type, ctx.history)
+        self.writer.record_steps(task_id, self.agent_type, ctx.history)
 
         for round_idx in range(2, max(1, request.max_refine_rounds) + 1):
             target = min(int(request.difficulty), round_idx)
@@ -76,10 +83,10 @@ class GeneralAgent(BaseAgent):
             )
             refined = self._ensure_substantive_task(task_tool_specs, refined, ctx=ctx)
             package = self._ensure_valid(request, refined, ctx, sandbox)
-            self.task_writer.record_steps(task_id, self.agent_type, ctx.history)
+            self.writer.record_steps(task_id, self.agent_type, ctx.history)
 
-        if request.persist_result and self.task_writer is not None:
-            self.task_writer.record_steps(
+        if request.persist_result and self.writer is not None:
+            self.writer.record_steps(
                 task_id,
                 self.agent_type,
                 [step.to_payload() for step in ctx.history],
@@ -115,7 +122,9 @@ class GeneralAgent(BaseAgent):
     ) -> list[dict[str, Any]]:
         """Collect topic-relevant records and write them into the sandbox database."""
         search_hits: list[dict[str, str]] = []
-        result = sandbox.execute("search", f"{topic} structured dataset examples", max_results=5)
+        result = sandbox.execute(
+            "search", f"{topic} structured dataset examples", max_results=5
+        )
         if isinstance(result, list):
             search_hits = [row for row in result if isinstance(row, dict)]
 
@@ -160,7 +169,7 @@ class GeneralAgent(BaseAgent):
                 "records": records,
             }
         )
-        self.task_writer.record_steps(ctx.task_id, self.agent_type, ctx.history)
+        self.writer.record_steps(ctx.task_id, self.agent_type, ctx.history)
 
         return records
 
@@ -191,7 +200,11 @@ class GeneralAgent(BaseAgent):
         ctx.add_step({"type": "tool_synthesis", "content": raw})
         specs = self._extract_mcp_tools(raw)
 
-        specs = [spec for spec in specs if spec.name not in {"bash", "search", "python_runner"}]
+        specs = [
+            spec
+            for spec in specs
+            if spec.name not in {"bash", "search", "python_runner"}
+        ]
         ctx.add_step(
             {
                 "type": "tool_synthesis",
@@ -223,7 +236,7 @@ class GeneralAgent(BaseAgent):
                 "registered_tools": [spec.name for spec in tool_specs],
             }
         )
-        self.task_writer.record_steps(ctx.task_id, self.agent_type, ctx.history)
+        self.writer.record_steps(ctx.task_id, self.agent_type, ctx.history)
 
     def _propose_task(
         self,
@@ -290,18 +303,24 @@ class GeneralAgent(BaseAgent):
                 "content": raw,
             }
         )
-        self.task_writer.record_steps(task_id, self.agent_type, ctx.history)
+        self.writer.record_steps(task_id, self.agent_type, ctx.history)
 
         extracted = self._extract_json(raw)
         if extracted is None and retry < 3:
-            logger.info(f"Failed to extract valid json from task output. Retry {retry+1}...")
-            return self._propose_task(task_id, request, records, tool_specs, ctx, retry=retry + 1)
+            logger.info(
+                f"Failed to extract valid json from task output. Retry {retry+1}..."
+            )
+            return self._propose_task(
+                task_id, request, records, tool_specs, ctx, retry=retry + 1
+            )
 
         task_content = extracted.get("task_content").strip()
 
         submit_result_format = extracted.get("submit_result_format")
 
-        ctx.current_difficulty = int(extracted.get("difficulty_level") or ctx.current_difficulty)
+        ctx.current_difficulty = int(
+            extracted.get("difficulty_level") or ctx.current_difficulty
+        )
         ctx.add_step(
             {
                 "type": "parse_task_info",
@@ -311,7 +330,7 @@ class GeneralAgent(BaseAgent):
                 },
             }
         )
-        self.task_writer.record_steps(task_id, self.agent_type, ctx.history)
+        self.writer.record_steps(task_id, self.agent_type, ctx.history)
         prompt = (
             "You are a task solver and verifier. Based on the task, submit_result_format, and a tool set, \n"
             "create solution and verication code for the task. The solution function is restricted to invoking tool"
@@ -373,7 +392,9 @@ class GeneralAgent(BaseAgent):
                 task_id=task_id,
                 task_title=request.topic,
                 task_content=(
-                    task_content if len(task_content) >= 10 else f"Solve a task about {request.topic}."
+                    task_content
+                    if len(task_content) >= 10
+                    else f"Solve a task about {request.topic}."
                 ),
                 submit_result_format=submit_result_format,
                 tool_set=tool_specs,
@@ -396,7 +417,9 @@ class GeneralAgent(BaseAgent):
         ctx: TaskContext,
         target_difficulty: int,
     ) -> TaskPackage:
-        tool_list = [{"name": spec.name, "description": spec.description} for spec in tool_specs]
+        tool_list = [
+            {"name": spec.name, "description": spec.description} for spec in tool_specs
+        ]
         prompt = (
             "Increase the task difficulty while keeping it verifiable.\n"
             "Return ONLY JSON with keys: task_content, submit_result_format, difficulty_level, solution, verification.\n"
@@ -411,25 +434,41 @@ class GeneralAgent(BaseAgent):
         extracted = self._extract_json(raw)
         data: dict[str, Any] = extracted if isinstance(extracted, dict) else {}
 
-        task_content = str(data.get("task_content") or previous.task.task_content).strip()
-        submit_result_format = data.get("submit_result_format", previous.task.submit_result_format)
+        task_content = str(
+            data.get("task_content") or previous.task.task_content
+        ).strip()
+        submit_result_format = data.get(
+            "submit_result_format", previous.task.submit_result_format
+        )
         if isinstance(submit_result_format, str):
             submit_result_format = {"type": submit_result_format}
 
-        solution = data.get("solution") if isinstance(data.get("solution"), str) else previous.solution
+        solution = (
+            data.get("solution")
+            if isinstance(data.get("solution"), str)
+            else previous.solution
+        )
         verification = (
-            data.get("verification") if isinstance(data.get("verification"), str) else previous.verification
+            data.get("verification")
+            if isinstance(data.get("verification"), str)
+            else previous.verification
         )
 
         pkg = TaskPackage(
             task=TaskDefinition(
                 task_id=previous.task.task_id,
                 task_title=previous.task.task_title,
-                task_content=(task_content if len(task_content) >= 10 else previous.task.task_content),
+                task_content=(
+                    task_content
+                    if len(task_content) >= 10
+                    else previous.task.task_content
+                ),
                 submit_result_format=submit_result_format,
                 tool_set=tool_specs,
                 evaluation_criteria=previous.task.evaluation_criteria,
-                difficulty_level=int(data.get("difficulty_level") or ctx.current_difficulty),
+                difficulty_level=int(
+                    data.get("difficulty_level") or ctx.current_difficulty
+                ),
             ),
             solution=solution,
             verification=verification,
@@ -492,7 +531,9 @@ class GeneralAgent(BaseAgent):
             if run.verified is True:
                 return package
 
-            last_error = run.error or run.verification_error or "unknown validation failure"
+            last_error = (
+                run.error or run.verification_error or "unknown validation failure"
+            )
             package = self._repair_package(request, package, ctx, error=last_error)
             package = self._ensure_substantive_task(package.task.tool_set, package, ctx)
 
@@ -511,7 +552,10 @@ class GeneralAgent(BaseAgent):
         *,
         error: str,
     ) -> TaskPackage:
-        tool_list = [{"name": spec.name, "description": spec.description} for spec in package.task.tool_set]
+        tool_list = [
+            {"name": spec.name, "description": spec.description}
+            for spec in package.task.tool_set
+        ]
         prompt = (
             "Repair the provided solution/verification so that verify(tools, solve(tools)) returns True.\n"
             "Return ONLY JSON with keys: solution, verification.\n"
@@ -530,11 +574,19 @@ class GeneralAgent(BaseAgent):
         extracted = self._extract_json(raw)
         data: dict[str, Any] = extracted if isinstance(extracted, dict) else {}
 
-        solution = data.get("solution") if isinstance(data.get("solution"), str) else package.solution
-        verification = (
-            data.get("verification") if isinstance(data.get("verification"), str) else package.verification
+        solution = (
+            data.get("solution")
+            if isinstance(data.get("solution"), str)
+            else package.solution
         )
-        repaired = package.copy(update={"solution": solution, "verification": verification})
+        verification = (
+            data.get("verification")
+            if isinstance(data.get("verification"), str)
+            else package.verification
+        )
+        repaired = package.copy(
+            update={"solution": solution, "verification": verification}
+        )
         ctx.add_step({"type": "task_repaired", "error": error})
         return repaired
 
@@ -634,7 +686,9 @@ class GeneralAgent(BaseAgent):
                     tool = ToolSpec.from_function_string(function_string)
                     mcp_tools.append(tool)
                 except ValueError as e:
-                    logger.error(f"Error creating ToolSpec for function {function_signature}: {e}")
+                    logger.error(
+                        f"Error creating ToolSpec for function {function_signature}: {e}"
+                    )
 
         return mcp_tools
 

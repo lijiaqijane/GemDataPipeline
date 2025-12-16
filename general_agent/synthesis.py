@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Tuple
 from .database import LocalDatabase
 from .executor import SandboxFusionExecutor
 from .llm import LLMClient
-from .tools import BashTool, DockerTool, SandboxFusionTool, SearchTool, ToolRegistry
+from .tools import BashTool, DockerTool, SearchTool, SandboxFusionTool, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +34,10 @@ class TaskBundle:
     solution_code: str
     verification_code: str
     use_docker: bool = False
-    use_sandbox_fusion: bool = False
 
-    def run_solution(self, tools: Dict[str, Any], force_local: bool = False) -> Any:
-        code = self._normalize_code(self.solution_code)
-        if not force_local:
-            if self.use_sandbox_fusion:
-                return self._run_in_sandbox_fusion(code, tools, "solve")
-            if self.use_docker:
-                return self._run_in_docker(code, tools, "solve")
+    def run_solution(self, tools: Dict[str, Any]) -> Any:
+        if self.use_docker:
+            return self._run_in_docker(self.solution_code, tools, "solve")
 
         env = self._build_exec_env(tools)
         exec(code, env, env)
@@ -50,15 +45,12 @@ class TaskBundle:
             raise RuntimeError("solution_code must define solve(tools)")
         return env["solve"](tools)
 
-    def verify(self, tools: Dict[str, Any], answer: Any, force_local: bool = False) -> bool:
-        code = self._normalize_code(self.verification_code)
-        if not force_local:
-            if self.use_sandbox_fusion:
-                result = self._run_in_sandbox_fusion(code, tools, "verify", answer)
-                return bool(result)
-            if self.use_docker:
-                result = self._run_in_docker(code, tools, "verify", answer)
-                return bool(result)
+    def verify(self, tools: Dict[str, Any], answer: Any) -> bool:
+        if self.use_docker:
+            result = self._run_in_docker(
+                self.verification_code, tools, "verify", answer
+            )
+            return bool(result)
 
         env = self._build_exec_env(tools)
         exec(code, env, env)
@@ -66,91 +58,17 @@ class TaskBundle:
             raise RuntimeError("verification_code must define verify(tools, answer)")
         return bool(env["verify"](tools, answer))
 
-    def _run_in_sandbox_fusion(self, code: str, tools: Dict[str, Any], func_name: str, *args: Any) -> Any:
-        """Execute code in SandboxFusion service."""
-        import json
-        import os
-
-        # Serialize tools metadata (names and descriptions only)
-        tools_meta = {name: {"name": name} for name in tools.keys()}
-        tools_meta_json = json.dumps(tools_meta)
-
-        # Create wrapper code for SandboxFusion
-        wrapper_code = f"""
-import json
-import sys
-
-# Simplified tools interface for SandboxFusion
-class ToolProxy:
-    def __init__(self, tool_names):
-        self._names = tool_names
-    
-    def __getitem__(self, key):
-        return self
-    
-    def __getattr__(self, key):
-        return self
-    
-    def __call__(self, *args, **kwargs):
-        return {{"result": "tool_executed", "args": str(args), "kwargs": str(kwargs)}}
-
-tools_meta = json.loads('{tools_meta_json}')
-tools = ToolProxy(tools_meta.keys())
-
-{code}
-
-if '{func_name}' == 'solve':
-    result = solve(tools)
-    print(json.dumps(result, default=str))
-elif '{func_name}' == 'verify':
-    answer_str = '''{json.dumps(args[0], default=str) if args else 'null'}'''
-    try:
-        answer = json.loads(answer_str)
-    except:
-        answer = answer_str
-    result = verify(tools, answer)
-    print(json.dumps(result, default=str))
-"""
-
-        executor = SandboxFusionExecutor(
-            base_url=os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080"),
-            timeout=int(os.getenv("SANDBOX_FUSION_TIMEOUT", "30")),
-        )
-
-        result = executor(wrapper_code, language="python")
-
-        if result.get("return_code", 0) != 0 or result.get("status") == "error":
-            raise RuntimeError(f"SandboxFusion execution failed: {result.get('stderr', 'Unknown error')}")
-
-        try:
-            output = result.get("stdout", "").strip()
-            if output:
-                # Try to find JSON in output
-                start = output.find("{")
-                end = output.rfind("}") + 1
-                if start >= 0 and end > start:
-                    output = output[start:end]
-                elif output.startswith("["):
-                    end = output.rfind("]") + 1
-                    if end > 0:
-                        output = output[:end]
-                return json.loads(output)
-            return None
-        except json.JSONDecodeError as e:
-            try:
-                return eval(output)
-            except Exception:
-                raise RuntimeError(f"Failed to parse SandboxFusion output: {output[:200]}. Error: {e}")
-
-    def _run_in_docker(self, code: str, tools: Dict[str, Any], func_name: str, *args: Any) -> Any:
+    def _run_in_docker(
+        self, code: str, tools: Dict[str, Any], func_name: str, *args: Any
+    ) -> Any:
         """Execute code in Docker container.
 
         Note: Tools cannot be directly passed to Docker, so we create a simplified
         tool interface that uses subprocess to call back to the host.
         """
-        import base64
         import json
         import os
+        import base64
 
         # Serialize tools metadata (names and descriptions only)
         tools_meta = {name: {"name": name} for name in tools.keys()}
@@ -206,7 +124,9 @@ elif '{func_name}' == 'verify':
             answer_json = json.dumps(args[0], default=str)
             # Escape for shell
             answer_json_escaped = answer_json.replace("'", "'\"'\"'")
-            wrapper_code = wrapper_code.replace("sys.argv[1]", f"'{answer_json_escaped}'")
+            wrapper_code = wrapper_code.replace(
+                "sys.argv[1]", f"'{answer_json_escaped}'"
+            )
 
         result = docker_tool(code=wrapper_code, language="python")
 
@@ -233,17 +153,9 @@ elif '{func_name}' == 'verify':
             try:
                 return eval(output)
             except:
-                raise RuntimeError(f"Failed to parse Docker output: {output[:200]}. Error: {e}")
-
-    @staticmethod
-    def _normalize_code(code: str) -> str:
-        """Normalize common lowercase literals to valid Python to avoid trivial runtime errors."""
-        if not code:
-            return code
-        code = re.sub(r"\btrue\b", "True", code, flags=re.IGNORECASE)
-        code = re.sub(r"\bfalse\b", "False", code, flags=re.IGNORECASE)
-        code = re.sub(r"\bnull\b", "None", code, flags=re.IGNORECASE)
-        return code
+                raise RuntimeError(
+                    f"Failed to parse Docker output: {output[:200]}. Error: {e}"
+                )
 
     @staticmethod
     def _build_exec_env(tools: Dict[str, Any]) -> Dict[str, Any]:
@@ -329,13 +241,28 @@ class EnvironmentSynthesizer:
     @staticmethod
     def _extract_tool_calls(solution_code: str) -> set[str]:
         """Extract tool names used in the solution code."""
-        tool_calls = re.findall(r"tools\[['\"](\w+)['\"]\]|tools\.(\w+)\s*\(", solution_code or "")
+        tool_calls = re.findall(
+            r"tools\[['\"](\w+)['\"]\]|tools\.(\w+)\s*\(", solution_code or ""
+        )
         called_tools = {name for pair in tool_calls for name in pair if name}
-        dict_methods = {"keys", "values", "items", "get", "pop", "update", "clear", "copy"}
+        dict_methods = {
+            "keys",
+            "values",
+            "items",
+            "get",
+            "pop",
+            "update",
+            "clear",
+            "copy",
+        }
         return called_tools - dict_methods
 
     def build_context(
-        self, category: str, sandbox: Path, use_sandbox_fusion: bool = True, use_docker: bool = True
+        self,
+        category: str,
+        sandbox: Path,
+        use_sandbox_fusion: bool = True,
+        use_docker: bool = True,
     ) -> SynthesisContext:
         sandbox.mkdir(parents=True, exist_ok=True)
         db = LocalDatabase.load(sandbox / "db.json")
@@ -373,18 +300,26 @@ class EnvironmentSynthesizer:
                 base_url=base_url, timeout=timeout, default_language=default_language
             )
 
-        registry.ensure_defaults(bash=bash_tool, search=search_tool, sandbox_fusion=sandbox_fusion_tool)
+        registry.ensure_defaults(
+            bash=bash_tool, search=search_tool, sandbox_fusion=sandbox_fusion_tool
+        )
 
         # Register Docker tool if enabled
         if docker_tool:
-            registry.register("docker", "Execute code securely in Docker container", docker_tool)
+            registry.register(
+                "docker", "Execute code securely in Docker container", docker_tool
+            )
 
-        return SynthesisContext(category=category, sandbox=sandbox, db=db, registry=registry, llm=self.llm)
+        return SynthesisContext(
+            category=category, sandbox=sandbox, db=db, registry=registry, llm=self.llm
+        )
 
     def seed_database(self, ctx: SynthesisContext) -> None:
         """Seed database using the search tool and LLM for the given category."""
         try:
-            search_hits = ctx.registry.tools["search"](f"{ctx.category} sample data list structured")
+            search_hits = ctx.registry.tools["search"](
+                f"{ctx.category} sample data list structured"
+            )
         except Exception as exc:  # pragma: no cover - network/API fallback
             logger.warning("Search tool failed, falling back to empty results: %s", exc)
             search_hits = []
@@ -404,9 +339,13 @@ class EnvironmentSynthesizer:
         for row in records:
             ctx.db.add_record(row)
 
-    def synthesize_tools(self, ctx: SynthesisContext, additional_context: str = "") -> None:
+    def synthesize_tools(
+        self, ctx: SynthesisContext, additional_context: str = ""
+    ) -> None:
         """Ask LLM to generate specialized tools based on the database and register them."""
-        context_suffix = f"\nAdditional context: {additional_context}" if additional_context else ""
+        context_suffix = (
+            f"\nAdditional context: {additional_context}" if additional_context else ""
+        )
         prompt = (
             "Generate 2-3 specialized tools for the topic. Return a JSON array with fields name and description. "
             "Tools should rely on existing data or simple logic, not external APIs. "
@@ -431,7 +370,9 @@ class EnvironmentSynthesizer:
             def make_handler(key: str):
                 def base_handler(*args: Any, **kwargs: Any) -> Any:
                     """Flexible lookup handler; tolerates different calling styles from synthesized code."""
-                    logger.debug("Tool '%s' called with args=%s, kwargs=%s", key, args, kwargs)
+                    logger.debug(
+                        "Tool '%s' called with args=%s, kwargs=%s", key, args, kwargs
+                    )
                     candidate: Any = None
                     if args:
                         candidate = args[0]
@@ -448,23 +389,31 @@ class EnvironmentSynthesizer:
                         result = ctx.db.query("title", candidate) or [
                             r
                             for r in ctx.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
+                            if key in r.get("title", "")
+                            or candidate in r.get("summary", "")
                         ]
                     else:
                         result = ctx.db.query("title", candidate) or [
                             r
                             for r in ctx.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
+                            if key in r.get("title", "")
+                            or candidate in r.get("summary", "")
                         ]
 
                     # If tool name suggests it should return a dict (e.g., "checker", "analyzer"), convert to dict
-                    if any(word in key.lower() for word in ["checker", "analyzer", "validator", "matcher"]):
+                    if any(
+                        word in key.lower()
+                        for word in ["checker", "analyzer", "validator", "matcher"]
+                    ):
                         if isinstance(result, list) and result:
                             # Convert list of records to a structured dict
                             if "component" in key.lower() or "checker" in key.lower():
                                 # For component checkers, return dict with present/missing
                                 all_text = " ".join(
-                                    [r.get("title", "") + " " + r.get("summary", "") for r in result]
+                                    [
+                                        r.get("title", "") + " " + r.get("summary", "")
+                                        for r in result
+                                    ]
                                 )
                                 query_lower = (candidate or "").lower()
                                 present = []
@@ -507,7 +456,9 @@ class EnvironmentSynthesizer:
                 class GeneratedTool:
                     """Tool wrapper that supports various calling patterns."""
 
-                    def __call__(self, *args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
+                    def __call__(
+                        self, *args: Any, **kwargs: Any
+                    ) -> List[Dict[str, Any]]:
                         return base_handler(*args, **kwargs)
 
                     def __getattr__(self, _name: str):
@@ -529,7 +480,9 @@ class EnvironmentSynthesizer:
 
             ctx.registry.register(name=name, description=desc, func=make_handler(name))
 
-    def augment_toolset(self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str) -> bool:
+    def augment_toolset(
+        self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str
+    ) -> bool:
         """Augment the toolset when current tools are insufficient. Returns True if new tools were added."""
         # Analyze if the failure might be due to missing tools
         solution_code = bundle.solution_code or ""
@@ -544,14 +497,18 @@ class EnvironmentSynthesizer:
             or "not found" in failure_reason.lower()
             or "missing" in failure_reason.lower()
             or "no attribute" in failure_reason.lower()
-            or (len(failure_reason) > 50 and "verification returned False" in failure_reason)
+            or (
+                len(failure_reason) > 50
+                and "verification returned False" in failure_reason
+            )
         )
 
         if not needs_augmentation:
             return False
 
         logger.info(
-            "Augmenting toolset: detected missing tools %s or insufficient functionality", missing_tools
+            "Augmenting toolset: detected missing tools %s or insufficient functionality",
+            missing_tools,
         )
 
         # Generate additional tools based on task requirements
@@ -595,7 +552,12 @@ class EnvironmentSynthesizer:
             def make_handler(key: str):
                 def base_handler(*args: Any, **kwargs: Any) -> Any:
                     """Flexible lookup handler for augmented tools."""
-                    logger.debug("Augmented tool '%s' called with args=%s, kwargs=%s", key, args, kwargs)
+                    logger.debug(
+                        "Augmented tool '%s' called with args=%s, kwargs=%s",
+                        key,
+                        args,
+                        kwargs,
+                    )
                     candidate: Any = None
                     if args:
                         candidate = args[0]
@@ -612,17 +574,22 @@ class EnvironmentSynthesizer:
                         result = ctx.db.query("title", candidate) or [
                             r
                             for r in ctx.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
+                            if key in r.get("title", "")
+                            or candidate in r.get("summary", "")
                         ]
                     else:
                         result = ctx.db.query("title", candidate) or [
                             r
                             for r in ctx.db.records
-                            if key in r.get("title", "") or candidate in r.get("summary", "")
+                            if key in r.get("title", "")
+                            or candidate in r.get("summary", "")
                         ]
 
                     # Smart return format based on tool name
-                    if any(word in key.lower() for word in ["checker", "analyzer", "validator", "matcher"]):
+                    if any(
+                        word in key.lower()
+                        for word in ["checker", "analyzer", "validator", "matcher"]
+                    ):
                         if isinstance(result, list) and result:
                             if "component" in key.lower() or "checker" in key.lower():
                                 query_lower = (candidate or "").lower()
@@ -656,7 +623,9 @@ class EnvironmentSynthesizer:
                     elif isinstance(result, list) and len(result) == 1:
                         result = result[0]
 
-                    logger.debug("Augmented tool '%s' returned %s", key, type(result).__name__)
+                    logger.debug(
+                        "Augmented tool '%s' returned %s", key, type(result).__name__
+                    )
                     return result
 
                 class GeneratedTool:
@@ -670,9 +639,14 @@ class EnvironmentSynthesizer:
                         return wrapper
 
                     def __getitem__(self, _name: str):
+                        # Support tool['method']() patterns
                         return self.__getattr__(_name)
 
                     def __setattr__(self, name: str, value: Any) -> None:
+                        object.__setattr__(self, name, value)
+
+                    def __setattr__(self, name: str, value: Any) -> None:
+                        # Allow setting attributes (some code might try this)
                         object.__setattr__(self, name, value)
 
                 return GeneratedTool()
@@ -753,7 +727,9 @@ class EnvironmentSynthesizer:
             use_sandbox_fusion=prev.use_sandbox_fusion,
         )
 
-    def repair_bundle(self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str) -> TaskBundle:
+    def repair_bundle(
+        self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str
+    ) -> TaskBundle:
         """Ask LLM to repair the bundle when validation fails."""
         prompt = (
             "The current solution or verification failed. Produce a new JSON with name, description, solution_code, verification_code. "
@@ -768,7 +744,9 @@ class EnvironmentSynthesizer:
         try:
             data = self._parse_json_response(raw)
         except json.JSONDecodeError:
-            logger.warning("LLM repair did not return JSON; keeping original task: %s", raw)
+            logger.warning(
+                "LLM repair did not return JSON; keeping original task: %s", raw
+            )
             data = bundle.__dict__
         return TaskBundle(
             name=data.get("name", bundle.name),
@@ -777,7 +755,6 @@ class EnvironmentSynthesizer:
             solution_code=data.get("solution_code", bundle.solution_code),
             verification_code=data.get("verification_code", bundle.verification_code),
             use_docker=bundle.use_docker,  # Preserve use_docker flag
-            use_sandbox_fusion=bundle.use_sandbox_fusion,  # Preserve sandbox fusion flag
         )
 
     def ensure_valid(
@@ -787,7 +764,9 @@ class EnvironmentSynthesizer:
         base_tools = ctx.registry.as_callable_dict()
 
         # Ensure the task is not trivial before running executions
-        bundle = self._ensure_substantive_task(ctx, bundle, "Initial validation quality gate")
+        bundle = self._ensure_substantive_task(
+            ctx, bundle, "Initial validation quality gate"
+        )
 
         def fallback(*args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
             # Generic fallback: return all records or filtered by keyword.
@@ -804,7 +783,9 @@ class EnvironmentSynthesizer:
             else:
                 text = candidate if isinstance(candidate, str) else str(candidate)
                 result = ctx.db.query("title", text) or [
-                    r for r in ctx.db.records if text in r.get("title", "") or text in r.get("summary", "")
+                    r
+                    for r in ctx.db.records
+                    if text in r.get("title", "") or text in r.get("summary", "")
                 ]
             logger.debug("Fallback tool returned %d records", len(result))
             return result
@@ -848,7 +829,9 @@ class EnvironmentSynthesizer:
                 valid = bundle.verify(tools, answer, force_local=True)
             except Exception as exc:  # pragma: no cover - runtime defense
                 last_error = str(exc)
-                logger.warning("Task %s raised during execution: %s", bundle.name, last_error)
+                logger.warning(
+                    "Task %s raised during execution: %s", bundle.name, last_error
+                )
                 valid = False
             else:
                 if not valid:
@@ -865,7 +848,9 @@ class EnvironmentSynthesizer:
                     continue  # Retry with augmented tools
 
             bundle = self.repair_bundle(ctx, bundle, last_error or "unknown failure")
-            bundle = self._ensure_substantive_task(ctx, bundle, "Post-repair quality gate")
+            bundle = self._ensure_substantive_task(
+                ctx, bundle, "Post-repair quality gate"
+            )
 
         if fail_soft:
             logger.warning(
@@ -874,7 +859,9 @@ class EnvironmentSynthesizer:
                 last_error,
             )
             return bundle, None
-        raise RuntimeError(f"Task failed validation repeatedly: {bundle.name}; last error: {last_error}")
+        raise RuntimeError(
+            f"Task failed validation repeatedly: {bundle.name}; last error: {last_error}"
+        )
 
     def _looks_trivial(self, bundle: TaskBundle) -> bool:
         """Heuristic check to reject trivial solution/verifier pairs."""
@@ -907,7 +894,9 @@ class EnvironmentSynthesizer:
             tool_calls = self._extract_tool_calls(bundle.solution_code)
             if not self._looks_trivial(bundle) and len(tool_calls) >= 2:
                 return bundle
-            bundle = self.repair_bundle(ctx, bundle, f"{base_reason}; tool_calls={list(tool_calls)}")
+            bundle = self.repair_bundle(
+                ctx, bundle, f"{base_reason}; tool_calls={list(tool_calls)}"
+            )
         return bundle
 
     def _persist(self, ctx: SynthesisContext, bundles: List[TaskBundle]) -> None:
@@ -930,7 +919,7 @@ class EnvironmentSynthesizer:
         validate: bool = True,
         fail_soft: bool = True,
         persist: bool = True,
-        use_sandbox_fusion: bool = True,
+        use_sandbox_fusion: bool = False,
         use_docker: bool = False,
     ) -> List[TaskBundle]:
         """Main entry point for environment + task synthesis.
@@ -942,11 +931,14 @@ class EnvironmentSynthesizer:
             validate: Whether to validate tasks
             fail_soft: Whether to fail softly (warn instead of raise)
             persist: Whether to persist results
-            use_sandbox_fusion: Whether to use SandboxFusion for secure code execution (default: True)
+            use_sandbox_fusion: Whether to use SandboxFusion for secure code execution
             use_docker: Whether to use Docker for secure code execution
         """
         ctx = self.build_context(
-            category, sandbox, use_sandbox_fusion=use_sandbox_fusion, use_docker=use_docker
+            category,
+            sandbox,
+            use_sandbox_fusion=use_sandbox_fusion,
+            use_docker=use_docker,
         )
         self.seed_database(ctx)
         self.synthesize_tools(ctx)
@@ -955,11 +947,8 @@ class EnvironmentSynthesizer:
         current = self._ensure_substantive_task(
             ctx, self.propose_task(ctx, difficulty=1), "Initial task quality gate"
         )
-        # Set execution mode flags (SandboxFusion takes priority)
-        if use_sandbox_fusion:
-            current.use_sandbox_fusion = True
-            current.use_docker = False
-        elif use_docker:
+        # Set use_docker flag if enabled
+        if use_docker:
             current.use_docker = True
         if validate:
             current, _ = self.ensure_valid(ctx, current, fail_soft=fail_soft)
@@ -967,12 +956,11 @@ class EnvironmentSynthesizer:
 
         for step in range(1, rounds):
             current = self._ensure_substantive_task(
-                ctx, self.refine_task(ctx, current), f"Refined task quality gate (round {step})"
+                ctx,
+                self.refine_task(ctx, current),
+                f"Refined task quality gate (round {step})",
             )
-            if use_sandbox_fusion:
-                current.use_sandbox_fusion = True
-                current.use_docker = False
-            elif use_docker:
+            if use_docker:
                 current.use_docker = True
             if validate:
                 # Before validating, check if the refined task might need additional tools
@@ -982,9 +970,13 @@ class EnvironmentSynthesizer:
                 missing_tools = called_tools - available_tools
 
                 if missing_tools:
-                    logger.info("Refined task requires additional tools: %s", missing_tools)
+                    logger.info(
+                        "Refined task requires additional tools: %s", missing_tools
+                    )
                     # Try to augment toolset proactively
-                    self.augment_toolset(ctx, current, f"Task requires tools: {missing_tools}")
+                    self.augment_toolset(
+                        ctx, current, f"Task requires tools: {missing_tools}"
+                    )
 
                 current, _ = self.ensure_valid(ctx, current, fail_soft=fail_soft)
             bundles.append(current)
