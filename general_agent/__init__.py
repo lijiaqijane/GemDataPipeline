@@ -9,10 +9,20 @@ from .llm import LLMClient
 from .database import LocalDatabase
 from .tools import BashTool, SearchTool, ToolRegistry
 from .executor import SandboxFusionExecutor
+from .constraints import (
+    CodeValidator,
+    SolutionContext,
+    ToolContext,
+    VerificationContext,
+)
 from .synthesis import (
     EnvironmentSynthesizer,
     SynthesisContext,
     TaskBundle,
+    EnvironmentAgent,
+    ToolAgent,
+    TaskAgent,
+    ValidationAgent,
 )
 
 __all__ = [
@@ -23,6 +33,10 @@ __all__ = [
     "SearchTool",
     "ToolRegistry",
     "SandboxFusionExecutor",
+    "CodeValidator",
+    "SolutionContext",
+    "ToolContext",
+    "VerificationContext",
     "EnvironmentSynthesizer",
     "SynthesisContext",
     "TaskBundle",

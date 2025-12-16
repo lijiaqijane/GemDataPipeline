@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from pathlib import Path
 
 from .llm import LLMClient
 from .synthesis import EnvironmentSynthesizer
+from .utils import check_sandbox_fusion, validate_environment
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -59,6 +61,22 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+
+    # Validate environment before starting
+    if args.use_sandbox_fusion:
+        import os
+        sandbox_url = os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080")
+        logging.info("检查 SandboxFusion 服务...")
+        if not check_sandbox_fusion(sandbox_url):
+            logging.error("SandboxFusion 服务不可用 (%s)", sandbox_url)
+            logging.error("请先启动 SandboxFusion 服务，然后重试。")
+            sys.exit(1)
+        logging.info("SandboxFusion 服务可用")
+    
+    is_valid, error_msg = validate_environment()
+    if not is_valid:
+        logging.error("环境配置验证失败: %s", error_msg)
+        sys.exit(1)
 
     llm = LLMClient.from_env()
     synthesizer = EnvironmentSynthesizer(
