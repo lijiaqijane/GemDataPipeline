@@ -22,7 +22,6 @@ pip install -e .
 
 Copy your environment template to `.env` and fill in provider keys:
 
-<<<<<<< HEAD
 ```bash
 cp .env.example .env
 # then edit .env with your API keys/models
@@ -41,89 +40,6 @@ Generate two general tasks about retrieval:
 ```bash
 agent_gem --agent-type general_agent --topic "retrieval-augmented QA" --count 2 --sandbox-root sandbox/raq
 ```
-=======
-| Variable | Description | Default |
-| --- | --- | --- |
-| `LLM_PROVIDER` | `vllm`, `openai`, or `deepseek` | `vllm` |
-| `VLLM_BASE_URL` | vLLM OpenAI-compatible base URL | `http://localhost:8000/v1` |
-| `VLLM_MODEL` | Local model name | `local-model` |
-| `VLLM_API_KEY` | Optional if auth enabled | empty |
-| `VOLCANO_BASE_URL` | Deepseek API base URL | `https://ark.cn-beijing.volces.com/api/v3` |
-| `VOLCANO_MODEL` | Deepseek model ID | `deepseek-v3-2-251201` |
-| `VOLCANO_API_KEY` | Deepseek API key | empty |
-| `OPENAI_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com/v1` |
-| `OPENAI_MODEL` | Remote model name | `gpt-4o-mini` |
-| `OPENAI_API_KEY` | API key for OpenAI/compatible service | empty |
-| `LLM_TIMEOUT` | Request timeout seconds | `60` |
-| `SANDBOX_FUSION_URL` | SandboxFusion service URL | `http://localhost:8080` |
-| `SANDBOX_FUSION_TIMEOUT` | SandboxFusion request timeout | `30` |
-| `SANDBOX_FUSION_LANGUAGE` | Default programming language | `python` |
-| `DOCKER_IMAGE` | Docker image for code execution | `python:3.11-slim` |
-| `DOCKER_TIMEOUT` | Docker execution timeout | `30` |
-
-## Quickstart
-
-### Prerequisites
-
-1. **Docker** (required for secure code execution):
-```bash
-# Check if Docker is running
-docker ps
-
-# If not running, start Docker service
-sudo systemctl start docker  # Linux
-# Or start Docker Desktop
-```
-
-2. **SandboxFusion** (optional, but recommended):
-```bash
-# Deploy SandboxFusion service
-docker run -it -p 8080:8080 volcengine/sandbox-fusion:server-20250609
-```
-
-### Basic Usage
-
-**By default, Docker and SandboxFusion are enabled for secure execution:**
-
-```bash
-# Configure LLM (Deepseek example)
-export LLM_PROVIDER=deepseek
-export VOLCANO_MODEL=deepseek-v3-2-251201
-export VOLCANO_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
-export VOLCANO_API_KEY=your-api-key
-
-# Optional: Configure SandboxFusion (if service is running)
-export SANDBOX_FUSION_URL=http://localhost:8080
-
-# Run with default secure execution (Docker + SandboxFusion)
-python -m general_agent \
-  --category "travel itinerary planning" \
-  --sandbox ./sandbox/travel \
-  --rounds 1
-```
-
-**Or use the provided test script:**
-```bash
-bash test_deepseek.sh
-```
-
-### Disable Security Features (Not Recommended)
-
-If you need to disable Docker or SandboxFusion:
-
-```bash
-# Disable Docker
-python -m general_agent --category "..." --sandbox ./sandbox/travel --no-docker
-
-# Disable SandboxFusion
-python -m general_agent --category "..." --sandbox ./sandbox/travel --no-sandbox-fusion
-
-# Disable both (use local execution - less secure)
-python -m general_agent --category "..." --sandbox ./sandbox/travel --no-docker --no-sandbox-fusion
-```
-
-Generated DB and tasks are saved under `sandbox/travel`.
->>>>>>> main
 
 Run a code-focused batch:
 

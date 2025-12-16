@@ -51,18 +51,6 @@ def build_parser() -> argparse.ArgumentParser:
         dest="use_sandbox_fusion",
         help="Disable SandboxFusion",
     )
-    parser.add_argument(
-        "--use-docker",
-        action="store_true",
-        default=True,
-        help="Use Docker for secure code execution (default: enabled)",
-    )
-    parser.add_argument(
-        "--no-docker",
-        action="store_false",
-        dest="use_docker",
-        help="Disable Docker",
-    )
     return parser
 
 
@@ -81,7 +69,6 @@ def main(argv: list[str] | None = None) -> None:
         rounds=args.rounds,
         validate=not args.no_validate,
         use_sandbox_fusion=args.use_sandbox_fusion,
-        use_docker=args.use_docker,
     )
 
     print(f"Synthesized {len(bundles)} task(s):")

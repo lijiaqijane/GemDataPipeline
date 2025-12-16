@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Bytecode and cache
 __pycache__/
 .pytest_cache/
@@ -23,7 +22,7 @@ dist/
 
 # Generated data
 taskdb/
-=======
+
 # Python
 __pycache__/
 *.py[cod]
@@ -46,4 +45,4 @@ venv/
 # Project specific
 sandbox/
 *.log
->>>>>>> main
+docs/

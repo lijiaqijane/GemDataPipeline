@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
-
+from typing import Any, Dict, List
 import requests
 
 from .config import LLMConfig
@@ -46,7 +45,9 @@ class LLMClient:
                 url = self.config.base_url
         else:
             url = f"{self.config.base_url}/chat/completions"
-        resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=self.config.timeout)
+        resp = requests.post(
+            url, headers=headers, data=json.dumps(payload), timeout=self.config.timeout
+        )
         resp.raise_for_status()
         data = resp.json()
         try:
@@ -57,7 +58,10 @@ class LLMClient:
     def simple_complete(self, prompt: str, **kwargs: Any) -> str:
         """Convert plain prompt into chat messages and call chat completion."""
         messages = [
-            {"role": "system", "content": "You are a tool synthesis and task generation assistant."},
+            {
+                "role": "system",
+                "content": "You are a tool synthesis and task generation assistant.",
+            },
             {"role": "user", "content": prompt},
         ]
         return self.chat_completion(messages, **kwargs)
