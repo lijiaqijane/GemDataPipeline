@@ -10,10 +10,15 @@ import traceback
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+import requests
 from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+from sandbox_fusion import set_endpoint, run_code, RunCodeRequest
+import socket
 
+import docker
+from docker.errors import DockerException
 from agent_gem.core.task_schema import TaskPackage
 from agent_gem.core.utils import dump_json, slugify
 from agent_gem.tools import (
@@ -25,7 +30,92 @@ from agent_gem.tools import (
     ToolExecutionError,
 )
 
+
+_SANDBOX_FUSION_IMAGES = {
+    "global": "volcengine/sandbox-fusion:server-20250609",
+    "china": "vemlp-cn-beijing.cr.volces.com/preset-images/code-sandbox:server-20250609",
+}
+
 logger = logging.getLogger(__name__)
+
+
+class DockerAPIRunner:
+    def __init__(self, use_china_mirror: bool = True, silent: bool = False) -> None:
+        self.image = (
+            _SANDBOX_FUSION_IMAGES["china"]
+            if use_china_mirror
+            else _SANDBOX_FUSION_IMAGES["global"]
+        )
+        self.container = None
+        self.silent = silent
+        self.client = docker.from_env()
+        self.port = self._find_free_port()
+
+    @staticmethod
+    def _find_free_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("", 0))
+            sock.listen(1)
+            return int(sock.getsockname()[1])
+
+    def start(self) -> bool:
+        try:
+            if not self.silent:
+                logger.info("Pulling image: %s", self.image)
+            self.client.images.pull(self.image)
+            self.container = self.client.containers.run(
+                self.image,
+                ports={"8080/tcp": self.port},
+                detach=True,
+                remove=True,
+            )
+            if not self.silent:
+                logger.info(
+                    "SandboxFusion container started: %s", self.container.short_id
+                )
+            return True
+        except DockerException as exc:
+            if not self.silent:
+                logger.error("Error starting SandboxFusion container: %s", exc)
+            return False
+
+    def stop(self) -> bool:
+        if not self.container:
+            return False
+        try:
+            self.container.stop()
+            if not self.silent:
+                logger.info("SandboxFusion container stopped")
+            return True
+        except DockerException as exc:
+            if not self.silent:
+                logger.error("Error stopping SandboxFusion container: %s", exc)
+            return False
+
+    def wait_ready(self, max_wait_time: int = 60, check_interval: float = 1.0) -> None:
+        if not self.container:
+            raise RuntimeError("Container not started")
+        start_time = time.time()
+        while time.time() - start_time < max_wait_time:
+            self.container.reload()
+            if self.container.status == "running":
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                        sock.settimeout(2)
+                        if sock.connect_ex(("localhost", self.port)) == 0:
+                            return
+                except OSError:
+                    pass
+            elif self.container.status in {"exited", "dead"}:
+                logs = self.container.logs().decode("utf-8")
+                raise RuntimeError(
+                    f"Container failed to start ({self.container.status}): {logs[:500]}"
+                )
+            time.sleep(check_interval)
+        logs = self.container.logs().decode("utf-8")
+        raise RuntimeError(
+            f"Container not ready after {max_wait_time}s: status={self.container.status}; logs={logs[:500]}"
+        )
 
 
 class ToolCallRecord(BaseModel):
@@ -99,10 +189,11 @@ class SandboxExecutor:
         self._on_tool_call: Callable[[ToolCallRecord], None] | None = None
 
     @classmethod
-    def for_package(cls, package: TaskPackage, sandbox_root: Path | str) -> "SandboxExecutor":
-        root = Path(sandbox_root)
-        slug = slugify(package.task.task_title)
-        return cls(root / package.agent_type / slug)
+    def for_package(cls, package: TaskPackage, root: Path | str) -> "SandboxExecutor":
+        root = Path(root)
+        return cls(
+            root / package.agent_type / f"task-{package.task.task_id}" / "_sandbox"
+        )
 
     def as_tools(self, extra: Optional[Dict[str, Any]] = None) -> ToolProxy:
         if extra:
@@ -118,7 +209,9 @@ class SandboxExecutor:
         """Return a lightweight description list suitable for prompting."""
         described: List[Dict[str, str]] = []
         for name in sorted(self._tools):
-            described.append({"name": name, "description": self._tools[name].description})
+            described.append(
+                {"name": name, "description": self._tools[name].description}
+            )
         return described
 
     def tool_names(self) -> set[str]:
@@ -141,11 +234,15 @@ class SandboxExecutor:
                 )
         return specs
 
-    def execute_bash(self, command: str, timeout_s: Optional[int] = None) -> Dict[str, Any]:
+    def execute_bash(
+        self, command: str, timeout_s: Optional[int] = None
+    ) -> Dict[str, Any]:
         result = self.execute("bash", command, timeout_s=timeout_s)
         return result  # type: ignore[return-value]
 
-    def execute_python(self, code: str, timeout_s: Optional[int] = None) -> Dict[str, Any]:
+    def execute_python(
+        self, code: str, timeout_s: Optional[int] = None
+    ) -> Dict[str, Any]:
         result = self.execute("python_runner", code, timeout_s=timeout_s)
         return result  # type: ignore[return-value]
 
@@ -183,7 +280,9 @@ class SandboxExecutor:
             tool.description = description
         self._tools[name] = tool
 
-    def set_tool_call_callback(self, callback: Callable[[ToolCallRecord], None] | None) -> None:
+    def set_tool_call_callback(
+        self, callback: Callable[[ToolCallRecord], None] | None
+    ) -> None:
         self._on_tool_call = callback
 
     def execute(self, tool_name: str, *args: Any, **kwargs: Any) -> Any:
@@ -357,104 +456,32 @@ class SandboxExecutor:
             return str(value)
 
 
-import socket
-
-import docker
-from docker.errors import DockerException
-from sandbox_fusion import set_endpoint
-
-_SANDBOX_FUSION_IMAGES = {
-    "global": "volcengine/sandbox-fusion:server-20250609",
-    "china": "vemlp-cn-beijing.cr.volces.com/preset-images/code-sandbox:server-20250609",
-}
-
-
-class DockerAPIRunner:
-    def __init__(self, use_china_mirror: bool = True, silent: bool = False) -> None:
-        self.image = (
-            _SANDBOX_FUSION_IMAGES["china"] if use_china_mirror else _SANDBOX_FUSION_IMAGES["global"]
-        )
-        self.container = None
-        self.silent = silent
-        self.client = docker.from_env()
-        self.port = self._find_free_port()
-
-    @staticmethod
-    def _find_free_port() -> int:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.bind(("", 0))
-            sock.listen(1)
-            return int(sock.getsockname()[1])
-
-    def start(self) -> bool:
-        try:
-            if not self.silent:
-                logger.info("Pulling image: %s", self.image)
-            self.client.images.pull(self.image)
-            self.container = self.client.containers.run(
-                self.image,
-                ports={"8080/tcp": self.port},
-                detach=True,
-                remove=True,
-            )
-            if not self.silent:
-                logger.info("SandboxFusion container started: %s", self.container.short_id)
-            return True
-        except DockerException as exc:
-            if not self.silent:
-                logger.error("Error starting SandboxFusion container: %s", exc)
-            return False
-
-    def stop(self) -> bool:
-        if not self.container:
-            return False
-        try:
-            self.container.stop()
-            if not self.silent:
-                logger.info("SandboxFusion container stopped")
-            return True
-        except DockerException as exc:
-            if not self.silent:
-                logger.error("Error stopping SandboxFusion container: %s", exc)
-            return False
-
-    def wait_ready(self, max_wait_time: int = 60, check_interval: float = 1.0) -> None:
-        if not self.container:
-            raise RuntimeError("Container not started")
-        start_time = time.time()
-        while time.time() - start_time < max_wait_time:
-            self.container.reload()
-            if self.container.status == "running":
-                try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                        sock.settimeout(2)
-                        if sock.connect_ex(("localhost", self.port)) == 0:
-                            return
-                except OSError:
-                    pass
-            elif self.container.status in {"exited", "dead"}:
-                logs = self.container.logs().decode("utf-8")
-                raise RuntimeError(f"Container failed to start ({self.container.status}): {logs[:500]}")
-            time.sleep(check_interval)
-        logs = self.container.logs().decode("utf-8")
-        raise RuntimeError(
-            f"Container not ready after {max_wait_time}s: status={self.container.status}; logs={logs[:500]}"
-        )
-
-
-@dataclass
-class SandboxFusionExecutor:
+class SandboxFusionExecutor(SandboxExecutor):
     """Secure code execution environment using SandboxFusion service.
 
     This is an execution environment, not a tool. It executes the entire
     solution/verification logic in an isolated container.
     """
 
-    base_url: str = "http://localhost:8080"
-    timeout: int = 30
-    default_language: str = "python"
+    def __init__(
+        self,
+        base_url: str = "http://localhost:8080",
+        *,
+        timeout_s: int = 20,
+        default_language: str = "python",
+    ) -> None:
+        self.sandbox_base_url = base_url
+        set_endpoint(self.sandbox_base_url)
+        self.timeout_s = timeout_s
+        self.default_language = default_language
 
-    def __call__(self, code: str, language: str | None = None) -> Dict[str, Any]:
+        self._tools: Dict[str, BaseTool] = {}
+        self._tool_calls_lock = threading.Lock()
+        self._on_tool_call: Callable[[ToolCallRecord], None] | None = None
+
+    def run_code(
+        self, code: str, language: str | None = None, timeout_s: Optional[int] = None
+    ) -> Dict[str, Any]:
         """Execute code in SandboxFusion sandbox.
 
         Args:
@@ -469,16 +496,11 @@ class SandboxFusionExecutor:
             - execution_time: Execution time in seconds
             - return_code: Return code (if applicable)
         """
-        url = f"{self.base_url.rstrip('/')}/run_code"
-        payload = {
-            "code": code,
-            "language": language or self.default_language,
-        }
-
         try:
-            resp = requests.post(url, json=payload, timeout=self.timeout)
-            resp.raise_for_status()
-            result = resp.json()
+            result = run_code(
+                RunCodeRequest(code=code, language=language or self.default_language),
+                client_timeout=timeout_s or self.timeout_s,
+            ).model_dump()
 
             # Normalize response format
             return {
@@ -498,3 +520,19 @@ class SandboxFusionExecutor:
                 "return_code": -1,
                 "raw": {},
             }
+
+    def execute_bash(
+        self, command: str, timeout_s: Optional[int] = None
+    ) -> Dict[str, Any]:
+        result = self.run_code(command, "bash", timeout_s=timeout_s)
+        return result  # type: ignore[return-value]
+
+    def execute_python(
+        self, code: str, timeout_s: Optional[int] = None
+    ) -> Dict[str, Any]:
+        result = self.run_code(code, "python_runner", timeout_s=timeout_s)
+        return result  # type: ignore[return-value]
+
+    def execute_search(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:
+        result = self.execute("search", query, max_results=max_results)
+        return result  # type: ignore[return-value]

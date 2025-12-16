@@ -33,6 +33,18 @@ cp .env.example .env
 - Other providers: `LLM_PROVIDER=openai` with `OPENAI_API_KEY`/`OPENAI_MODEL`, or `LLM_PROVIDER=vllm` with `VLLM_BASE_URL`/`VLLM_MODEL`.
 - Tunables: `LLM_TIMEOUT` (seconds), `LLM_MAX_RETRIES` (default 3).
 
+## Sandbox Configuration
+
+Build the image locally:
+
+```bash
+# change the base image in Dockerfile.server
+docker build -f ./sandbox_fusion/scripts/Dockerfile.server -t code_sandbox:server .
+docker run -d --rm --privileged --it \
+  -v "$PWD/sandbox_fusion":/root/sandbox \
+  -p 8080:8080 code_sandbox:server
+```
+
 ## Quickstart
 
 Generate two general tasks about retrieval:
@@ -57,4 +69,4 @@ agent_gem --agent-type code_agent --topic "python data pipelines" --count 1 --di
 
 ## Output
 
-Tasks are saved as `sandbox/<agent>/<slug>/task.json` with task schema, reference solution, verification snippet, and metadata. Use these sandboxes directly for RL rollouts or dataset curation.
+Tasks are saved as `sandbox/<agent>/task-<task-id>/task.json` with task schema, reference solution, verification snippet, and metadata. Use these sandboxes directly for RL rollouts or dataset curation.
