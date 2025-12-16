@@ -1,9 +1,9 @@
-"""代码约束系统：通过接口和AST分析强制约束，而不是通过prompt。
+"""Code constraint system: enforces constraints through interfaces and AST analysis, not through prompts.
 
-根据论文要求：
-1. 解答函数只能调用工具函数或执行逻辑计算，不能直接访问数据库
-2. 工具函数可以访问数据库和调用其他工具函数
-3. 验证函数可以访问数据库和所有信息
+According to paper requirements:
+1. Solution functions can only call tool functions or perform logical calculations, cannot directly access database
+2. Tool functions can access database and call other tool functions
+3. Verification functions can access database and all information
 """
 
 from __future__ import annotations
@@ -20,87 +20,87 @@ logger = logging.getLogger(__name__)
 
 
 class ToolCallable(Protocol):
-    """工具函数协议：可以被解答函数和验证函数调用。"""
+    """Tool function protocol: can be called by solution functions and verification functions."""
     
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """调用工具函数。"""
+        """Call tool function."""
         ...
 
 
 @dataclass
 class SolutionContext:
-    """解答函数的执行上下文：只能访问工具，不能访问数据库。
+    """Execution context for solution functions: can only access tools, cannot access database.
     
-    根据论文约束，解答函数只能：
-    - 调用工具函数
-    - 执行逻辑计算（条件判断、循环等）
+    According to paper constraints, solution functions can only:
+    - Call tool functions
+    - Perform logical calculations (conditionals, loops, etc.)
     
-    解答函数不能：
-    - 直接访问数据库
-    - 调用其他非工具函数
+    Solution functions cannot:
+    - Directly access database
+    - Call other non-tool functions
     """
     
     tools: Dict[str, ToolCallable]
     
     def get_tool(self, name: str) -> ToolCallable:
-        """获取工具函数。"""
+        """Get tool function."""
         if name not in self.tools:
             raise AttributeError(f"Tool '{name}' not available in solution context. Available: {list(self.tools.keys())}")
         return self.tools[name]
     
     def __getitem__(self, name: str) -> ToolCallable:
-        """支持 tools['name'] 语法。"""
+        """Support tools['name'] syntax."""
         return self.get_tool(name)
     
     def __getattr__(self, name: str) -> ToolCallable:
-        """支持 tools.name 语法。"""
+        """Support tools.name syntax."""
         return self.get_tool(name)
     
     def __contains__(self, name: str) -> bool:
-        """检查工具是否存在。"""
+        """Check if tool exists."""
         return name in self.tools
     
     def keys(self):
-        """返回所有工具名称。"""
+        """Return all tool names."""
         return self.tools.keys()
 
 
 @dataclass
 class ToolContext:
-    """工具函数的执行上下文：可以访问数据库和调用其他工具函数。
+    """Execution context for tool functions: can access database and call other tool functions.
     
-    根据论文约束，工具函数可以：
-    - 访问数据库
-    - 调用其他工具函数
-    - 必须返回可验证的结果
+    According to paper constraints, tool functions can:
+    - Access database
+    - Call other tool functions
+    - Must return verifiable results
     """
     
     db: LocalDatabase
     tools: Dict[str, ToolCallable]
     
     def get_tool(self, name: str) -> ToolCallable:
-        """获取其他工具函数。"""
+        """Get other tool function."""
         if name not in self.tools:
             raise AttributeError(f"Tool '{name}' not available. Available: {list(self.tools.keys())}")
         return self.tools[name]
     
     def query_db(self, key: str, value: Any) -> List[Dict[str, Any]]:
-        """查询数据库。"""
+        """Query database."""
         return self.db.query(key, value)
     
     def get_all_records(self) -> List[Dict[str, Any]]:
-        """获取所有数据库记录。"""
+        """Get all database records."""
         return self.db.records
 
 
 @dataclass
 class VerificationContext:
-    """验证函数的执行上下文：可以访问数据库和所有信息。
+    """Execution context for verification functions: can access database and all information.
     
-    根据论文约束，验证函数可以：
-    - 访问数据库
-    - 访问所有工具
-    - 访问所有信息
+    According to paper constraints, verification functions can:
+    - Access database
+    - Access all tools
+    - Access all information
     """
     
     db: LocalDatabase
@@ -108,33 +108,33 @@ class VerificationContext:
     answer: Any
     
     def get_tool(self, name: str) -> ToolCallable:
-        """获取工具函数。"""
+        """Get tool function."""
         if name not in self.tools:
             raise AttributeError(f"Tool '{name}' not available. Available: {list(self.tools.keys())}")
         return self.tools[name]
     
     def query_db(self, key: str, value: Any) -> List[Dict[str, Any]]:
-        """查询数据库。"""
+        """Query database."""
         return self.db.query(key, value)
     
     def get_all_records(self) -> List[Dict[str, Any]]:
-        """获取所有数据库记录。"""
+        """Get all database records."""
         return self.db.records
 
 
 class CodeValidator:
-    """使用AST分析验证代码是否符合约束。"""
+    """Validates code compliance with constraints using AST analysis."""
     
     @staticmethod
     def validate_solution_code(code: str) -> tuple[bool, str]:
-        """验证解答函数代码是否符合约束。
+        """Validate if solution function code complies with constraints.
         
-        约束：
-        1. 必须定义 solve(tools) 函数
-        2. 不能导入模块
-        3. 不能定义其他函数（只能有solve函数）
-        4. 不能直接访问数据库（通过变量名检查）
-        5. 必须调用工具
+        Constraints:
+        1. Must define solve(tools) function
+        2. Cannot import modules
+        3. Cannot define other functions (only solve function allowed)
+        4. Cannot directly access database (checked via variable names)
+        5. Must call tools
         
         Returns:
             (is_valid, error_message)
@@ -147,7 +147,7 @@ class CodeValidator:
         except SyntaxError as e:
             return False, f"Syntax error: {e}"
         
-        # 检查1: 必须定义 solve 函数
+        # Check 1: Must define solve function
         has_solve = False
         solve_node = None
         for node in ast.walk(tree):
@@ -159,10 +159,10 @@ class CodeValidator:
         if not has_solve:
             return False, "Missing 'def solve(tools)' function definition"
         
-        # 检查2: 不能导入模块
+        # Check 2: Cannot import modules
         for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)):
-                # 构建导入语句的字符串表示（兼容 Python 3.8+）
+                # Build string representation of import statement (compatible with Python 3.8+)
                 if isinstance(node, ast.Import):
                     module_names = ", ".join([alias.name for alias in node.names])
                     import_str = f"import {module_names}"
@@ -172,13 +172,13 @@ class CodeValidator:
                     import_str = f"from {module} import {names}"
                 return False, f"Solution code cannot import modules: {import_str}"
         
-        # 检查3: 不能定义其他函数（只能有solve函数）
+        # Check 3: Cannot define other functions (only solve function allowed)
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name != "solve":
                 return False, f"Solution code can only define solve function, cannot define other functions: {node.name}"
         
-        # 检查4: 不能直接访问数据库（通过变量名和属性访问检查）
-        # 使用 NodeVisitor 来正确检查节点上下文
+        # Check 4: Cannot directly access database (checked via variable names and attribute access)
+        # Use NodeVisitor to correctly check node context
         class DatabaseAccessChecker(ast.NodeVisitor):
             def __init__(self):
                 self.violations = []
@@ -186,10 +186,10 @@ class CodeValidator:
             
             def visit_Name(self, node: ast.Name):
                 if node.id in self.forbidden_names:
-                    # 检查是否在属性访问、下标或调用中使用
-                    # 由于AST没有parent，我们检查周围的上下文
-                    # 如果名称出现在赋值左侧，可能是定义，不是访问
-                    # 这里简化处理：如果名称出现在表达式中，视为访问
+                    # Check if used in attribute access, subscript, or call
+                    # Since AST has no parent, we check surrounding context
+                    # If name appears on left side of assignment, might be definition, not access
+                    # Simplified handling: if name appears in expression, treat as access
                     self.violations.append(f"Solution code cannot directly access database variable: {node.id}")
                 self.generic_visit(node)
             
@@ -204,11 +204,11 @@ class CodeValidator:
         if checker.violations:
             return False, checker.violations[0]
         
-        # 检查5: 必须调用工具（在solve函数中）
+        # Check 5: Must call tools (in solve function)
         if solve_node:
             has_tool_call = False
             for node in ast.walk(solve_node):
-                # 检查 tools['name'] 或 tools.name 或 tools.name() 调用
+                # Check tools['name'] or tools.name or tools.name() calls
                 if isinstance(node, ast.Subscript):
                     if isinstance(node.value, ast.Name) and node.value.id == "tools":
                         has_tool_call = True
@@ -236,13 +236,13 @@ class CodeValidator:
     
     @staticmethod
     def validate_verification_code(code: str) -> tuple[bool, str]:
-        """验证验证函数代码是否符合约束。
+        """Validate if verification function code complies with constraints.
         
-        约束：
-        1. 必须定义 verify(tools, answer) 函数
-        2. 可以导入模块（如果需要）
-        3. 可以定义辅助函数
-        4. 可以访问数据库（通过tools或直接访问）
+        Constraints:
+        1. Must define verify(tools, answer) function
+        2. Can import modules (if needed)
+        3. Can define helper functions
+        4. Can access database (via tools or direct access)
         
         Returns:
             (is_valid, error_message)
@@ -255,7 +255,7 @@ class CodeValidator:
         except SyntaxError as e:
             return False, f"Syntax error: {e}"
         
-        # 检查1: 必须定义 verify 函数
+        # Check 1: Must define verify function
         has_verify = False
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == "verify":
@@ -269,7 +269,7 @@ class CodeValidator:
     
     @staticmethod
     def extract_tool_calls(code: str) -> set[str]:
-        """从代码中提取所有工具调用名称。"""
+        """Extract all tool call names from code."""
         tool_calls = set()
         
         try:
@@ -278,7 +278,7 @@ class CodeValidator:
             return tool_calls
         
         for node in ast.walk(tree):
-            # 检查 tools['name'] 调用
+            # Check tools['name'] calls
             if isinstance(node, ast.Subscript):
                 if isinstance(node.value, ast.Name) and node.value.id == "tools":
                     if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
@@ -286,12 +286,12 @@ class CodeValidator:
                     elif isinstance(node.slice, ast.Str):  # Python < 3.8
                         tool_calls.add(node.slice.s)
             
-            # 检查 tools.name 调用
+            # Check tools.name calls
             elif isinstance(node, ast.Attribute):
                 if isinstance(node.value, ast.Name) and node.value.id == "tools":
                     tool_calls.add(node.attr)
             
-            # 检查 tools['name']() 或 tools.name() 调用
+            # Check tools['name']() or tools.name() calls
             elif isinstance(node, ast.Call):
                 func = node.func
                 if isinstance(func, ast.Attribute):
@@ -304,7 +304,7 @@ class CodeValidator:
                         elif isinstance(func.slice, ast.Str):  # Python < 3.8
                             tool_calls.add(func.slice.s)
         
-        # 移除字典方法
+        # Remove dict methods
         dict_methods = {"keys", "values", "items", "get", "pop", "update", "clear", "copy"}
         tool_calls -= dict_methods
         

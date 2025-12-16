@@ -66,16 +66,16 @@ def main(argv: list[str] | None = None) -> None:
     if args.use_sandbox_fusion:
         import os
         sandbox_url = os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080")
-        logging.info("检查 SandboxFusion 服务...")
+        logging.info("Checking SandboxFusion service...")
         if not check_sandbox_fusion(sandbox_url):
-            logging.error("SandboxFusion 服务不可用 (%s)", sandbox_url)
-            logging.error("请先启动 SandboxFusion 服务，然后重试。")
+            logging.error("SandboxFusion service unavailable (%s)", sandbox_url)
+            logging.error("Please start SandboxFusion service first, then retry.")
             sys.exit(1)
-        logging.info("SandboxFusion 服务可用")
+        logging.info("SandboxFusion service available")
     
     is_valid, error_msg = validate_environment()
     if not is_valid:
-        logging.error("环境配置验证失败: %s", error_msg)
+        logging.error("Environment configuration validation failed: %s", error_msg)
         sys.exit(1)
 
     llm = LLMClient.from_env()

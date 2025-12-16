@@ -67,42 +67,42 @@ class EnvironmentSynthesizer:
         return SynthesisContext(category=category, sandbox=sandbox, db=db, registry=registry, llm=self.llm)
 
     def seed_database(self, ctx: SynthesisContext) -> None:
-        """步骤1：环境与工具集构建 - 在包含bash和搜索工具的沙箱环境中，生成或检索相关数据并存储到数据库。
+        """Step 1: Environment and toolset construction - Generate or retrieve relevant data in a sandbox environment with bash and search tools, and store it in the database.
         
-        根据论文设计，此步骤负责：
-        1. 在沙箱环境中使用bash和搜索工具
-        2. 针对特定任务类别，生成或检索相关数据
-        3. 将数据存储到数据库中
+        According to paper design, this step is responsible for:
+        1. Using bash and search tools in the sandbox environment
+        2. Generating or retrieving relevant data for specific task categories
+        3. Storing data in the database
         
-        约束：
-        - 必须使用搜索工具从网络或知识库中检索数据
-        - 可以使用bash工具生成模拟数据
-        - 所有数据必须存储到数据库中
+        Constraints:
+        - Must use search tools to retrieve data from network or knowledge base
+        - Can use bash tools to generate mock data
+        - All data must be stored in the database
         """
-        logger.info(f"步骤1：开始生成/检索数据（类别: {ctx.category}）...")
+        logger.info(f"Step 1: Starting data generation/retrieval (category: {ctx.category})...")
         
-        # 步骤1.1：使用搜索工具检索相关数据
+        # Step 1.1: Use search tool to retrieve relevant data
         search_query = f"{ctx.category} sample data list structured information"
-        logger.debug(f"使用搜索工具检索: {search_query}")
+        logger.debug(f"Using search tool to retrieve: {search_query}")
         try:
             search_hits = ctx.registry.tools["search"](search_query, max_results=5)
-            logger.info(f"搜索工具返回 {len(search_hits)} 条结果")
+            logger.info(f"Search tool returned {len(search_hits)} results")
         except Exception as exc:  # pragma: no cover - network/API fallback
-            logger.warning("搜索工具失败，回退到空结果: %s", exc)
+            logger.warning("Search tool failed, falling back to empty results: %s", exc)
             search_hits = []
         
-        # 步骤1.2：可选使用bash工具生成模拟数据（如果需要）
-        # 例如：生成测试数据文件、处理数据等
+        # Step 1.2: Optionally use bash tool to generate mock data (if needed)
+        # For example: generate test data files, process data, etc.
         bash_commands = []
         if not search_hits:
-            # 如果搜索没有结果，可以使用bash生成一些基础数据
-            logger.debug("搜索无结果，考虑使用bash工具生成模拟数据")
-            # 这里可以添加bash命令来生成数据文件等
+            # If search has no results, can use bash to generate some basic data
+            logger.debug("No search results, considering using bash tool to generate mock data")
+            # Can add bash commands here to generate data files, etc.
         
-        # 步骤1.3：使用LLM基于搜索结果和任务类别生成结构化数据
-        # 注意：即使搜索结果为空，LLM仍会根据任务类别生成数据（这是fallback机制）
-        data_source = "搜索结果 + 任务类别" if search_hits else "任务类别（搜索无结果，使用LLM生成）"
-        logger.info(f"步骤1.3：使用LLM生成结构化数据（数据来源: {data_source}）...")
+        # Step 1.3: Use LLM to generate structured data based on search results and task category
+        # Note: Even if search results are empty, LLM will still generate data based on task category (this is the fallback mechanism)
+        data_source = "Search results + task category" if search_hits else "Task category (no search results, using LLM generation)"
+        logger.info(f"Step 1.3: Using LLM to generate structured data (data source: {data_source})...")
         
         prompt = (
             "You are a data curation assistant working in a sandbox environment with bash and search tools. "
@@ -117,17 +117,17 @@ class EnvironmentSynthesizer:
         try:
             records = self._parse_json_response(generated)
         except json.JSONDecodeError:
-            logger.warning("LLM返回的JSON解析失败，使用fallback记录")
+            logger.warning("LLM returned JSON parse failed, using fallback record")
             records = [{"title": ctx.category, "summary": generated[:200]}]
         if isinstance(records, dict):
             records = [records]
         
-        logger.info(f"步骤1.3完成：LLM生成了 {len(records)} 条结构化记录")
+        logger.info(f"Step 1.3 complete: LLM generated {len(records)} structured records")
         
-        # 步骤1.4：将生成的数据存储到数据库
+        # Step 1.4: Store generated data in database
         initial_count = len(ctx.db.records)
         for row in records:
-            # 确保记录有基本字段
+            # Ensure records have basic fields
             if "title" not in row:
                 row["title"] = str(row.get("name", ctx.category))
             if "summary" not in row:
@@ -138,19 +138,19 @@ class EnvironmentSynthesizer:
         added_count = final_count - initial_count
         
         logger.info(
-            f"步骤1完成：已生成并存储 {added_count} 条新数据库记录（总计 {final_count} 条）到 {ctx.db.path}\n"
-            f"  数据来源说明：搜索工具返回 {len(search_hits)} 条结果，LLM基于{'搜索结果和' if search_hits else ''}任务类别生成了 {len(records)} 条记录"
+            f"Step 1 complete: Generated and stored {added_count} new database records (total {final_count}) to {ctx.db.path}\n"
+            f"  Data source: Search tool returned {len(search_hits)} results, LLM generated {len(records)} records based on {'search results and ' if search_hits else ''}task category"
         )
 
     def _generate_fallback_tools(self, ctx: SynthesisContext) -> List[Dict[str, str]]:
-        """生成fallback工具，基于数据库记录和任务类别。
+        """Generate fallback tools based on database records and task category.
         
-        当LLM无法生成工具时，使用这个方法来生成基础工具。
+        Use this method to generate basic tools when LLM cannot generate tools.
         """
         category_lower = ctx.category.lower()
         tools = []
         
-        # 分析数据库记录，生成基础查询工具
+        # Analyze database records, generate basic query tools
         records = ctx.db.records[:10]
         record_types = set()
         record_keys = set()
@@ -160,7 +160,7 @@ class EnvironmentSynthesizer:
                 record_types.add(record["type"].lower())
             record_keys.update(record.keys())
         
-        # 根据任务类别和数据库结构生成工具
+        # Generate tools based on task category and database structure
         if "travel" in category_lower or "trip" in category_lower or "tour" in category_lower:
             tools.append({
                 "name": "get_travel_guides",
@@ -181,7 +181,7 @@ class EnvironmentSynthesizer:
                     "description": "Get detailed information about an itinerary. Parameters: itinerary_name (str) - name of the itinerary"
                 })
         
-        # 通用工具
+        # General tools
         if len(records) > 0:
             tools.append({
                 "name": "get_all_records",
@@ -192,16 +192,16 @@ class EnvironmentSynthesizer:
                 "description": "Search records by keyword. Parameters: keyword (str) - search keyword to filter records"
             })
         
-        # 根据记录的type字段生成特定工具
+        # Generate specific tools based on record type field
         if record_types:
-            for record_type in list(record_types)[:2]:  # 最多生成2个类型特定工具
+            for record_type in list(record_types)[:2]:  # Generate at most 2 type-specific tools
                 tool_name = f"get_{record_type.lower().replace(' ', '_')}_records"
                 tools.append({
                     "name": tool_name,
                     "description": f"Get all {record_type} records from the database. Parameters: None"
                 })
         
-        # 确保至少有2个工具
+        # Ensure at least 2 tools
         if len(tools) < 2:
             tools.extend([
                 {
@@ -214,22 +214,22 @@ class EnvironmentSynthesizer:
                 }
             ])
         
-        logger.info(f"生成了 {len(tools)} 个fallback工具: {[t['name'] for t in tools]}")
-        return tools[:5]  # 最多返回5个工具
+        logger.info(f"Generated {len(tools)} fallback tools: {[t['name'] for t in tools]}")
+        return tools[:5]  # Return at most 5 tools
 
     def synthesize_tools(self, ctx: SynthesisContext, additional_context: str = "") -> None:
-        """步骤2：任务合成 - 基于数据库，合成一组任务相关工具，每个工具实现为一个函数。
+        """Step 2: Task synthesis - Synthesize a set of task-related tools based on the database, each tool implemented as a function.
         
-        根据论文设计，此步骤负责：
-        1. 基于数据库分析任务需求
-        2. 合成一组任务相关工具，每个工具实现为一个函数
-        3. 工具函数可以访问数据库（与解答函数的约束不同）
-        4. 工具函数可以调用其他工具函数
-        5. 工具函数必须返回可验证的结果
+        According to paper design, this step is responsible for:
+        1. Analyzing task requirements based on database
+        2. Synthesizing a set of task-related tools, each tool implemented as a function
+        3. Tool functions can access database (different from solution function constraints)
+        4. Tool functions can call other tool functions
+        5. Tool functions must return verifiable results
         """
         context_suffix = f"\nAdditional context: {additional_context}" if additional_context else ""
         
-        # 增强的prompt，要求生成至少3-5个工具
+        # Enhanced prompt, requiring generation of at least 3-5 tools
         prompt = (
             "You are a tool synthesis agent. Based on the database records, synthesize 3-5 task-oriented tools. "
             "Each tool should be implemented as a function that can access the database and call other tools. "
@@ -255,56 +255,56 @@ class EnvironmentSynthesizer:
             "\n]"
         )
         
-        # 重试机制：最多尝试3次
+        # Retry mechanism: try at most 3 times
         max_retries = 3
         tools = []
         for attempt in range(max_retries):
             try:
                 raw = ctx.llm.simple_complete(
                     prompt, 
-                    temperature=0.6 + attempt * 0.1,  # 逐步提高温度增加多样性
-                    max_tokens=800  # 增加token数以确保生成足够工具
+                    temperature=0.6 + attempt * 0.1,  # Gradually increase temperature for diversity
+                    max_tokens=800  # Increase token count to ensure enough tools are generated
                 )
                 parsed = self._parse_json_response(raw)
-                logger.debug(f"LLM返回的工具定义（尝试 {attempt + 1}/{max_retries}）: {raw[:500]}")
+                logger.debug(f"LLM returned tool definitions (attempt {attempt + 1}/{max_retries}): {raw[:500]}")
                 
                 if isinstance(parsed, dict):
                     parsed = [parsed]
                 elif not isinstance(parsed, list):
                     parsed = []
                 
-                # 过滤掉无效的工具
+                # Filter out invalid tools
                 valid_tools = []
                 for tool in parsed:
                     if isinstance(tool, dict) and tool.get("name") and tool.get("description"):
-                        # 排除默认工具（bash, search）
+                        # Exclude default tools (bash, search)
                         if tool.get("name") not in ["bash", "search"]:
                             valid_tools.append(tool)
                 
-                if len(valid_tools) >= 2:  # 至少需要2个有效工具
+                if len(valid_tools) >= 2:  # Need at least 2 valid tools
                     tools = valid_tools
-                    logger.info(f"步骤2：成功生成 {len(tools)} 个工具定义（尝试 {attempt + 1}/{max_retries}）")
+                    logger.info(f"Step 2: Successfully generated {len(tools)} tool definitions (attempt {attempt + 1}/{max_retries})")
                     break
                 else:
-                    logger.warning(f"步骤2：生成的工具数量不足（{len(valid_tools)} 个，尝试 {attempt + 1}/{max_retries}），继续重试...")
+                    logger.warning(f"Step 2: Insufficient tools generated ({len(valid_tools)} tools, attempt {attempt + 1}/{max_retries}), retrying...")
                     
             except json.JSONDecodeError as e:
-                logger.warning(f"工具定义JSON解析失败（尝试 {attempt + 1}/{max_retries}）: {e}, 原始响应: {raw[:200]}")
+                logger.warning(f"Tool definition JSON parse failed (attempt {attempt + 1}/{max_retries}): {e}, raw response: {raw[:200]}")
                 if attempt == max_retries - 1:
                     tools = []
             except Exception as e:
-                logger.error(f"工具生成过程中出错（尝试 {attempt + 1}/{max_retries}）: {e}")
+                logger.error(f"Error during tool generation (attempt {attempt + 1}/{max_retries}): {e}")
                 if attempt == max_retries - 1:
                     tools = []
         
-        # 如果所有重试都失败，生成fallback工具
+        # If all retries failed, generate fallback tools
         if len(tools) < 2:
-            logger.warning(f"步骤2：工具生成失败或数量不足（{len(tools)} 个），使用fallback工具")
+            logger.warning(f"Step 2: Tool generation failed or insufficient ({len(tools)} tools), using fallback tools")
             tools = self._generate_fallback_tools(ctx)
         
-        logger.info(f"步骤2：最终将注册 {len(tools)} 个自定义工具")
+        logger.info(f"Step 2: Will register {len(tools)} custom tools")
 
-        # 创建工具上下文，允许工具访问数据库和调用其他工具
+        # Create tool context, allowing tools to access database and call other tools
         tool_ctx = ToolContext(db=ctx.db, tools={})
 
         for spec in tools:
@@ -315,31 +315,31 @@ class EnvironmentSynthesizer:
 
             def make_handler(key: str, tool_context: ToolContext):
                 def base_handler(*args: Any, **kwargs: Any) -> Any:
-                    """工具函数处理器：可以访问数据库和调用其他工具函数。
+                    """Tool function handler: can access database and call other tool functions.
                     
-                    根据论文约束，工具函数可以：
-                    - 访问数据库（通过 tool_context.db）
-                    - 调用其他工具函数（通过 tool_context.tools）
-                    - 必须返回可验证的结果
+                    According to paper constraints, tool functions can:
+                    - Access database (via tool_context.db)
+                    - Call other tool functions (via tool_context.tools)
+                    - Must return verifiable results
                     
-                    支持多个参数，例如：
-                    - get_all_hotels_by_city(city: str) - 一个参数
-                    - get_infos_by_hotel(info_keywords: List[str], hotel: str) - 两个参数
-                    - get_inter_city_transport(from_city: str, to_city: str) - 两个参数
+                    Supports multiple parameters, for example:
+                    - get_all_hotels_by_city(city: str) - one parameter
+                    - get_infos_by_hotel(info_keywords: List[str], hotel: str) - two parameters
+                    - get_inter_city_transport(from_city: str, to_city: str) - two parameters
                     """
                     logger.debug("Tool '%s' called with args=%s, kwargs=%s", key, args, kwargs)
                     
-                    # 处理多个参数的情况
-                    # 如果工具名称包含"by_"或"infos_by"，通常需要多个参数
+                    # Handle multiple parameters case
+                    # If tool name contains "by_" or "infos_by", usually needs multiple parameters
                     if "infos_by" in key.lower() or "by_" in key.lower():
-                        # 对于类似get_infos_by_hotel(info_keywords, hotel)的工具
-                        # args[0] 是 info_keywords (list)
-                        # args[1] 是 hotel (str)
+                        # For tools like get_infos_by_hotel(info_keywords, hotel)
+                        # args[0] is info_keywords (list)
+                        # args[1] is hotel (str)
                         if len(args) >= 2:
                             info_keywords = args[0] if isinstance(args[0], list) else [args[0]]
                             entity_name = args[1] if len(args) > 1 else (args[0] if len(args) == 1 else None)
                             
-                            # 从数据库中找到对应的实体（工具函数可以访问数据库）
+                            # Find corresponding entity from database (tool functions can access database)
                             entity_type = key.split("_by_")[-1] if "_by_" in key else key.split("by_")[-1]
                             entity_records = [r for r in tool_context.get_all_records() 
                                             if entity_type in r.get("type", "").lower() 
@@ -347,12 +347,12 @@ class EnvironmentSynthesizer:
                             
                             if entity_records:
                                 entity = entity_records[0]
-                                # 返回请求的字段（可验证的结果）
+                                # Return requested fields (verifiable results)
                                 result = {k: entity.get(k) for k in info_keywords if k in entity}
                                 return result
                             return {}
                     
-                    # 处理单个参数的情况（向后兼容）
+                    # Handle single parameter case (backward compatible)
                     candidate: Any = None
                     if args:
                         candidate = args[0]
@@ -363,7 +363,7 @@ class EnvironmentSynthesizer:
                     if isinstance(candidate, dict):
                         candidate = json.dumps(candidate, ensure_ascii=False)
                     if candidate is None:
-                        # 工具函数可以访问数据库
+                        # Tool functions can access database
                         result = tool_context.get_all_records()
                     elif not isinstance(candidate, str):
                         candidate = str(candidate)
@@ -371,8 +371,8 @@ class EnvironmentSynthesizer:
                     else:
                         result = self.smart_db_query(tool_context.get_all_records(), key, candidate)
                     
-                    # 根据论文约束，工具函数必须返回可验证的结果
-                    # 返回格式应该是结构化的（list, dict），而不是字符串或None
+                    # According to paper constraints, tool functions must return verifiable results
+                    # Return format should be structured (list, dict), not string or None
                     # Simplify return format based on tool type for easier consumption
                     if isinstance(result, list) and result:
                         # Return simplified, consistent format
@@ -403,10 +403,10 @@ class EnvironmentSynthesizer:
                     elif isinstance(result, list) and len(result) == 0:
                         result = []
                     elif result is None:
-                        # 工具函数必须返回可验证的结果，不能返回None
+                        # Tool functions must return verifiable results, cannot return None
                         result = []
                     
-                    # 确保返回的结果是可验证的（list或dict）
+                    # Ensure returned result is verifiable (list or dict)
                     if not isinstance(result, (list, dict)):
                         logger.warning("Tool '%s' returned non-verifiable result type: %s, converting to list", key, type(result).__name__)
                         result = [result] if result is not None else []
@@ -437,68 +437,68 @@ class EnvironmentSynthesizer:
                 return GeneratedTool()
 
             ctx.registry.register(name=name, description=desc, func=make_handler(name, tool_ctx))
-            logger.info(f"步骤2：注册工具 '{name}': {desc[:100]}")
+            logger.info(f"Step 2: Registered tool '{name}': {desc[:100]}")
         
-        # 更新工具上下文，包含所有已注册的工具（允许工具调用其他工具）
+        # Update tool context, include all registered tools (allow tools to call other tools)
         tool_ctx.tools = ctx.registry.as_callable_dict()
         
         if len(tools) == 0:
-            logger.warning("步骤2：未生成任何自定义工具，只有默认工具（bash, search）可用")
+            logger.warning("Step 2: No custom tools generated, only default tools (bash, search) available")
         else:
-            logger.info(f"步骤2：成功注册了 {len([t for t in ctx.registry.tools.values() if t.name not in ['bash', 'search']])} 个自定义工具")
+            logger.info(f"Step 2: Successfully registered {len([t for t in ctx.registry.tools.values() if t.name not in ['bash', 'search']])} custom tools")
 
     def augment_toolset(self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str, answer: Any = None) -> bool:
-        """步骤3工具扩展：在任务难度提升过程中，若现有工具不足以求解，扩展工具集。
+        """Step 3 tool extension: During task difficulty escalation, if existing tools are insufficient to solve, extend the toolset.
         
-        根据论文设计，在任务难度提升过程中，如果现有工具不足以求解，代理会扩展工具集。
-        此方法实现该工具扩展逻辑，根据失败分析结果精准扩展工具。
+        According to paper design, during task difficulty escalation, if existing tools are insufficient to solve, the agent will extend the toolset.
+        This method implements the tool extension logic, precisely extending tools based on failure analysis results.
         
         Args:
-            ctx: 合成上下文
-            bundle: 任务包
-            failure_reason: 失败原因
-            answer: 解答函数的输出（用于分析）
+            ctx: Synthesis context
+            bundle: Task bundle
+            failure_reason: Failure reason
+            answer: Solution function output (for analysis)
         
         Returns True if new tools were added.
         """
-        # 详细分析失败原因
+        # Detailed analysis of failure reason
         failure_analysis = self._analyze_failure(failure_reason, bundle, answer)
         
-        # 分析是否需要工具扩展
+        # Analyze if tool extension is needed
         solution_code = bundle.solution_code or ""
         called_tools = self._extract_tool_calls(solution_code)
         available_tools = {tool.name for tool in ctx.registry.tools.values()}
         missing_tools = called_tools - available_tools
         
-        # 根据失败类型判断是否需要工具扩展
+        # Determine if tool extension is needed based on failure type
         needs_augmentation = False
         augmentation_reason = ""
         
         if missing_tools:
             needs_augmentation = True
-            augmentation_reason = f"任务代码尝试使用不存在的工具: {missing_tools}"
+            augmentation_reason = f"Task code attempted to use non-existent tools: {missing_tools}"
         elif failure_analysis["failure_type"] == "tool_not_found":
             needs_augmentation = True
-            augmentation_reason = f"工具调用失败: {failure_analysis['root_cause']}"
+            augmentation_reason = f"Tool call failed: {failure_analysis['root_cause']}"
         elif failure_analysis["failure_type"] == "verification_failed" and answer is not None:
-            # 分析答案结构，看是否需要特定工具来生成缺失的字段
+            # Analyze answer structure to see if specific tools are needed to generate missing fields
             if isinstance(answer, dict):
                 missing_fields = self._analyze_missing_fields(bundle, answer, ctx)
                 if missing_fields:
                     needs_augmentation = True
-                    augmentation_reason = f"答案缺少关键字段，可能需要新工具来生成: {missing_fields}"
+                    augmentation_reason = f"Answer missing key fields, may need new tools to generate: {missing_fields}"
             elif isinstance(answer, list) and len(answer) == 0:
-                # 空列表可能表示需要数据获取工具
+                # Empty list may indicate need for data retrieval tools
                 needs_augmentation = True
-                augmentation_reason = "答案为空，可能需要新的数据检索工具"
+                augmentation_reason = "Answer is empty, may need new data retrieval tools"
         
         if not needs_augmentation:
-            logger.debug("不需要工具扩展：失败原因与工具无关")
+            logger.debug("Tool extension not needed: failure reason unrelated to tools")
             return False
         
         logger.info("Augmenting toolset: %s", augmentation_reason)
         
-        # 根据失败分析生成精准的工具扩展建议
+        # Generate precise tool extension suggestions based on failure analysis
         tool_suggestion_guidance = self._generate_tool_suggestion_guidance(
             failure_analysis, bundle, missing_tools, answer, ctx
         )
@@ -533,7 +533,7 @@ class EnvironmentSynthesizer:
         if not isinstance(new_tools, list):
             new_tools = [new_tools]
         
-        # 创建工具上下文，允许工具访问数据库和调用其他工具
+        # Create tool context, allowing tools to access database and call other tools
         tool_ctx = ToolContext(db=ctx.db, tools=ctx.registry.as_callable_dict())
         
         added_count = 0
@@ -545,10 +545,10 @@ class EnvironmentSynthesizer:
             
             def make_handler(key: str, tool_context: ToolContext):
                 def base_handler(*args: Any, **kwargs: Any) -> Any:
-                    """工具函数处理器：可以访问数据库和调用其他工具函数。"""
+                    """Tool function handler: can access database and call other tool functions."""
                     logger.debug("Augmented tool '%s' called with args=%s, kwargs=%s", key, args, kwargs)
                     
-                    # 处理多个参数的情况（与synthesize_tools中的逻辑一致）
+                    # Handle multiple parameters case (consistent with logic in synthesize_tools)
                     if "infos_by" in key.lower() or "by_" in key.lower():
                         if len(args) >= 2:
                             info_keywords = args[0] if isinstance(args[0], list) else [args[0]]
@@ -565,7 +565,7 @@ class EnvironmentSynthesizer:
                                 return result
                             return {}
                     
-                    # 处理单个参数的情况（向后兼容）
+                    # Handle single parameter case (backward compatible)
                     candidate: Any = None
                     if args:
                         candidate = args[0]
@@ -628,7 +628,7 @@ class EnvironmentSynthesizer:
             added_count += 1
             logger.info("Added new tool: %s - %s", name, desc)
         
-        # 更新工具上下文，包含所有已注册的工具（允许工具调用其他工具）
+        # Update tool context, include all registered tools (allow tools to call other tools)
         tool_ctx.tools = ctx.registry.as_callable_dict()
         
         return added_count > 0
@@ -716,7 +716,7 @@ class EnvironmentSynthesizer:
         ]
 
     def _validate_llm_code_response(self, code: str, response_type: str = "solution") -> tuple[bool, str]:
-        """验证LLM生成的代码是否符合论文约束，使用AST分析而不是正则表达式。
+        """Validate if LLM-generated code complies with paper constraints, using AST analysis instead of regex.
         
         Returns:
             (is_valid, error_message)
@@ -732,13 +732,13 @@ class EnvironmentSynthesizer:
             return False, f"Unknown response type: {response_type}"
 
     def propose_task(self, ctx: SynthesisContext, difficulty: int = 1) -> TaskBundle:
-        """步骤3：解答生成 - 构造简单任务、对应的解答函数和验证函数。
+        """Step 3: Solution generation - Construct simple task, corresponding solution function and verification function.
         
-        根据论文设计，此步骤的约束条件：
-        1. 解答函数只能调用工具函数或执行逻辑计算
-        2. 不能访问数据库或调用其他函数
-        3. 解答输出必须通过验证函数检查
-        4. 如果验证失败，会反复修改解答或验证函数
+        According to paper design, constraints for this step:
+        1. Solution functions can only call tool functions or perform logical calculations
+        2. Cannot access database or call other functions
+        3. Solution output must pass verification function check
+        4. If verification fails, will repeatedly modify solution or verification function
         """
         tool_examples = "\n".join([
             f"- {tool['name']}: Call as tools['{tool['name']}']('query') or tools.{tool['name']}('query')"
@@ -805,7 +805,7 @@ class EnvironmentSynthesizer:
             "    if not isinstance(answer['neighborhoods'], list): return False\n"
             "    return len(answer['neighborhoods']) > 0\n"
         )
-        # 带重试的LLM调用，验证响应以防止幻觉
+        # LLM call with retry, validate response to prevent hallucinations
         max_retries = 3
         for attempt in range(max_retries):
             raw = ctx.llm.simple_complete(prompt, temperature=0.6, max_tokens=800)
@@ -815,7 +815,7 @@ class EnvironmentSynthesizer:
                 if attempt < max_retries - 1:
                     logger.warning(f"LLM response parsing failed (attempt {attempt + 1}/{max_retries}): {e}")
                     continue
-                # 最后一次尝试失败，使用fallback
+                # Last attempt failed, use fallback
                 parsed = {
                     "name": f"{ctx.category}-task",
                     "description": raw[:200],
@@ -823,7 +823,7 @@ class EnvironmentSynthesizer:
                     "verification_code": "def verify(tools, answer):\n    return isinstance(answer, list)",
                 }
             
-            # 验证生成的代码
+            # Validate generated code
             solution_code = parsed.get("solution_code", "")
             verification_code = parsed.get("verification_code", "")
             
@@ -841,11 +841,11 @@ class EnvironmentSynthesizer:
             else:
                 if attempt < max_retries - 1:
                     logger.warning(f"LLM generated invalid code (attempt {attempt + 1}/{max_retries}): solution={sol_error}, verification={ver_error}")
-                    # 在prompt中添加错误信息，要求重新生成
+                    # Add error information to prompt, request regeneration
                     prompt += f"\n\nPrevious attempt failed validation:\n- Solution: {sol_error}\n- Verification: {ver_error}\nPlease fix these issues."
                     continue
         
-        # 所有重试都失败，返回fallback（会被后续的_ensure_substantive_task修复）
+        # All retries failed, return fallback (will be fixed by subsequent _ensure_substantive_task)
         logger.error("All LLM retries failed, using fallback task")
         return TaskBundle(
             name=parsed.get("name", "generated-task"),
@@ -856,12 +856,12 @@ class EnvironmentSynthesizer:
         )
 
     def refine_task(self, ctx: SynthesisContext, prev: TaskBundle) -> TaskBundle:
-        """步骤3任务难度提升：逐步提升任务难度，同时保持可验证性。
+        """Step 3 task difficulty escalation: Gradually increase task difficulty while maintaining verifiability.
         
-        根据论文设计，在任务难度提升过程中：
-        1. 从简单任务开始验证通过后，增加任务复杂度
-        2. 增加约束条件、任务规模、数据量
-        3. 如果现有工具不足以求解，会扩展工具集（在ensure_valid中处理）
+        According to paper design, during task difficulty escalation:
+        1. Start with simple tasks, after verification passes, increase task complexity
+        2. Add constraints, task scale, data volume
+        3. If existing tools are insufficient to solve, will extend toolset (handled in ensure_valid)
         """
         tool_list = json.dumps(ctx.registry.describe(), ensure_ascii=False)
         
@@ -996,7 +996,7 @@ class EnvironmentSynthesizer:
         return False
     return len(answer['tool_results']) > 0"""
         
-        # 创建详细的任务描述（包含6个核心部分）
+        # Create detailed task description (includes 6 core parts)
         detailed_description = (
             f"Task Objective: Aggregate data from multiple tools ({', '.join(all_tools[:3]) if all_tools else 'available tools'}) "
             f"and compute summary statistics. This is an enhanced version of the previous task with increased complexity. "
@@ -1019,10 +1019,10 @@ class EnvironmentSynthesizer:
         )
 
     def _analyze_failure(self, failure_reason: str, bundle: TaskBundle, answer: Any = None) -> Dict[str, Any]:
-        """详细分析验证失败的原因。
+        """Detailed analysis of verification failure reasons.
         
         Returns:
-            包含失败类型、原因、建议修复方案的字典
+            Dictionary containing failure type, reason, and suggested fix
         """
         failure_reason_lower = failure_reason.lower()
         analysis = {
@@ -1033,91 +1033,91 @@ class EnvironmentSynthesizer:
             "affected_component": "unknown",  # solution, verification, or both
         }
         
-        # 分类失败类型
+        # Classify failure type
         if "verification returned false" in failure_reason_lower:
             analysis["failure_type"] = "verification_failed"
             analysis["affected_component"] = "verification"
             analysis["detailed_analysis"] = (
-                "验证函数返回了False。可能的原因：\n"
-                "1. 答案的数据结构不符合验证函数的期望\n"
-                "2. 验证逻辑过于严格或错误\n"
-                "3. 答案缺少必需的字段或类型不正确"
+                "Verification function returned False. Possible reasons:\n"
+                "1. Answer data structure does not match verification function expectations\n"
+                "2. Verification logic is too strict or incorrect\n"
+                "3. Answer missing required fields or incorrect types"
             )
             if answer is not None:
-                analysis["detailed_analysis"] += f"\n\n实际答案: {str(answer)[:200]}"
+                analysis["detailed_analysis"] += f"\n\nActual answer: {str(answer)[:200]}"
             analysis["suggested_fix"] = (
-                "检查验证函数是否正确地验证答案结构。"
-                "验证应该检查关键字段的存在和类型，而不是精确值。"
-                "如果答案结构合理，考虑放宽验证条件。"
+                "Check if verification function correctly validates answer structure. "
+                "Verification should check existence and types of key fields, not exact values. "
+                "If answer structure is reasonable, consider relaxing verification conditions."
             )
         
         elif any(keyword in failure_reason_lower for keyword in ["not found", "missing", "keyerror", "attributeerror"]):
             analysis["failure_type"] = "tool_not_found"
             analysis["affected_component"] = "solution"
-            # 提取工具名称（如果可能）
+            # Extract tool name (if possible)
             import re
             tool_match = re.search(r"['\"]([^'\"]+)['\"]", failure_reason)
             tool_name = tool_match.group(1) if tool_match else "unknown"
             analysis["detailed_analysis"] = (
-                f"工具调用失败。工具 '{tool_name}' 不存在或无法访问。\n"
-                "可能的原因：\n"
-                "1. 工具名称拼写错误\n"
-                "2. 工具尚未注册\n"
-                "3. 工具参数不匹配"
+                f"Tool call failed. Tool '{tool_name}' does not exist or is not accessible.\n"
+                "Possible reasons:\n"
+                "1. Tool name spelling error\n"
+                "2. Tool not yet registered\n"
+                "3. Tool parameter mismatch"
             )
             analysis["suggested_fix"] = (
-                f"检查工具名称是否正确。"
-                f"确保使用正确的工具名称和参数格式。"
+                f"Check if tool name is correct. "
+                f"Ensure using correct tool name and parameter format."
             )
         
         elif any(keyword in failure_reason_lower for keyword in ["cannot access", "database", "ctx.db", "db."]):
             analysis["failure_type"] = "database_access_violation"
             analysis["affected_component"] = "solution"
             analysis["detailed_analysis"] = (
-                "解答函数尝试直接访问数据库，这违反了约束条件。\n"
-                "根据论文设计，解答函数只能通过工具函数访问数据。"
+                "Solution function attempted to directly access database, which violates constraints.\n"
+                "According to paper design, solution functions can only access data through tool functions."
             )
             analysis["suggested_fix"] = (
-                "移除所有直接数据库访问代码。"
-                "使用工具函数（如 tools['get_all_hotels_by_city']('Paris')）来获取数据。"
+                "Remove all direct database access code. "
+                "Use tool functions (e.g., tools['get_all_hotels_by_city']('Paris')) to get data."
             )
         
         elif any(keyword in failure_reason_lower for keyword in ["syntax error", "invalid syntax", "indentation"]):
             analysis["failure_type"] = "syntax_error"
             analysis["affected_component"] = "both"
-            analysis["detailed_analysis"] = "代码存在语法错误。"
-            analysis["suggested_fix"] = "修复语法错误，确保代码符合Python语法规范。"
+            analysis["detailed_analysis"] = "Code contains syntax errors."
+            analysis["suggested_fix"] = "Fix syntax errors, ensure code complies with Python syntax standards."
         
         elif any(keyword in failure_reason_lower for keyword in ["typeerror", "type error", "cannot convert"]):
             analysis["failure_type"] = "type_error"
             analysis["affected_component"] = "solution"
             analysis["detailed_analysis"] = (
-                "类型错误：工具返回的数据类型与预期不符。\n"
-                "工具通常返回list或dict，需要正确处理这些类型。"
+                "Type error: Tool returned data type does not match expectations.\n"
+                "Tools usually return list or dict, need to properly handle these types."
             )
             analysis["suggested_fix"] = (
-                "检查工具返回的数据类型。"
-                "使用 isinstance() 检查类型，并适当处理list和dict。"
+                "Check tool return data types. "
+                "Use isinstance() to check types and appropriately handle list and dict."
             )
         
         elif "timeout" in failure_reason_lower or "execution time" in failure_reason_lower:
             analysis["failure_type"] = "timeout"
             analysis["affected_component"] = "solution"
-            analysis["detailed_analysis"] = "代码执行超时。可能是逻辑过于复杂或存在无限循环。"
-            analysis["suggested_fix"] = "简化逻辑，减少循环次数，或优化算法。"
+            analysis["detailed_analysis"] = "Code execution timeout. May be due to overly complex logic or infinite loop."
+            analysis["suggested_fix"] = "Simplify logic, reduce loop iterations, or optimize algorithm."
         
         else:
-            # 默认分析
+            # Default analysis
             analysis["failure_type"] = "runtime_error"
             analysis["affected_component"] = "both"
-            analysis["detailed_analysis"] = f"运行时错误：{failure_reason[:300]}"
-            analysis["suggested_fix"] = "检查代码逻辑，确保所有变量都已定义，所有函数调用都正确。"
+            analysis["detailed_analysis"] = f"Runtime error: {failure_reason[:300]}"
+            analysis["suggested_fix"] = "Check code logic, ensure all variables are defined, all function calls are correct."
         
         return analysis
 
     def _analyze_missing_fields(self, bundle: TaskBundle, answer: Dict[str, Any], ctx: SynthesisContext) -> List[str]:
-        """分析答案中可能缺少的字段。"""
-        # 从任务描述中提取期望的字段
+        """Analyze potentially missing fields in the answer."""
+        # Extract expected fields from task description
         description = bundle.description.lower()
         common_fields = ["name", "title", "description", "summary", "price", "rating", "location", "type", "category"]
         missing = []
@@ -1136,60 +1136,60 @@ class EnvironmentSynthesizer:
         answer: Any,
         ctx: SynthesisContext
     ) -> str:
-        """根据失败分析生成工具扩展建议。"""
+        """Generate tool extension suggestions based on failure analysis."""
         guidance_parts = []
         
         if missing_tools:
             guidance_parts.append(
-                f"任务代码尝试调用以下不存在的工具: {list(missing_tools)}。"
-                "请生成这些工具或功能等价的其他工具。"
+                f"Task code attempted to call the following non-existent tools: {list(missing_tools)}. "
+                "Please generate these tools or functionally equivalent alternatives."
             )
         
         if failure_analysis["failure_type"] == "verification_failed":
             guidance_parts.append(
-                "验证失败可能因为答案缺少关键字段或结构不正确。"
-                "请生成能够生成完整答案结构的工具，例如："
-                "- 数据聚合工具（aggregate_data, combine_results）"
-                "- 字段提取工具（extract_field, get_details）"
-                "- 格式化工具（format_output, structure_data）"
+                "Verification failure may be due to missing key fields or incorrect structure in the answer. "
+                "Please generate tools that can produce complete answer structures, for example: "
+                "- Data aggregation tools (aggregate_data, combine_results) "
+                "- Field extraction tools (extract_field, get_details) "
+                "- Formatting tools (format_output, structure_data)"
             )
         
         if failure_analysis["failure_type"] == "tool_not_found":
             guidance_parts.append(
-                "工具调用失败。请检查是否需要："
-                "- 数据检索工具（get_by_keyword, search_records）"
-                "- 过滤工具（filter_by_criteria, match_condition）"
-                "- 计算工具（calculate_statistics, compute_value）"
+                "Tool call failed. Please check if needed: "
+                "- Data retrieval tools (get_by_keyword, search_records) "
+                "- Filtering tools (filter_by_criteria, match_condition) "
+                "- Calculation tools (calculate_statistics, compute_value)"
             )
         
         if answer is not None:
             if isinstance(answer, list) and len(answer) == 0:
                 guidance_parts.append(
-                    "答案为空列表，可能需要数据获取或查询工具来检索数据。"
+                    "Answer is empty list, may need data retrieval or query tools to fetch data."
                 )
             elif isinstance(answer, dict) and len(answer) == 0:
                 guidance_parts.append(
-                    "答案为空字典，可能需要数据提取或生成工具来填充数据。"
+                    "Answer is empty dict, may need data extraction or generation tools to populate data."
                 )
         
-        return "\n".join(f"- {part}" for part in guidance_parts) if guidance_parts else "根据失败分析和任务需求生成合适的工具。"
+        return "\n".join(f"- {part}" for part in guidance_parts) if guidance_parts else "Generate appropriate tools based on failure analysis and task requirements."
 
     @staticmethod
     def _indent_text(text: str, spaces: int = 4) -> str:
-        """为文本添加缩进。"""
+        """Add indentation to text."""
         indent = " " * spaces
         return "\n".join(indent + line for line in text.split("\n"))
 
     def repair_bundle(self, ctx: SynthesisContext, bundle: TaskBundle, failure_reason: str, answer: Any = None) -> TaskBundle:
-        """步骤3迭代优化：当验证失败时，反复修改解答或验证函数。
+        """Step 3 iterative optimization: When verification fails, repeatedly modify solution or verification function.
         
-        根据论文设计，如果验证失败，代理会反复修改解答或验证函数。
-        此方法实现该迭代优化逻辑。
+        According to paper design, if verification fails, the agent will repeatedly modify solution or verification function.
+        This method implements the iterative optimization logic.
         """
-        # 详细分析失败原因
+        # Detailed analysis of failure reason
         failure_analysis = self._analyze_failure(failure_reason, bundle, answer)
         
-        # 构建详细的修复提示
+        # Build detailed repair guidance
         detailed_guidance = (
             f"FAILURE ANALYSIS:\n"
             f"  Type: {failure_analysis['failure_type']}\n"
@@ -1236,24 +1236,24 @@ class EnvironmentSynthesizer:
         )
 
     def ensure_valid(self, ctx: SynthesisContext, bundle: TaskBundle, fail_soft: bool = False) -> Tuple[TaskBundle, Any]:
-        """步骤3迭代优化：执行并验证任务，实现论文中的迭代优化逻辑。
+        """Step 3 iterative optimization: Execute and verify tasks, implementing iterative optimization logic from the paper.
         
-        根据论文设计，此方法实现：
-        1. 执行解答函数并验证结果
-        2. 如果验证失败，反复修改解答或验证函数（通过repair_bundle）
-        3. 如果现有工具不足以求解，扩展工具集（通过augment_toolset）
-        4. 在任务难度提升过程中，若现有工具不足以求解，会扩展工具集
+        According to paper design, this method implements:
+        1. Execute solution function and verify results
+        2. If verification fails, repeatedly modify solution or verification function (via repair_bundle)
+        3. If existing tools are insufficient to solve, extend toolset (via augment_toolset)
+        4. During task difficulty escalation, if existing tools are insufficient, will extend toolset
         
         If fail_soft, return last attempt instead of raising.
         
-        注意：由于所有代码执行都在SandboxFusion中进行，这里只需要传递工具名称字典即可。
-        _run_in_sandbox_fusion会使用工具名称创建SandboxFusion内部的ToolProxy。
+        Note: Since all code execution is performed in SandboxFusion, only need to pass tool name dictionary here.
+        _run_in_sandbox_fusion will use tool names to create ToolProxy inside SandboxFusion.
         """
         # Ensure the task is not trivial before running executions
         bundle = self._ensure_substantive_task(ctx, bundle, "Initial validation quality gate")
 
-        # 由于代码在SandboxFusion中执行，只需要传递工具名称字典
-        # _run_in_sandbox_fusion会使用这些名称创建SandboxFusion内部的ToolProxy
+        # Since code executes in SandboxFusion, only need to pass tool name dictionary
+        # _run_in_sandbox_fusion will use these names to create ToolProxy inside SandboxFusion
         tools: Dict[str, Any] = ctx.registry.as_callable_dict()
         last_error = ""
         augmentation_attempted = False
@@ -1266,7 +1266,7 @@ class EnvironmentSynthesizer:
                 # All execution must happen in SandboxFusion
                 if not getattr(bundle, "use_sandbox_fusion", True):
                     raise RuntimeError("Bundle must have use_sandbox_fusion=True for execution")
-                # 传递数据库记录给工具执行
+                # Pass database records to tool execution
                 answer = bundle.run_solution(tools, db_records=ctx.db.records)
                 valid = bundle.verify(tools, answer, db_records=ctx.db.records)
             except Exception as exc:  # pragma: no cover - runtime defense
@@ -1301,25 +1301,25 @@ class EnvironmentSynthesizer:
         raise RuntimeError(f"Task failed validation repeatedly: {bundle.name}; last error: {last_error}")
 
     def _looks_trivial(self, bundle: TaskBundle) -> bool:
-        """检查解答函数是否符合论文约束：使用AST分析而不是正则表达式。
+        """Check if solution function complies with paper constraints: use AST analysis instead of regex.
         
-        根据论文设计，解答函数必须：
-        1. 只能调用工具函数或执行逻辑计算
-        2. 不能访问数据库
-        3. 不能定义其他函数（只能有solve函数）
-        4. 不能导入模块
-        5. 必须实际调用工具
+        According to paper design, solution function must:
+        1. Only call tool functions or perform logical calculations
+        2. Cannot access database
+        3. Cannot define other functions (only solve function allowed)
+        4. Cannot import modules
+        5. Must actually call tools
         """
         sol = bundle.solution_code or ""
         ver = bundle.verification_code or ""
         
-        # 使用AST分析验证解答函数
+        # Use AST analysis to validate solution function
         is_valid, error = CodeValidator.validate_solution_code(sol)
         if not is_valid:
             logger.debug(f"Solution code validation failed: {error}")
-            return True  # 不符合约束，视为trivial
+            return True  # Does not comply with constraints, treat as trivial
         
-        # Check for trivial solution patterns (简单模式检查)
+        # Check for trivial solution patterns
         for pat in self._trivial_solution_patterns:
             if re.search(pat, sol):
                 return True
@@ -1347,55 +1347,55 @@ class EnvironmentSynthesizer:
         return bundle
 
     def _persist(self, ctx: SynthesisContext, bundles: List[TaskBundle]) -> None:
-        """持久化合成结果，输出格式严格符合论文的 <environment, tools, task, verifier> 四元组。
+        """Persist synthesis results, output format strictly conforms to paper's <environment, tools, task, verifier> quadruple.
         
-        根据论文设计，生成的数据格式为四元组：
-        - environment: 环境描述（包含category和数据库records）
-        - tools:       工具集（每个工具包含name和description）
-        - task:        任务定义（包含name、description、difficulty、solution_code）
-        - verifier:    验证器（包含verification_code）
+        According to paper design, generated data format is a quadruple:
+        - environment: Environment description (includes category and database records)
+        - tools:       Toolset (each tool includes name and description)
+        - task:        Task definition (includes name, description, difficulty, solution_code)
+        - verifier:    Verifier (includes verification_code)
         
-        输出JSON结构：
+        Output JSON structure:
         {
-            "environment": {  # 环境描述
+            "environment": {  # Environment description
                 "category": "...",
-                "records": [...]  # 数据库记录
+                "records": [...]  # Database records
             },
-            "tools": [  # 工具集
+            "tools": [  # Toolset
                 {"name": "...", "description": "..."},
                 ...
             ],
-            "tasks": [  # 任务列表（每个任务包含task和verifier）
+            "tasks": [  # Task list (each task includes task and verifier)
                 {
                     "name": "...",
                     "description": "...",
                     "difficulty": 1,
-                    "solution_code": "...",  # task部分
-                    "verification_code": "..."  # verifier部分
+                    "solution_code": "...",  # task part
+                    "verification_code": "..."  # verifier part
                 },
                 ...
             ]
         }
         
-        为了兼容旧代码，仍然保留原有的 category / tooling / records / tasks 字段。
+        For backward compatibility, still retain original category / tooling / records / tasks fields.
         """
-        # 构建标准的四元组格式：<environment, tools, task, verifier>
-        # 每个任务包含task（solution_code）和verifier（verification_code）
+        # Build standard quadruple format: <environment, tools, task, verifier>
+        # Each task includes task (solution_code) and verifier (verification_code)
         tasks_with_verifiers = []
         for bundle in bundles:
             task_entry = {
-                # Task部分：任务定义
+                # Task part: task definition
                 "task": {
                     "name": bundle.name,
                     "description": bundle.description,
                     "difficulty": bundle.difficulty,
                     "solution_code": bundle.solution_code,
                 },
-                # Verifier部分：验证器定义
+                # Verifier part: verifier definition
                 "verifier": {
                     "verification_code": bundle.verification_code,
                 },
-                # 保留完整信息（向后兼容）
+                # Retain complete information (backward compatible)
                 "name": bundle.name,
                 "description": bundle.description,
                 "difficulty": bundle.difficulty,
@@ -1405,7 +1405,7 @@ class EnvironmentSynthesizer:
             tasks_with_verifiers.append(task_entry)
         
         payload = {
-            # 标准四元组格式
+            # Standard quadruple format
             "environment": {
                 "category": ctx.category,
                 "records": ctx.db.records,
@@ -1414,12 +1414,12 @@ class EnvironmentSynthesizer:
             "tools": ctx.registry.describe(),
             "tasks": tasks_with_verifiers,
             
-            # 兼容字段（向后兼容）
+            # Compatible fields (backward compatible)
             "category": ctx.category,
-            "tooling": ctx.registry.describe(),  # 与tools相同
-            "records": ctx.db.records,  # 与environment.records相同
+            "tooling": ctx.registry.describe(),  # Same as tools
+            "records": ctx.db.records,  # Same as environment.records
             
-            # 元数据
+            # Metadata
             "metadata": {
                 "version": "1.0",
                 "format": "quadruple",  # <environment, tools, task, verifier>
@@ -1442,22 +1442,22 @@ class EnvironmentSynthesizer:
         persist: bool = True,
         use_sandbox_fusion: bool = True,
     ) -> List[TaskBundle]:
-        """主入口：按照论文设计的三步流程进行环境+任务合成。
+        """Main entry point: Perform environment + task synthesis following the three-step process from the paper design.
         
-        根据论文的"构造生成任务的具体步骤"，此方法严格遵循三个步骤：
+        According to the paper's "specific steps for constructing generated tasks", this method strictly follows three steps:
         
-        步骤1：环境与工具集构建
-        - 在包含bash和搜索工具的沙箱环境中进行
-        - 针对特定任务类别，生成或检索相关数据并存储到数据库
+        Step 1: Environment and toolset construction
+        - Performed in a sandbox environment with bash and search tools
+        - Generate or retrieve relevant data for specific task categories and store in database
         
-        步骤2：任务合成
-        - 基于数据库，合成一组任务相关工具，每个工具实现为一个函数
+        Step 2: Task synthesis
+        - Based on database, synthesize a set of task-related tools, each tool implemented as a function
         
-        步骤3：解答生成（迭代优化）
-        - 构造简单任务、对应的解答函数和验证函数
-        - 解答函数只能调用工具函数或执行逻辑计算，不能访问数据库
-        - 如果验证失败，反复修改解答或验证函数
-        - 在任务难度提升过程中，若现有工具不足以求解，扩展工具集
+        Step 3: Solution generation (iterative optimization)
+        - Construct simple tasks, corresponding solution functions and verification functions
+        - Solution functions can only call tool functions or perform logical calculations, cannot access database
+        - If verification fails, repeatedly modify solution or verification function
+        - During task difficulty escalation, if existing tools are insufficient, extend toolset
         
         Args:
             category: Task category
@@ -1469,104 +1469,104 @@ class EnvironmentSynthesizer:
             use_sandbox_fusion: Whether to use SandboxFusion for secure code execution (default: True)
         """
         print(f"\n{'='*60}")
-        print(f"🚀 开始任务合成: {category}")
+        print(f"🚀 Starting task synthesis: {category}")
         print(f"{'='*60}")
         
         # Step 1: Build context
-        # 初始化各个子 Agent（环境 / 工具 / 任务 / 校验），形成一个通用的多阶段 Agent 流水线
+        # Initialize sub-Agents (environment / tools / tasks / validation), forming a general multi-stage Agent pipeline
         env_agent = EnvironmentAgent(self)
         tool_agent = ToolAgent(self)
         task_agent = TaskAgent(self)
         validator = ValidationAgent(self)
 
-        print(f"\n📁 [步骤1] 环境与工具集构建...")
-        # 步骤1：在包含bash和搜索工具的沙箱环境中，生成或检索相关数据并存储到数据库
+        print(f"\n📁 [Step 1] Environment and toolset construction...")
+        # Step 1: Generate or retrieve relevant data in sandbox environment with bash and search tools, store in database
         ctx = self.build_context(category, sandbox, use_sandbox_fusion=use_sandbox_fusion)
-        exec_mode = "SandboxFusion" if use_sandbox_fusion else "本地"
-        print(f"   ✓ 沙箱目录: {sandbox}")
-        print(f"   ✓ 执行模式: {exec_mode}")
+        exec_mode = "SandboxFusion" if use_sandbox_fusion else "Local"
+        print(f"   ✓ Sandbox directory: {sandbox}")
+        print(f"   ✓ Execution mode: {exec_mode}")
 
-        # 步骤1（续）：生成数据库记录
-        print(f"\n📊 [步骤1续] 生成数据库记录...")
+        # Step 1 (continued): Generate database records
+        print(f"\n📊 [Step 1 continued] Generating database records...")
         ctx = env_agent.prepare(category, sandbox, use_sandbox_fusion)
-        print(f"   ✓ 数据库记录数: {len(ctx.db.records)}")
+        print(f"   ✓ Database record count: {len(ctx.db.records)}")
         
-        # 步骤2：任务合成 - 基于数据库，合成一组任务相关工具
-        print(f"\n🔧 [步骤2] 任务合成 - 合成工具集...")
+        # Step 2: Task synthesis - Based on database, synthesize a set of task-related tools
+        print(f"\n🔧 [Step 2] Task synthesis - Synthesizing toolset...")
         tool_agent.build_initial_tools(ctx)
         tool_names = [t.name for t in ctx.registry.tools.values()]
-        print(f"   ✓ 生成工具: {', '.join(tool_names)}")
+        print(f"   ✓ Generated tools: {', '.join(tool_names)}")
 
         bundles: List[TaskBundle] = []
         
-        # 步骤3：解答生成 - 构造简单任务、对应的解答函数和验证函数
-        print(f"\n📝 [步骤3] 解答生成 (共 {rounds} 轮，迭代优化)...")
-        print(f"\n   --- 第 1 轮 (难度 1) ---")
-        print(f"   ⏳ 生成初始任务...")
+        # Step 3: Solution generation - Construct simple tasks, corresponding solution functions and verification functions
+        print(f"\n📝 [Step 3] Solution generation (total {rounds} rounds, iterative optimization)...")
+        print(f"\n   --- Round 1 (Difficulty 1) ---")
+        print(f"   ⏳ Generating initial task...")
         current = task_agent.propose_initial(ctx, difficulty=1)
-        print(f"   ✓ 任务名称: {current.name}")
+        print(f"   ✓ Task name: {current.name}")
         
         # Set execution mode flags
         if use_sandbox_fusion:
             current.use_sandbox_fusion = True
             
         if validate:
-            print(f"   ⏳ 验证任务...")
+            print(f"   ⏳ Validating task...")
             try:
                 current, answer = validator.ensure_valid(ctx, current, fail_soft=fail_soft)
                 if answer is not None:
-                    print(f"   ✅ 验证通过!")
+                    print(f"   ✅ Validation passed!")
                 else:
-                    print(f"   ⚠️  验证失败 (软失败模式)")
+                    print(f"   ⚠️  Validation failed (soft fail mode)")
             except Exception as e:
-                print(f"   ❌ 验证错误: {str(e)[:50]}")
+                print(f"   ❌ Validation error: {str(e)[:50]}")
         else:
-            print(f"   ⏭️  跳过验证")
+            print(f"   ⏭️  Skipping validation")
         bundles.append(current)
 
-        # 步骤3（续）：任务难度提升 - 逐步提升任务复杂度
+        # Step 3 (continued): Task difficulty escalation - Gradually increase task complexity
         for step in range(1, rounds):
-            print(f"\n   --- 第 {step + 1} 轮 (难度 {step + 1}) ---")
-            print(f"   ⏳ 生成进阶任务（提升难度）...")
+            print(f"\n   --- Round {step + 1} (Difficulty {step + 1}) ---")
+            print(f"   ⏳ Generating advanced task (increasing difficulty)...")
             current = task_agent.refine(ctx, current, round_index=step)
-            print(f"   ✓ 任务名称: {current.name}")
+            print(f"   ✓ Task name: {current.name}")
             
             # Set execution mode flags
             if use_sandbox_fusion:
                 current.use_sandbox_fusion = True
                 
             if validate:
-                # 步骤3迭代优化：如果现有工具不足以求解，扩展工具集
+                # Step 3 iterative optimization: If existing tools are insufficient, extend toolset
                 called_tools = self._extract_tool_calls(current.solution_code)
                 available_tools = {tool.name for tool in ctx.registry.tools.values()}
                 missing_tools = called_tools - available_tools
                 
                 if missing_tools:
-                    print(f"   ⏳ 工具不足，扩展工具集: {missing_tools}")
+                    print(f"   ⏳ Insufficient tools, extending toolset: {missing_tools}")
                     tool_agent.maybe_augment(ctx, current, f"Task requires tools: {missing_tools}")
                 
-                # 步骤3迭代优化：如果验证失败，反复修改解答或验证函数
-                print(f"   ⏳ 验证任务（如失败将迭代优化）...")
+                # Step 3 iterative optimization: If verification fails, repeatedly modify solution or verification function
+                print(f"   ⏳ Validating task (will iteratively optimize if failed)...")
                 try:
                     current, answer = validator.ensure_valid(ctx, current, fail_soft=fail_soft)
                     if answer is not None:
-                        print(f"   ✅ 验证通过!")
+                        print(f"   ✅ Validation passed!")
                     else:
-                        print(f"   ⚠️  验证失败 (软失败模式)")
+                        print(f"   ⚠️  Validation failed (soft fail mode)")
                 except Exception as e:
-                    print(f"   ❌ 验证错误: {str(e)[:50]}")
+                    print(f"   ❌ Validation error: {str(e)[:50]}")
             else:
-                print(f"   ⏭️  跳过验证")
+                print(f"   ⏭️  Skipping validation")
             bundles.append(current)
 
-        # 最终：持久化结果（格式：<environment, tools, task, verifier>）
-        print(f"\n💾 [最终] 保存结果（格式：<environment, tools, task, verifier>）...")
+        # Final: Persist results (format: <environment, tools, task, verifier>)
+        print(f"\n💾 [Final] Saving results (format: <environment, tools, task, verifier>)...")
         if persist:
             self._persist(ctx, bundles)
-            print(f"   ✓ 保存到: {ctx.sandbox / 'tasks.json'}")
+            print(f"   ✓ Saved to: {ctx.sandbox / 'tasks.json'}")
         
         print(f"\n{'='*60}")
-        print(f"✨ 合成完成! 共生成 {len(bundles)} 个任务")
+        print(f"✨ Synthesis complete! Generated {len(bundles)} task(s)")
         for i, b in enumerate(bundles, 1):
             print(f"   [{b.difficulty}] {b.name}")
         print(f"{'='*60}\n")

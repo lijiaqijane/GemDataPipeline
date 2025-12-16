@@ -16,7 +16,7 @@ class TaskBundle:
     difficulty: int
     solution_code: str
     verification_code: str
-    use_sandbox_fusion: bool = True  # 默认使用SandboxFusion，确保所有代码在沙箱中执行
+    use_sandbox_fusion: bool = True  # Default to using SandboxFusion, ensure all code executes in sandbox
 
     def run_solution(self, tools: Dict[str, Any], db_records: List[Dict[str, Any]] | None = None) -> Any:
         """Execute solution code in SandboxFusion.

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# 通用运行脚本：通过环境变量快速切换 Deepseek 或其它兼容 vLLM 的后端
+# General run script: quickly switch between Deepseek or other vLLM-compatible backends via environment variables
 
 set -euo pipefail
 
-# ---------- 环境变量配置（可通过环境变量覆盖） ----------
-# LLM 相关（默认用 Deepseek/Volcano）
+# ---------- Environment variable configuration (can be overridden via environment variables) ----------
+# LLM related (default: Deepseek/Volcano)
 export LLM_PROVIDER="${LLM_PROVIDER:-deepseek}"
 export VOLCANO_BASE_URL="${VOLCANO_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}"
 export VOLCANO_MODEL="${VOLCANO_MODEL:-deepseek-v3-2-251201}"
 export VOLCANO_API_KEY="${VOLCANO_API_KEY:-47041ffc-3c83-49ee-9d79-4f70592850d2}"
 
-# OpenAI/vLLM（如使用则自行设置）
+# OpenAI/vLLM (set if using)
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
 export OPENAI_MODEL="${OPENAI_MODEL:-gpt-4o-mini}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-}"
@@ -23,14 +23,14 @@ export SANDBOX_FUSION_URL="${SANDBOX_FUSION_URL:-http://localhost:8080}"
 export SANDBOX_FUSION_TIMEOUT="${SANDBOX_FUSION_TIMEOUT:-30}"
 export SANDBOX_FUSION_PORT="${SANDBOX_FUSION_PORT:-8080}"
 
-# 运行参数
+# Runtime parameters
 CATEGORY="${CATEGORY:-Paris Travel Planning}"
 SANDBOX="${SANDBOX:-./sandbox/run}"
 ROUNDS="${ROUNDS:-2}"
 VALIDATE="${VALIDATE:-1}"
 USE_SANDBOX_FUSION="${USE_SANDBOX_FUSION:-1}"
 
-# ---------- 组装命令参数 ----------
+# ---------- Assemble command arguments ----------
 args=(
   --category "$CATEGORY"
   --sandbox "$SANDBOX"
@@ -47,7 +47,7 @@ else
   args+=(--no-sandbox-fusion)
 fi
 
-# ---------- 执行主程序 ----------
-# 环境检查和日志处理已移至Python代码中
+# ---------- Execute main program ----------
+# Environment checking and logging handling have been moved to Python code
 PYTHONUNBUFFERED=1 PYTHONPATH="$(pwd)/general_agent_bundle:${PYTHONPATH:-}" python -u -m general_agent "${args[@]}" "$@"
 

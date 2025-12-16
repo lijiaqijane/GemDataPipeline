@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def smart_db_query(records: List[Dict[str, Any]], tool_key: str, query: str) -> List[Dict[str, Any]]:
-    """智能数据库查询函数（从EnvironmentSynthesizer.smart_db_query复制逻辑）"""
+    """Smart database query function (logic copied from EnvironmentSynthesizer.smart_db_query)"""
     if not query or not isinstance(query, str):
         return records
     query_lower = query.lower().strip()

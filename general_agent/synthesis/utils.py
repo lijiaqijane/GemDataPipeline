@@ -21,13 +21,13 @@ def parse_json_response(raw: str, max_retries: int = 3) -> Any:
     
     def try_load(candidate: str) -> Any:
         """Try to load JSON with common fixes."""
-        # 尝试1: 直接解析
+        # Attempt 1: Direct parsing
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
             pass
         
-        # 尝试2: 修复尾随逗号
+        # Attempt 2: Fix trailing comma
         try:
             fixed = re.sub(r',\s*}', '}', candidate)
             fixed = re.sub(r',\s*]', ']', fixed)
@@ -35,7 +35,7 @@ def parse_json_response(raw: str, max_retries: int = 3) -> Any:
         except json.JSONDecodeError:
             pass
         
-        # 尝试3: 修复未转义的引号（简单情况）
+        # Attempt 3: Fix unescaped quotes (simple cases)
         try:
             fixed = candidate.replace("'", '"')
             return json.loads(fixed)

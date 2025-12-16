@@ -29,7 +29,7 @@ class EnvironmentAgent:
             sandbox=sandbox,
             use_sandbox_fusion=use_sandbox_fusion,
         )
-        # 根据论文设计，环境构建阶段负责准备数据库记录
+        # According to paper design, environment construction stage is responsible for preparing database records
         self.synthesizer.seed_database(ctx)
         return ctx
 
