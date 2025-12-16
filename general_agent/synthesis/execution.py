@@ -18,14 +18,14 @@ def smart_db_query(records: List[Dict[str, Any]], tool_key: str, query: str) -> 
         return records
     query_lower = query.lower().strip()
     
-    # 精确匹配
+    # Exact match
     for record in records:
         title = str(record.get("title", "")).lower()
         summary = str(record.get("summary", "")).lower()
         if query_lower in title or query_lower in summary:
             return [record]
     
-    # 关键词匹配
+    # Keyword matching
     query_words = query_lower.split()
     scored_records = []
     for record in records:
