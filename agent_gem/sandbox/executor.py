@@ -4,6 +4,8 @@ import asyncio
 import inspect
 import json
 import logging
+import os
+import subprocess
 import threading
 import time
 import traceback
@@ -12,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import requests
 from typing import Any, Callable, Dict, List, Optional
+
 
 from pydantic import BaseModel, Field
 from sandbox_fusion import set_endpoint, run_code, RunCodeRequest
@@ -40,12 +43,19 @@ logger = logging.getLogger(__name__)
 
 
 class DockerAPIRunner:
-    def __init__(self, use_china_mirror: bool = True, silent: bool = False) -> None:
-        self.image = (
-            _SANDBOX_FUSION_IMAGES["china"]
-            if use_china_mirror
-            else _SANDBOX_FUSION_IMAGES["global"]
-        )
+    def __init__(self, use_china_mirror: bool = True, silent: bool = False, docker_image: Optional[str] = None, docker_cmd: Optional[str] = None) -> None:
+        # Support custom image and command from environment or parameters
+        self.image = docker_image or os.getenv("SANDBOX_IMAGE")
+        self.docker_cmd = docker_cmd or os.getenv("SANDBOX_CMD")
+        
+        # Fall back to default images if not specified
+        if not self.image:
+            self.image = (
+                _SANDBOX_FUSION_IMAGES["china"]
+                if use_china_mirror
+                else _SANDBOX_FUSION_IMAGES["global"]
+            )
+        
         self.container = None
         self.silent = silent
         self.client = docker.from_env()
@@ -60,21 +70,51 @@ class DockerAPIRunner:
 
     def start(self) -> bool:
         try:
-            if not self.silent:
-                logger.info("Pulling image: %s", self.image)
-            self.client.images.pull(self.image)
-            self.container = self.client.containers.run(
-                self.image,
-                ports={"8080/tcp": self.port},
-                detach=True,
-                remove=True,
-            )
+            # If custom command is provided, use subprocess to run it
+            if self.docker_cmd:
+                if not self.silent:
+                    logger.info("Starting container with custom command: %s", self.docker_cmd)
+                
+                cmd = self.docker_cmd
+                if "{port}" in self.docker_cmd:
+                    # Replace placeholder with dynamically assigned port
+                    cmd = self.docker_cmd.replace("{port}", str(self.port))
+                else:
+                    # Try to extract port from command to ensure wait_ready works
+                    # Look for -p HOST_PORT:CONTAINER_PORT
+                    import re
+                    match = re.search(r"-p\s+(\d+):", cmd)
+                    if match:
+                        self.port = int(match.group(1))
+                        if not self.silent:
+                            logger.info(f"Detected port {self.port} from command")
+                
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                if result.returncode != 0:
+                    logger.error("Failed to start container: %s", result.stderr)
+                    return False
+                # For custom commands, we assume the first container matching our image is ours
+                containers = self.client.containers.list(filters={"ancestor": self.image})
+                if containers:
+                    self.container = containers[0]
+            else:
+                # Use Docker API to run the container
+                if not self.silent:
+                    logger.info("Pulling image: %s", self.image)
+                self.client.images.pull(self.image)
+                self.container = self.client.containers.run(
+                    self.image,
+                    ports={"8080/tcp": self.port},
+                    detach=True,
+                    remove=True,
+                )
+            
             if not self.silent:
                 logger.info(
-                    "SandboxFusion container started: %s", self.container.short_id
+                    "SandboxFusion container started: %s", self.container.short_id if self.container else "via custom command"
                 )
             return True
-        except DockerException as exc:
+        except (DockerException, subprocess.CalledProcessError) as exc:
             if not self.silent:
                 logger.error("Error starting SandboxFusion container: %s", exc)
             return False
@@ -497,10 +537,19 @@ class SandboxFusionExecutor(SandboxExecutor):
             - return_code: Return code (if applicable)
         """
         try:
-            result = run_code(
+            result_obj = run_code(
                 RunCodeRequest(code=code, language=language or self.default_language),
                 client_timeout=timeout_s or self.timeout_s,
-            ).model_dump()
+            )
+            
+            # Handle both Pydantic v1 (.dict()) and v2 (.model_dump())
+            if hasattr(result_obj, 'model_dump'):
+                result = result_obj.model_dump()
+            elif hasattr(result_obj, 'dict'):
+                result = result_obj.dict()
+            else:
+                # Fallback: try to convert to dict
+                result = dict(result_obj)
 
             # Normalize response format
             return {

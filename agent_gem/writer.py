@@ -48,6 +48,71 @@ class TaskWriter:
     def task_dir(self, task_id: str, agent_type: str) -> Path:
         return Path(self.root, agent_type, f"task-{task_id}")
 
+    def persist_code_training_data(
+        self,
+        task_id: str,
+        repo_metadata: Dict[str, Any],
+        bug_info: Dict[str, Any],
+        issue_pr_info: Dict[str, Any],
+        test_cases: List[Dict[str, Any]],
+        validation_results: List[Dict[str, Any]],
+        setup_info: Dict[str, Any],
+            git_diff: str = "",
+    ) -> Path:
+        """
+        Persist code agent training data in a structured format.
+        
+        Args:
+            task_id: Task identifier
+            repo_metadata: Repository analysis metadata
+            bug_info: Generated bug information
+            issue_pr_info: Issue and PR descriptions
+            test_cases: Generated test cases
+            validation_results: Test validation results
+            setup_info: Environment setup information
+                git_diff: Git diff between buggy and fixed versions
+            
+        Returns:
+            Path to the persisted training data directory
+        """
+        task_dir = Path(self.root, "code_agent", f"task-{task_id}")
+        task_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create training data payload
+        training_data = {
+            "task_id": task_id,
+            "timestamp": datetime.now().isoformat(),
+            "repo_metadata": repo_metadata,
+            "bug_info": bug_info,
+            "issue_pr_info": issue_pr_info,
+            "test_cases": test_cases,
+            "validation_results": validation_results,
+            "setup_info": setup_info,
+                "git_diff": git_diff,
+            "metadata": {
+                "version": "1.0",
+                "format": "code_training_data",
+                "agent_type": "code_agent",
+                "valid_tests_count": sum(
+                    1 for r in validation_results if r.get("is_valid_test", False)
+                ),
+                    "has_git_diff": bool(git_diff),
+                    "git_diff_size": len(git_diff) if git_diff else 0,
+            },
+        }
+        
+        # Persist as JSON
+        training_data_path = task_dir / "training_data.json"
+        dump_json(training_data_path, training_data)
+        
+        logger.info(
+            "Code training data persisted: task=%s -> %s",
+            task_id,
+            task_dir,
+        )
+        
+        return task_dir
+
     def record_steps(
         self,
         task_id: str,

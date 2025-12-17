@@ -32,6 +32,9 @@ class GenerationRequest:
     persist_result: bool = True
     fail_soft: bool = False
     seed_tools: Optional[List[ToolSpec]] = None
+    # LLM generation parameters
+    max_tokens: int = 2000  # Maximum tokens for LLM generation
+    temperature: float = 0.7  # Temperature for sampling
 
 
 class EnvironmentGenerator:
