@@ -28,6 +28,17 @@ class TaskWriter:
                 self.records = data.get("records", []) if isinstance(data, dict) else []
             except Exception:
                 self.records = []
+    
+    def merge_records(self, new_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Merge new records with existing records, deduplicating by title."""
+        existing_titles = {r.get("title", "").lower().strip() for r in self.records if r.get("title")}
+        merged = list(self.records)
+        for record in new_records:
+            title = record.get("title", "").lower().strip()
+            if title and title not in existing_titles:
+                merged.append(record)
+                existing_titles.add(title)
+        return merged
 
     def persist(self, packages: Iterable[TaskPackage]) -> List[TaskPackage]:
         updated: List[TaskPackage] = []
@@ -82,88 +93,161 @@ class TaskWriter:
         records: List[Dict[str, Any]],
         packages: Iterable[TaskPackage],
         output_path: Optional[Path] = None,
+        merge: bool = True,
     ) -> Path:
         """Persist tasks in quadruple format compatible with general_agent output.
 
         Format: <environment, tools, task, verifier>
         Output structure matches general_agent/synthesis/_persist format.
 
+        Extended fields:
+        - setup_bundle: setup_env.py code + stdout/stderr/returncode
+        - tools_interface: synthesized tools.py code (preview)
+        - reward_function: verification code (full text)
+        - reference_solution: solution code (full text)
+        - state_hash: pre/post hashes captured during validation
+        
         Args:
             category: Task category name
-            records: Database records for the environment
+            records: Records for this category
             packages: Task packages to persist
-            output_path: Optional path to write tasks.json (default: root/tasks.json)
-
-        Returns:
-            Path to the written tasks.json file
+            output_path: Optional custom output path (default: root/tasks.json)
+            merge: If True, merge with existing tasks.json; if False, overwrite
         """
         packages_list = list(packages)
         if not packages_list:
             logger.warning("No packages to persist in quadruple format")
             return output_path or (self.root / "tasks.json")
 
-        # Collect all tools from all packages
-        all_tools = []
-        tool_names_seen = set()
+        target = output_path or (self.root / "tasks.json")
+        
+        # Load existing tasks if merging
+        existing_tasks = []
+        existing_tools = []
+        existing_task_ids = set()
+        if merge and target.exists():
+            try:
+                existing_data = json.loads(target.read_text())
+                existing_tasks = existing_data.get("tasks", [])
+                existing_tools = existing_data.get("tools", [])
+                existing_task_ids = {t.get("task", {}).get("id") or t.get("name", "") for t in existing_tasks}
+            except Exception as e:
+                logger.warning(f"Failed to load existing tasks.json for merging: {e}")
+
+        first_meta = packages_list[0].metadata if packages_list else {}
+        setup_bundle = None
+        if first_meta:
+            setup_bundle = {
+                "script": first_meta.get("setup_code", ""),
+                "stdout": first_meta.get("setup_stdout_preview", ""),
+                "stderr": first_meta.get("setup_stderr_preview", ""),
+                "returncode": first_meta.get("setup_returncode", ""),
+            }
+        tools_interface = first_meta.get("tools_code", "")
+
+        # Collect all tools from all packages and existing tasks
+        all_tools = list(existing_tools)  # Start with existing tools
+        tool_names_seen = {t.get("name", "") for t in existing_tools}
         for package in packages_list:
             for tool_spec in package.task.tool_set:
                 if tool_spec.name not in tool_names_seen:
-                    all_tools.append({
-                        "name": tool_spec.name,
-                        "description": tool_spec.description,
-                    })
+                    all_tools.append(
+                        {
+                            "name": tool_spec.name,
+                            "description": tool_spec.description,
+                        }
+                    )
                     tool_names_seen.add(tool_spec.name)
 
         # Build tasks with task and verifier structure
-        tasks_with_verifiers = []
+        tasks_with_verifiers = list(existing_tasks)  # Start with existing tasks
         for package in packages_list:
+            # Skip if task already exists (by task_id)
+            if package.task.task_id in existing_task_ids:
+                logger.debug(f"Skipping duplicate task: {package.task.task_id}")
+                continue
+                
             task_entry = {
                 # Task part: task definition
                 "task": {
+                    "id": package.task.task_id,
                     "name": package.task.task_title,
                     "description": package.task.task_content,
                     "difficulty": package.task.difficulty_level,
                     "solution_code": package.solution or "",
+                    "reference_solution": package.solution or "",
+                    "state_hash": {
+                        "pre": package.metadata.get("pre_state_hash", ""),
+                        "post": package.metadata.get("post_state_hash", ""),
+                    },
                 },
                 # Verifier part: verifier definition
                 "verifier": {
                     "verification_code": package.verification or "",
+                    "reward_function": package.verification or "",
                 },
                 # Retain complete information (backward compatible)
                 "name": package.task.task_title,
                 "description": package.task.task_content,
                 "difficulty": package.task.difficulty_level,
                 "solution_code": package.solution or "",
+                "reference_solution": package.solution or "",
                 "verification_code": package.verification or "",
+                "metadata": package.metadata,
             }
             tasks_with_verifiers.append(task_entry)
 
+        # Merge records if merging (use existing records from db.json if available)
+        final_records = records
+        if merge and self.path.exists():
+            try:
+                db_data = json.loads(self.path.read_text())
+                existing_db_records = db_data.get("records", [])
+                if existing_db_records:
+                    # Merge records, preferring existing ones (they may have more data)
+                    record_titles = {r.get("title", "").lower() for r in existing_db_records}
+                    for r in records:
+                        if r.get("title", "").lower() not in record_titles:
+                            existing_db_records.append(r)
+                    final_records = existing_db_records
+            except Exception:
+                pass
+        
         # Build quadruple format payload
         payload = {
             # Standard quadruple format
             "environment": {
                 "category": category,
-                "records": records,
-                "record_count": len(records),
+                "records": final_records,
+                "record_count": len(final_records),
+                "setup_bundle": setup_bundle or {},
             },
             "tools": all_tools,
+            "tools_interface": tools_interface,
             "tasks": tasks_with_verifiers,
             # Compatible fields (backward compatible)
             "category": category,
             "tooling": all_tools,  # Same as tools
-            "records": records,  # Same as environment.records
+            "records": final_records,  # Same as environment.records
             # Metadata
             "metadata": {
-                "version": "1.0",
+                "version": "1.1",
                 "format": "quadruple",  # <environment, tools, task, verifier>
-                "task_count": len(packages_list),
+                "task_count": len(tasks_with_verifiers),
                 "tool_count": len(all_tools),
                 "generation_timestamp": datetime.now().isoformat(),
+                "merged": merge and target.exists(),
             },
         }
 
-        target = output_path or (self.root / "tasks.json")
         target.parent.mkdir(parents=True, exist_ok=True)
         dump_json(target, payload)
-        logger.info("Quadruple format tasks saved to %s", target)
+        logger.info(
+            "Quadruple format tasks saved to %s (tasks: %d, tools: %d, records: %d, merged: %s)",
+            target,
+            len(tasks_with_verifiers),
+            len(all_tools),
+            len(final_records),
+            merge and target.exists(),
+        )
         return target

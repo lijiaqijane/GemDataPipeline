@@ -20,8 +20,17 @@ class JsonRecordsQueryTool(BaseTool):
         super().__init__(name=name, description=description)
         self.records_path = records_path
 
-    def execute(self, query: Any = None, max_results: int = 5) -> list[dict[str, Any]]:
+    def execute(self, query: Any = None, max_results: int = 5, **kwargs: Any) -> list[dict[str, Any]]:
+        """Execute a flexible query over records.
+
+        Accepts arbitrary keyword arguments to be tolerant to LLM-generated calls.
+        Only the `query` semantic is used; extra kwargs are ignored.
+        """
         records = self._load_records()
+
+        # Allow passing query via kwargs (e.g., tools.search_pois(query="...", filters=...))
+        if query is None and "query" in kwargs:
+            query = kwargs["query"]
         if query is None:
             return records[:max_results]
 

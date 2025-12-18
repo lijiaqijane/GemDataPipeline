@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import json
 import logging
@@ -142,6 +143,8 @@ class TaskRunRecord(BaseModel):
     duration_s: float
     answer: Any = None
     verified: Optional[bool] = None
+    verification_score: Optional[float] = None
+    verification_details: Any = None
     error: Optional[str] = None
     verification_error: Optional[str] = None
 
@@ -399,6 +402,28 @@ class SandboxExecutor:
 
         return _call
 
+    def snapshot_fs(self, exclude_prefixes: Optional[List[str]] = None) -> Dict[str, str]:
+        """Return a deterministic file snapshot {relative_path: sha256} for the sandbox.
+
+        Directories are skipped; logs/runs are excluded by default to reduce noise.
+        """
+        exclude_prefixes = exclude_prefixes or ["logs/", "runs/"]
+        snapshot: Dict[str, str] = {}
+
+        for path in self.sandbox_dir.rglob("*"):
+            if path.is_dir():
+                continue
+            rel = path.relative_to(self.sandbox_dir).as_posix()
+            if any(rel.startswith(prefix) for prefix in exclude_prefixes):
+                continue
+            try:
+                data = path.read_bytes()
+                digest = hashlib.sha256(data).hexdigest()
+                snapshot[rel] = digest
+            except OSError:
+                continue
+        return snapshot
+
     def run_task(
         self,
         package: TaskPackage,
@@ -410,30 +435,42 @@ class SandboxExecutor:
 
         answer: Any = None
         verified: Optional[bool] = None
+        verification_score: Optional[float] = None
+        verification_details: Any = None
+        verification_message: Optional[str] = None
         error: Optional[str] = None
         verification_error: Optional[str] = None
         try:
             answer = package.run_solution(tool_proxy)
-            verified = package.verify(tool_proxy, answer)
+            verified, verification_score, verification_details, verification_message = package.verify_with_meta(
+                tool_proxy, answer
+            )
         except Exception:
             error = traceback.format_exc()
         else:
             if verified is False:
-                verification_error = "verification returned False"
+                verification_error = verification_message or "verification returned False"
+            elif verified is None:
+                verification_error = verification_message or "verification returned no boolean result"
 
         ended = time.time()
         record = TaskRunRecord(
-            task_id=package.id,
+            task_id=package.task.task_id,  # Use task.task_id instead of package.id for consistency
             task_title=package.task.task_title,
             started_at=started,
             ended_at=ended,
             duration_s=ended - started,
             answer=self._to_jsonable(answer),
             verified=verified,
+            verification_score=verification_score,
+            verification_details=self._to_jsonable(verification_details),
             error=error,
             verification_error=verification_error,
         )
+        # Ensure runs_dir exists before saving
+        self.runs_dir.mkdir(parents=True, exist_ok=True)
         dump_json(self.runs_dir / f"{record.run_id}.json", record.model_dump())
+        logger.debug(f"Saved task run record: {record.run_id}.json in {self.runs_dir}")
         return record
 
     def _append_tool_call(self, record: ToolCallRecord) -> None:

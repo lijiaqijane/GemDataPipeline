@@ -3,11 +3,18 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+# Optional tolerant JSON fixer
+try:  # pragma: no cover - optional dependency
+    import json_repair  # type: ignore
+except Exception:  # pragma: no cover
+    json_repair = None
 
 from agent_gem.core.task_schema import (
     EvaluationCriteria,
@@ -94,10 +101,11 @@ class BaseAgent:
         logger.debug(
             "[agent:%s] Prompt preview: %s", self.agent_type, _preview_text(prompt)
         )
+        max_tokens = getattr(request, "max_tokens", 10000)
         raw = self.llm.chat_completion(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.55,
-            max_tokens=1800,
+            max_tokens=max_tokens,
         )
         logger.debug(
             "[agent:%s] Raw completion: %s", self.agent_type, _preview_text(raw)
@@ -251,6 +259,12 @@ class BaseAgent:
             return json.loads(text)
         except json.JSONDecodeError:
             pass
+        if json_repair is not None:
+            try:
+                repaired = json_repair.repair_json(text)
+                return json.loads(repaired)
+            except Exception:
+                pass
         fence = text.split("```")
         for block in fence:
             if block.startswith("json"):
@@ -261,6 +275,12 @@ class BaseAgent:
             try:
                 return json.loads(block)
             except json.JSONDecodeError:
+                if json_repair is not None:
+                    try:
+                        repaired = json_repair.repair_json(block)
+                        return json.loads(repaired)
+                    except Exception:
+                        continue
                 continue
         if "{" in text and "}" in text:
             start = text.find("{")
@@ -268,6 +288,12 @@ class BaseAgent:
             try:
                 return json.loads(text[start : end + 1])
             except json.JSONDecodeError:
+                if json_repair is not None:
+                    try:
+                        repaired = json_repair.repair_json(text[start : end + 1])
+                        return json.loads(repaired)
+                    except Exception:
+                        return None
                 return None
         if "[" in text and "]" in text:
             start = text.find("[")
@@ -275,8 +301,56 @@ class BaseAgent:
             try:
                 return json.loads(text[start : end + 1])
             except json.JSONDecodeError:
+                if json_repair is not None:
+                    try:
+                        repaired = json_repair.repair_json(text[start : end + 1])
+                        return json.loads(repaired)
+                    except Exception:
+                        return None
                 return None
         return None
+
+    @staticmethod
+    def _strip_code_fences(code: str) -> str:
+        """Remove leading/trailing markdown fences and language tags if present.
+        
+        Args:
+            code: Code string that may contain markdown fences
+            
+        Returns:
+            Cleaned code string without markdown fences
+        """
+        text = code.strip()
+        # Remove leading ``` with optional language tag (handles ```python, ``` python, etc.)
+        text = re.sub(r"^```[a-z]*\s*\n?", "", text, flags=re.IGNORECASE | re.MULTILINE)
+        # Remove trailing ```
+        text = re.sub(r"\n?```\s*$", "", text, flags=re.MULTILINE)
+        # Remove any remaining leading/trailing backticks (fallback)
+        text = text.strip().strip("`").strip()
+        return text
+
+    @staticmethod
+    def _extract_code_blocks(raw: str) -> List[str]:
+        """Extract all code blocks from the given string. Code blocks are assumed to be enclosed in triple backticks.
+        
+        Args:
+            raw: The input string containing potential code blocks
+            
+        Returns:
+            A list of code blocks (strings) found in the input
+        """
+        text = (raw or "").strip()
+        if not text:
+            return []
+
+        # Regex pattern to match fenced code blocks; language tag optional
+        # Match: ```language or ``` followed by content and closing ```
+        pattern = r"```(?:[a-z]+)?\s*\n?(.*?)```"
+
+        # Use re.DOTALL to match across multiple lines and re.findall to extract all matches
+        code_blocks = re.findall(pattern, raw, re.DOTALL | re.IGNORECASE)
+
+        return [code.strip() for code in code_blocks if code.strip()]
 
 
 def _preview_text(text: str, limit: int = 240) -> str:

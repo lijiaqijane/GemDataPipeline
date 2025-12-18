@@ -32,6 +32,7 @@ class GenerationRequest:
     persist_result: bool = True
     fail_soft: bool = False
     seed_tools: Optional[List[ToolSpec]] = None
+    max_tokens: int = 10000  # Maximum tokens for LLM generation
 
 
 class EnvironmentGenerator:

@@ -84,32 +84,85 @@ class CodeValidator:
         if checker.violations:
             return False, checker.violations[0]
 
-        # Check 5: Must call tools (in solve function)
-        if solve_node:
-            has_tool_call = False
-            for node in ast.walk(solve_node):
-                if isinstance(node, ast.Subscript):
-                    if isinstance(node.value, ast.Name) and node.value.id == "tools":
-                        has_tool_call = True
-                        break
-                elif isinstance(node, ast.Attribute):
-                    if isinstance(node.value, ast.Name) and node.value.id == "tools":
-                        has_tool_call = True
-                        break
-                elif isinstance(node, ast.Call):
-                    if isinstance(node.func, (ast.Attribute, ast.Subscript)):
-                        func_obj = node.func
-                        if isinstance(func_obj, ast.Attribute):
-                            if isinstance(func_obj.value, ast.Name) and func_obj.value.id == "tools":
-                                has_tool_call = True
-                                break
-                        elif isinstance(func_obj, ast.Subscript):
-                            if isinstance(func_obj.value, ast.Name) and func_obj.value.id == "tools":
-                                has_tool_call = True
-                                break
+        # Check 5: Only allow calling tools[...] / tools.name(...) or a small whitelist of pure builtins.
+        allowed_builtins = {
+            "len",
+            "range",
+            "min",
+            "max",
+            "sum",
+            "any",
+            "all",
+            "sorted",
+            "enumerate",
+            "bool",
+            "int",
+            "float",
+            "str",
+            "list",
+            "dict",
+            "set",
+            "isinstance",
+            "hasattr",
+            "getattr",
+            "type",
+            "zip",
+            "map",
+            "filter",
+            "reversed",
+            "iter",
+            "next",
+        }
 
-            if not has_tool_call:
-                return False, "Solution code must call at least one tool function"
+        class CallChecker(ast.NodeVisitor):
+            def __init__(self) -> None:
+                self.violations: list[str] = []
+                self.has_tool_call = False
+
+            def visit_Lambda(self, node: ast.Lambda) -> None:
+                self.violations.append("Solution code cannot define lambda expressions")
+
+            def visit_Call(self, node: ast.Call) -> None:
+                func = node.func
+                # tools['name'](...) or tools.name(...)
+                if isinstance(func, (ast.Attribute, ast.Subscript)):
+                    target = func
+                    if isinstance(target, ast.Attribute):
+                        if isinstance(target.value, ast.Name) and target.value.id == "tools":
+                            self.has_tool_call = True
+                            self.generic_visit(node)
+                            return
+                    elif isinstance(target, ast.Subscript):
+                        if isinstance(target.value, ast.Name) and target.value.id == "tools":
+                            self.has_tool_call = True
+                            self.generic_visit(node)
+                            return
+
+                    # Any other attribute/subscript call is disallowed (e.g., obj.method(), arr[idx]())
+                    self.violations.append(
+                        "Solution code may only call tools[...] or tools.name(...); "
+                        "other method or indexed calls are not allowed"
+                    )
+                    self.generic_visit(node)
+                    return
+
+                # Direct name calls – allow only a safe builtin whitelist
+                if isinstance(func, ast.Name):
+                    name = func.id
+                    if name not in allowed_builtins:
+                        self.violations.append(
+                            f"Solution code cannot call function '{name}' directly; "
+                            "only tools[...] / tools.name(...) and simple builtins are allowed"
+                        )
+                self.generic_visit(node)
+
+        if solve_node:
+            call_checker = CallChecker()
+            call_checker.visit(solve_node)
+            if call_checker.violations:
+                return False, call_checker.violations[0]
+            if not call_checker.has_tool_call:
+                return False, "Solution code must call at least one tool function via tools[...] or tools.name(...)"
 
         return True, ""
 
@@ -135,14 +188,34 @@ class CodeValidator:
             return False, f"Syntax error: {e}"
 
         # Check 1: Must define verify function
-        has_verify = False
+        verify_node: ast.FunctionDef | None = None
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == "verify":
-                has_verify = True
+                verify_node = node
                 break
 
-        if not has_verify:
+        if verify_node is None:
             return False, "Missing 'def verify(tools, answer)' function definition"
+
+        # Check 2: avoid trivial always-true verifier
+        def _returns_constant_true(fn: ast.FunctionDef) -> bool:
+            returns = [
+                n
+                for n in ast.walk(fn)
+                if isinstance(n, ast.Return)
+                and isinstance(n.value, ast.Constant)
+                and n.value.value is True
+            ]
+            # If every return is literal True and no control flow, treat as trivial
+            return bool(returns) and all(
+                isinstance(n, (ast.Return, ast.Expr)) for n in fn.body
+            )
+
+        if _returns_constant_true(verify_node):
+            return (
+                False,
+                "Verification code must perform checks; trivial 'return True' detected",
+            )
 
         return True, ""
 

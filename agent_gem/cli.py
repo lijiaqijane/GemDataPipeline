@@ -114,6 +114,24 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable verbose (DEBUG) logging",
     )
+    synth_parser.add_argument(
+        "--merge",
+        action="store_true",
+        default=False,
+        help="Merge with existing tasks.json instead of overwriting (default: overwrite)",
+    )
+    synth_parser.add_argument(
+        "--no-merge",
+        action="store_false",
+        dest="merge",
+        help="Overwrite existing tasks.json (default behavior)",
+    )
+    synth_parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=10000,
+        help="Maximum tokens for LLM generation (default: 10000)",
+    )
 
     return parser
 
@@ -177,6 +195,7 @@ def _handle_synthesize(args: argparse.Namespace) -> None:
         max_refine_rounds=args.rounds,  # Number of rounds (initial + refinements)
         max_validation_rounds=args.max_validation_rounds,
         persist_result=True,
+        max_tokens=getattr(args, "max_tokens", 10000),
     )
 
     # Generate the task package (includes all refinement rounds internally)
@@ -246,7 +265,7 @@ def _handle_synthesize(args: argparse.Namespace) -> None:
             # Ensure substantive and validate
             refined = agent._ensure_substantive_task(current_package.task.tool_set, refined, ctx)
             if not args.no_validate:
-                refined = agent._ensure_valid(refine_request, refined, ctx, sandbox)
+                refined = agent._ensure_valid(refine_request, refined, ctx, sandbox, records)
             
             packages.append(refined)
             current_package = refined
@@ -257,6 +276,7 @@ def _handle_synthesize(args: argparse.Namespace) -> None:
         records=records,
         packages=packages,
         output_path=sandbox_path / "tasks.json",
+        merge=getattr(args, "merge", False),  # Default to False (overwrite)
     )
 
     print(f"Synthesized {len(packages)} task(s):")
