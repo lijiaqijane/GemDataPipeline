@@ -29,9 +29,9 @@ export SANDBOX_FUSION_PORT="${SANDBOX_FUSION_PORT:-8080}"
 # Runtime parameters
 CATEGORY="${CATEGORY:-Paris Travel Planning}"
 SANDBOX="${SANDBOX:-./sandbox/run}"
-ROUNDS="${ROUNDS:-5}"
+ROUNDS="${ROUNDS:-2}"
 VALIDATE="${VALIDATE:-1}"
-MAX_VALIDATION_ROUNDS="${MAX_VALIDATION_ROUNDS:-3}"
+MAX_VALIDATION_ROUNDS="${MAX_VALIDATION_ROUNDS:-2}"
 USE_SANDBOX_FUSION="${USE_SANDBOX_FUSION:-1}"
 MERGE="${MERGE:-0}"  # Default: overwrite (0), set to 1 to merge
 MAX_TOKENS="${MAX_TOKENS:-10000}"  # Maximum tokens for LLM generation

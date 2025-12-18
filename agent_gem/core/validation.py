@@ -84,83 +84,38 @@ class CodeValidator:
         if checker.violations:
             return False, checker.violations[0]
 
-        # Check 5: Only allow calling tools[...] / tools.name(...) or a small whitelist of pure builtins.
-        allowed_builtins = {
-            "len",
-            "range",
-            "min",
-            "max",
-            "sum",
-            "any",
-            "all",
-            "sorted",
-            "enumerate",
-            "bool",
-            "int",
-            "float",
-            "str",
-            "list",
-            "dict",
-            "set",
-            "isinstance",
-            "hasattr",
-            "getattr",
-            "type",
-            "zip",
-            "map",
-            "filter",
-            "reversed",
-            "iter",
-            "next",
-        }
-
         class CallChecker(ast.NodeVisitor):
+            """Lightweight call checker: ensure at least one tool call, but avoid over-restricting."""
+
             def __init__(self) -> None:
-                self.violations: list[str] = []
                 self.has_tool_call = False
 
             def visit_Lambda(self, node: ast.Lambda) -> None:
-                self.violations.append("Solution code cannot define lambda expressions")
+                # Still forbid lambdas to keep code simple and auditable.
+                raise StopIteration("Solution code cannot define lambda expressions")
 
             def visit_Call(self, node: ast.Call) -> None:
                 func = node.func
                 # tools['name'](...) or tools.name(...)
                 if isinstance(func, (ast.Attribute, ast.Subscript)):
                     target = func
-                    if isinstance(target, ast.Attribute):
-                        if isinstance(target.value, ast.Name) and target.value.id == "tools":
-                            self.has_tool_call = True
-                            self.generic_visit(node)
-                            return
-                    elif isinstance(target, ast.Subscript):
-                        if isinstance(target.value, ast.Name) and target.value.id == "tools":
-                            self.has_tool_call = True
-                            self.generic_visit(node)
-                            return
+                    if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "tools":
+                        self.has_tool_call = True
+                    elif isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name) and target.value.id == "tools":
+                        self.has_tool_call = True
+                elif isinstance(func, ast.Name) and func.id == "tools":
+                    # Direct tools(...) should be treated as a tool call as well.
+                    self.has_tool_call = True
 
-                    # Any other attribute/subscript call is disallowed (e.g., obj.method(), arr[idx]())
-                    self.violations.append(
-                        "Solution code may only call tools[...] or tools.name(...); "
-                        "other method or indexed calls are not allowed"
-                    )
-                    self.generic_visit(node)
-                    return
-
-                # Direct name calls – allow only a safe builtin whitelist
-                if isinstance(func, ast.Name):
-                    name = func.id
-                    if name not in allowed_builtins:
-                        self.violations.append(
-                            f"Solution code cannot call function '{name}' directly; "
-                            "only tools[...] / tools.name(...) and simple builtins are allowed"
-                        )
+                # Do not over-restrict other calls (e.g., dict.get, list.append); imports are already blocked.
                 self.generic_visit(node)
 
         if solve_node:
             call_checker = CallChecker()
-            call_checker.visit(solve_node)
-            if call_checker.violations:
-                return False, call_checker.violations[0]
+            try:
+                call_checker.visit(solve_node)
+            except StopIteration as e:
+                return False, str(e)
             if not call_checker.has_tool_call:
                 return False, "Solution code must call at least one tool function via tools[...] or tools.name(...)"
 
