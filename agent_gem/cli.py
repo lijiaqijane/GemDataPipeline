@@ -192,6 +192,7 @@ def _handle_synthesize(args: argparse.Namespace) -> None:
         num=1,
         difficulty=args.rounds,  # Final difficulty level
         validate=not args.no_validate,
+        use_sandbox_fusion=args.use_sandbox_fusion,
         max_refine_rounds=args.rounds,  # Number of rounds (initial + refinements)
         max_validation_rounds=args.max_validation_rounds,
         persist_result=True,

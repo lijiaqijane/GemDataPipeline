@@ -1,4 +1,4 @@
-from .executor import SandboxExecutor
+from .executor import SandboxExecutor, SandboxFusionExecutor
 from .manager import SandboxManager
 
-__all__ = ["SandboxExecutor", "SandboxManager"]
+__all__ = ["SandboxExecutor", "SandboxFusionExecutor", "SandboxManager"]

@@ -14,11 +14,13 @@ dependencies = [
     "openai>=1.14.0",
     "pydantic>=2.7.0",
     "requests>=2.32.0",
+    "beautifulsoup4>=4.12.0",
     "tenacity>=8.2.0",
     "coloredlogs>=15.0.1",
     "docker>=7.1.0",
     "sandbox-fusion>=0.3.7",
     "numpy>=2.0.2",
+    "pyarrow>=17.0.0",
     "typing-inspection>=0.4.2",
     "mcp[cli]>=1.24.0",
 ]

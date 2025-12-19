@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import inspect
 import json
@@ -10,8 +11,13 @@ import time
 import traceback
 import uuid
 from dataclasses import dataclass
+from io import BytesIO
+import os
 from pathlib import Path
 import requests
+import shutil
+import tarfile
+import textwrap
 from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -502,52 +508,93 @@ class SandboxFusionExecutor(SandboxExecutor):
 
     def __init__(
         self,
+        sandbox_dir: Path | str,
         base_url: str = "http://localhost:8080",
         *,
         timeout_s: int = 20,
         default_language: str = "python",
     ) -> None:
+        super().__init__(sandbox_dir=sandbox_dir, timeout_s=timeout_s)
         self.sandbox_base_url = base_url
         set_endpoint(self.sandbox_base_url)
-        self.timeout_s = timeout_s
         self.default_language = default_language
+        self._archive_input_name = "_input.tar.gz"
+        self._archive_output_name = "_output.tar.gz"
+        # Register remote-backed bash/python tools
+        self.register_tool("bash", self.execute_bash, description="Remote bash via SandboxFusion")
+        self.register_tool("python_runner", self.execute_python, description="Remote python via SandboxFusion")
 
-        self._tools: Dict[str, BaseTool] = {}
-        self._tool_calls_lock = threading.Lock()
-        self._on_tool_call: Callable[[ToolCallRecord], None] | None = None
+    def _build_input_archive(self) -> str:
+        buffer = BytesIO()
+        with tarfile.open(mode="w:gz", fileobj=buffer) as tar:
+            for path in self.sandbox_dir.rglob("*"):
+                if path.is_dir():
+                    continue
+                rel = path.relative_to(self.sandbox_dir).as_posix()
+                if rel.startswith("logs/") or rel.startswith("runs/"):
+                    continue
+                tar.add(path, arcname=rel)
+        return base64.b64encode(buffer.getvalue()).decode("ascii")
 
-    def run_code(
-        self, code: str, language: str | None = None, timeout_s: Optional[int] = None
+    def _apply_output_archive(self, encoded: str) -> None:
+        if not encoded:
+            return
+        data = base64.b64decode(encoded)
+        buffer = BytesIO(data)
+        tmp_dir = self.sandbox_dir / "__remote_sync__"
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(mode="r:gz", fileobj=buffer) as tar:
+            tar.extractall(path=tmp_dir)
+
+        # Clear existing workspace except logs/runs
+        for path in self.sandbox_dir.iterdir():
+            if path.name in {"logs", "runs", "__remote_sync__"}:
+                continue
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+
+        # Move synced files back
+        for path in tmp_dir.rglob("*"):
+            rel = path.relative_to(tmp_dir)
+            target = self.sandbox_dir / rel
+            if path.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), str(target))
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def _run_remote(
+        self,
+        code: str,
+        *,
+        language: str,
+        timeout_s: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Execute code in SandboxFusion sandbox.
-
-        Args:
-            code: Code to execute
-            language: Programming language (default: python)
-
-        Returns:
-            Dict with execution results including:
-            - status: Execution status
-            - stdout: Standard output
-            - stderr: Standard error
-            - execution_time: Execution time in seconds
-            - return_code: Return code (if applicable)
-        """
+        archive_b64 = self._build_input_archive()
+        files = {self._archive_input_name: archive_b64}
+        request = RunCodeRequest(
+            code=code,
+            language=language,
+            files=files,
+            fetch_files=[self._archive_output_name],
+            run_timeout=float(timeout_s or self.timeout_s),
+        )
         try:
-            result = run_code(
-                RunCodeRequest(code=code, language=language or self.default_language),
+            response = run_code(
+                request,
                 client_timeout=timeout_s or self.timeout_s,
-            ).model_dump()
-
-            # Normalize response format
-            return {
-                "status": result.get("status", "unknown"),
-                "stdout": result.get("stdout", ""),
-                "stderr": result.get("stderr", ""),
-                "execution_time": result.get("execution_time", 0),
-                "return_code": result.get("return_code", 0),
-                "raw": result,  # Keep raw response for debugging
-            }
+            )
+            if hasattr(response, "model_dump"):
+                result = response.model_dump()
+            elif hasattr(response, "dict"):
+                result = response.dict()
+            else:
+                result = response  # type: ignore[assignment]
         except requests.exceptions.RequestException as e:
             return {
                 "status": "error",
@@ -558,17 +605,142 @@ class SandboxFusionExecutor(SandboxExecutor):
                 "raw": {},
             }
 
+        files_out = result.get("files", {}) or {}
+        output_b64 = files_out.get(self._archive_output_name, "")
+        self._apply_output_archive(output_b64)
+
+        run_result = result.get("run_result") or {}
+        return {
+            "status": result.get("status", "unknown"),
+            "stdout": run_result.get("stdout", ""),
+            "stderr": run_result.get("stderr", ""),
+            "execution_time": run_result.get("execution_time", 0),
+            "return_code": run_result.get("return_code", 0),
+            "returncode": run_result.get("return_code", 0),
+            "raw": result,
+        }
+
     def execute_bash(
         self, command: str, timeout_s: Optional[int] = None
     ) -> Dict[str, Any]:
-        result = self.run_code(command, "bash", timeout_s=timeout_s)
+        wrapped = "\n".join(
+            [
+                "set -e",
+                f"if [ -f {self._archive_input_name} ]; then tar -xzf {self._archive_input_name}; fi",
+                command,
+                f"tar -czf {self._archive_output_name} --warning=no-file-changed --warning=no-file-removed --ignore-failed-read --exclude={self._archive_output_name} --exclude={self._archive_input_name} .",
+            ]
+        )
+        result = self._run_remote(wrapped, language="bash", timeout_s=timeout_s)
         return result  # type: ignore[return-value]
 
     def execute_python(
         self, code: str, timeout_s: Optional[int] = None
     ) -> Dict[str, Any]:
-        result = self.run_code(code, "python_runner", timeout_s=timeout_s)
+        wrapped = "\n".join(
+            [
+                "set -e",
+                f"if [ -f {self._archive_input_name} ]; then tar -xzf {self._archive_input_name}; fi",
+                "python - <<'PY'",
+                code,
+                "PY",
+                f"tar -czf {self._archive_output_name} --warning=no-file-changed --warning=no-file-removed --ignore-failed-read --exclude={self._archive_output_name} --exclude={self._archive_input_name} .",
+            ]
+        )
+        result = self._run_remote(wrapped, language="bash", timeout_s=timeout_s)
         return result  # type: ignore[return-value]
+
+    def run_task(
+        self,
+        package: TaskPackage,
+        *,
+        tools: Optional[Dict[str, Callable[..., Any]]] = None,
+    ) -> TaskRunRecord:
+        started = time.time()
+        # Run solve/verify remotely using tools.py and local data files.
+        solution_code = package.solution or ""
+        verification_code = package.verification or ""
+        runner = textwrap.dedent(
+            f'''
+import json
+import importlib.util
+import traceback
+
+class ToolProxy(dict):
+    def __getattr__(self, name):
+        if name in self:
+            return self[name]
+        def _missing(*args, **kwargs):
+            return {{"error": f"Tool not available: {{name}}", "args": args, "kwargs": kwargs}}
+        return _missing
+
+tools = {{}}
+try:
+    spec = importlib.util.spec_from_file_location("generated_tools", "tools.py")
+    if spec and spec.loader:
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for key in dir(module):
+            if key.startswith("_"):
+                continue
+            value = getattr(module, key)
+            if callable(value):
+                tools[key] = value
+except Exception:
+    pass
+
+tool_proxy = ToolProxy(**tools)
+
+def _emit(payload):
+    print(json.dumps(payload, ensure_ascii=False))
+
+try:
+    {solution_code}
+    {verification_code}
+    answer = solve(tool_proxy)
+    verified = verify(tool_proxy, answer)
+    _emit({{"answer": answer, "verified": verified}})
+except Exception:
+    _emit({{"error": traceback.format_exc()}})
+'''
+        ).strip()
+        exec_result = self.execute_python(runner, timeout_s=self.timeout_s)
+        answer: Any = None
+        verified: Optional[bool] = None
+        verification_score: Optional[float] = None
+        verification_details: Any = None
+        verification_message: Optional[str] = None
+        error: Optional[str] = None
+        verification_error: Optional[str] = None
+        try:
+            lines = (exec_result.get("stdout") or "").strip().splitlines()
+            payload = json.loads(lines[-1]) if lines else {}
+            if "error" in payload:
+                error = payload.get("error")
+            else:
+                answer = payload.get("answer")
+                verified = payload.get("verified")
+        except Exception:
+            error = "failed_to_parse_sandbox_output"
+
+        ended = time.time()
+        record = TaskRunRecord(
+            task_id=package.task.task_id,
+            task_title=package.task.task_title,
+            started_at=started,
+            ended_at=ended,
+            duration_s=ended - started,
+            answer=self._to_jsonable(answer),
+            verified=verified,
+            verification_score=verification_score,
+            verification_details=self._to_jsonable(verification_details),
+            error=error,
+            verification_error=verification_error,
+        )
+        self.runs_dir.mkdir(parents=True, exist_ok=True)
+        dump_json(self.runs_dir / f"{record.run_id}.json", record.model_dump())
+        logger.debug(f"Saved task run record: {record.run_id}.json in {self.runs_dir}")
+        return record
 
     def execute_search(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:
         result = self.execute("search", query, max_results=max_results)

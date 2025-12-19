@@ -89,13 +89,17 @@ class CodeValidator:
 
             def __init__(self) -> None:
                 self.has_tool_call = False
+                self.has_lambda = False
 
             def visit_Lambda(self, node: ast.Lambda) -> None:
-                # Still forbid lambdas to keep code simple and auditable.
-                raise StopIteration("Solution code cannot define lambda expressions")
+                # Track lambdas but do not fail validation; body will still be inspected.
+                self.has_lambda = True
+                self.generic_visit(node)
 
             def visit_Call(self, node: ast.Call) -> None:
                 func = node.func
+                if isinstance(func, ast.Name) and func.id == "__import__":
+                    raise StopIteration("Solution code cannot use __import__")
                 # tools['name'](...) or tools.name(...)
                 if isinstance(func, (ast.Attribute, ast.Subscript)):
                     target = func

@@ -20,6 +20,15 @@ export VLLM_API_KEY="${VLLM_API_KEY:-}"
 
 # Web search (Serper) for sandbox data retrieval
 export SERPER_API_KEY="${SERPER_API_KEY:-359135a8666e6c3934dc758cd2c48fdb21621fc9}"
+# Jina API key for embeddings/rerank cleanup
+export JINA_API_KEY="${JINA_API_KEY:-jina_b7ac238911474f91a7c06eddede292d7qFimJoGGPvlsGNfxxUU8duLXqjRi}"
+export JINA_TIMEOUT="${JINA_TIMEOUT:-15}"
+
+# Maximum bytes to download per dataset file (20M)
+export DATASET_MAX_BYTES="${DATASET_MAX_BYTES:-20000000}"
+# Data file output limits (0 means no limit)
+export MAX_DATA_FILES="${MAX_DATA_FILES:-6}"
+export MAX_SAMPLE_ROWS="${MAX_SAMPLE_ROWS:-1000}"
 
 # SandboxFusion
 export SANDBOX_FUSION_URL="${SANDBOX_FUSION_URL:-http://localhost:8080}"
@@ -35,6 +44,9 @@ MAX_VALIDATION_ROUNDS="${MAX_VALIDATION_ROUNDS:-2}"
 USE_SANDBOX_FUSION="${USE_SANDBOX_FUSION:-1}"
 MERGE="${MERGE:-0}"  # Default: overwrite (0), set to 1 to merge
 MAX_TOKENS="${MAX_TOKENS:-10000}"  # Maximum tokens for LLM generation
+# LLM I/O logging (set LLM_LOG_IO=1 to enable, optional LLM_LOG_IO_FILE for path)
+export LLM_LOG_IO="${LLM_LOG_IO:-1}"
+export LLM_LOG_IO_FILE="${LLM_LOG_IO_FILE:-sandbox/run/llm_io.log}"
 
 # ---------- Assemble command arguments ----------
 args=(
@@ -64,4 +76,3 @@ fi
 # ---------- Execute main program ----------
 # Environment checking and logging handling have been moved to Python code
 PYTHONUNBUFFERED=1 PYTHONPATH="$(pwd)/general_agent_bundle:${PYTHONPATH:-}" python -u -m agent_gem synthesize "${args[@]}" "$@"
-

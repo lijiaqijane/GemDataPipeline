@@ -12,6 +12,8 @@ class LLMConfig:
     api_key: str | None
     timeout: float = 120.0
     max_retries: int = 3
+    log_io: bool = False
+    log_io_file: str | None = None
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
@@ -49,6 +51,8 @@ class LLMConfig:
 
         timeout = float(os.getenv("LLM_TIMEOUT", "120"))
         max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+        log_io = os.getenv("LLM_LOG_IO", "0") in {"1", "true", "True"}
+        log_io_file = os.getenv("LLM_LOG_IO_FILE") or None
         return cls(
             provider=provider,
             base_url=base_url,
@@ -56,4 +60,6 @@ class LLMConfig:
             api_key=api_key,
             timeout=timeout,
             max_retries=max_retries,
+            log_io=log_io,
+            log_io_file=log_io_file,
         )

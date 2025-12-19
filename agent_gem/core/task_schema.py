@@ -511,7 +511,7 @@ class TaskPackage(BaseModel):
         }
 
     def run_solution(self, tools: Dict[str, Any]) -> Any:
-        env = self._build_exec_env(tools)
+        env = self._build_exec_env(tools, allow_imports=False)
         exec(self.solution, env, env)
         if "solve" not in env:
             raise RuntimeError("solution_code must define solve(tools)")
@@ -528,7 +528,7 @@ class TaskPackage(BaseModel):
     ) -> tuple[bool | None, float | None, Any, str | None]:
         """Run verification and return richer metadata (bool/score/details/message)."""
         try:
-            env = self._build_exec_env(tools)
+            env = self._build_exec_env(tools, allow_imports=True)
             exec(self.verification, env, env)
             if "verify" not in env:
                 raise RuntimeError("verification_code must define verify(tools, answer)")
@@ -596,13 +596,15 @@ class TaskPackage(BaseModel):
 
         return verified, score, details, message
 
-    def _build_exec_env(self, tools: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_exec_env(self, tools: Dict[str, Any], *, allow_imports: bool = False) -> Dict[str, Any]:
         """Build a safe execution environment for LLM-generated code.
         
         This environment restricts access to Python builtins to a safe subset
         commonly used in data processing and validation tasks. The selection
         includes basic type checks, iterations, and object introspection
-        functions that LLMs frequently generate.
+        functions that LLMs frequently generate. For verifiers we optionally
+        allow imports; for solutions we keep imports disabled to enforce
+        tool-only access.
         """
         safe_builtins = {
             # Basic types and conversions
@@ -656,18 +658,21 @@ class TaskPackage(BaseModel):
             "bin": bin,
             "hex": hex,
             "oct": oct,
-            # Explicitly allow imports for verifiers (they may need json/re/math)
-            "__import__": __import__,
         }
+        if allow_imports:
+            # Allow imports only when explicitly enabled (verifier path).
+            safe_builtins["__import__"] = __import__
+
         # Pre-import a few safe standard modules commonly used in verifiers.
         env = {
             "__builtins__": safe_builtins,
             "tools": tools,
         }
-        try:
-            import json, re, math, statistics  # type: ignore
+        if allow_imports:
+            try:
+                import json, re, math, statistics  # type: ignore
 
-            env.update({"json": json, "re": re, "math": math, "statistics": statistics})
-        except Exception:
-            pass
+                env.update({"json": json, "re": re, "math": math, "statistics": statistics})
+            except Exception:
+                pass
         return env
