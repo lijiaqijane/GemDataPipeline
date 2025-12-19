@@ -121,3 +121,50 @@ def _preview_text(text: str, limit: int = 320) -> str:
     if len(cleaned) <= limit:
         return cleaned
     return f"{cleaned[:limit]}... (truncated)"
+
+def chat_with_agent(
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict[str, str]],
+        tool_call_map: Dict[str, str],  
+        temperature: float = 0.7,
+        max_tokens: int = 512,
+    ) -> str:
+        """Call chat completion with thinking and tools."""
+        searrch_content = []
+        sub_turn = 1
+        while True:
+            response = self.client.chat.completions.create(
+                model=self.config.model,
+                messages=messages,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                extra_body={
+                    "thinking": {
+                        "type": "enabled",
+                    }
+                },
+            )
+            messages.append(response.choices[0].message)
+            reasoning_content = response.choices[0].message.reasoning_content
+            content = response.choices[0].message.content
+            tool_calls = response.choices[0].message.tool_calls
+            # breakpoint()
+            print(f"Turn {sub_turn}\n{reasoning_content=}\n{content=}\n{tool_calls=}")
+
+            if tool_calls is None:
+                break
+            for tool in tool_calls:
+                tool_function = tool_call_map[tool.function.name]
+                tool_result = tool_function(**json.loads(tool.function.arguments))
+                # print(f"tool result for {tool.function.name}: {tool_result}\n")
+                searrch_content.append(tool_result)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "content": tool_result,
+                })
+            sub_turn += 1
+
+        return content, searrch_content
