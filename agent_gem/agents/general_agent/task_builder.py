@@ -47,6 +47,63 @@ class TaskBuilderMixin:
         cleaned = "\n".join(lines[start:]).replace("```", "").strip()
         return cleaned + ("\n" if cleaned and not cleaned.endswith("\n") else "")
 
+    def _coerce_text(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, list):
+            return "; ".join(str(item) for item in value if item is not None).strip()
+        if isinstance(value, dict):
+            try:
+                return json.dumps(value, ensure_ascii=True)
+            except Exception:
+                return str(value).strip()
+        return str(value).strip()
+
+    def _generate_repair_guidance(
+        self,
+        *,
+        request: "GenerationRequest",
+        task_content: str,
+        submit_result_format: dict[str, Any],
+        tool_specs: list[ToolSpec],
+        previous_solution: str | None,
+        previous_verification: str | None,
+        repair_error: str,
+        repair_target: str | None,
+        records: list[dict[str, Any]],
+        tool_selftest: dict[str, Any] | None,
+        max_tokens: int,
+    ) -> dict[str, str]:
+        tool_list = [{"name": s.name, "description": s.description} for s in tool_specs]
+        prompt = (
+            "You are a debugging assistant. Analyze the failure and propose a prompt addition that forces a different approach.\n"
+            "Return ONLY JSON with keys: diagnosis, required_changes, prompt_additions.\n"
+            "- diagnosis: concise and specific root cause guess.\n"
+            "- required_changes: 2-4 concrete changes to apply (list or string).\n"
+            "- prompt_additions: 3-6 sentences to append to the generation prompt.\n"
+            "  It must include at least one constraint that changes data selection strategy\n"
+            "  (e.g., adjust filters, combine tools, change query terms) and one constraint\n"
+            "  about output structure. Avoid repeating the original prompt. English only.\n\n"
+            f"Repair target: {repair_target or 'solution'}\n"
+            f"Failure: {repair_error[:1200]}\n"
+            f"Task content: {task_content[:1200]}\n"
+            f"submit_result_format (JSON): {json.dumps(submit_result_format, ensure_ascii=True)}\n"
+            f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=True)}\n"
+            f"Database sample (JSON): {json.dumps(records[:3], ensure_ascii=True)}\n"
+            f"Tool self-tests (schemas): {json.dumps(tool_selftest or {}, ensure_ascii=True)[:1200]}\n"
+            f"Previous solution snippet:\n{(previous_solution or '')[:800]}\n"
+            f"Previous verification snippet:\n{(previous_verification or '')[:800]}\n"
+        )
+        raw = self.llm.simple_complete(prompt, temperature=0.3, max_tokens=max_tokens)
+        parsed = self._extract_json(raw) or {}
+        return {
+            "diagnosis": self._coerce_text(parsed.get("diagnosis")),
+            "required_changes": self._coerce_text(parsed.get("required_changes")),
+            "prompt_additions": self._coerce_text(parsed.get("prompt_additions")),
+        }
+
     def _generate_agent_solution_and_verification(
         self,
         *,
@@ -87,7 +144,7 @@ class TaskBuilderMixin:
             "- Must handle answer is None / missing keys / None values without throwing (avoid NoneType is not iterable).\n"
             "- Must ALWAYS return a boolean OR a dict with keys like {passed: bool, message: str, details: ...}.\n"
             "- If returning a dict, include a short failure message to help repairs.\n"
-            "- If answer is wrapped by submit_result (keys like status/message/submitted_data), verify the submitted_data payload.\n"
+            "- If answer is wrapped by submit_result (keys like status/message/submitted_data or status/message/data), verify the wrapped payload.\n"
             "- Must call at least ONE data tool (exclude submit_result) to cross-check outputs.\n"
             "- If tools return matching records, verification must fail when the answer is empty/missing those records.\n"
             "- Should verify `answer` matches submit_result_format and is consistent with tool outputs.\n\n"
@@ -99,6 +156,7 @@ class TaskBuilderMixin:
             f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
             f"Tool self-tests (schemas): {json.dumps(tool_selftest or {}, ensure_ascii=False)[:1200]}\n"
         )
+        repair_guidance: dict[str, str] | None = None
         if repair_error:
             base_prompt += (
                 "\nYou are REPAIRING a previously generated package.\n"
@@ -109,6 +167,23 @@ class TaskBuilderMixin:
                 "- If repairing solution, ensure answer matches submit_result_format and still call submit_result exactly once.\n"
                 "- If repairing both, rewrite both solve() and verify(); do not reuse the previous logic.\n"
             )
+            try:
+                repair_guidance = self._generate_repair_guidance(
+                    request=request,
+                    task_content=task_content,
+                    submit_result_format=submit_result_format,
+                    tool_specs=tool_specs,
+                    previous_solution=previous_solution,
+                    previous_verification=previous_verification,
+                    repair_error=repair_error,
+                    repair_target=repair_target,
+                    records=records,
+                    tool_selftest=tool_selftest if isinstance(tool_selftest, dict) else {},
+                    max_tokens=min(800, max_tokens),
+                )
+                ctx.add_step({"type": "repair_guidance", "content": repair_guidance})
+            except Exception:
+                repair_guidance = None
 
         last_err = ""
         for attempt in range(1, 4):
@@ -118,6 +193,14 @@ class TaskBuilderMixin:
                     "\nPrevious code (may be improved but keep constraints):\n"
                     f"SOLUTION:\n{previous_solution[:1200]}\n"
                     f"VERIFICATION:\n{previous_verification[:1200]}\n"
+                )
+            if repair_guidance:
+                prompt += (
+                    "\nRepair guidance (must follow):\n"
+                    f"Diagnosis: {repair_guidance.get('diagnosis', '')}\n"
+                    f"Required changes: {repair_guidance.get('required_changes', '')}\n"
+                    f"Prompt additions: {repair_guidance.get('prompt_additions', '')}\n"
+                    "Apply the required changes and avoid repeating the previous approach.\n"
                 )
             if last_err:
                 prompt += f"\nPrevious attempt errors: {last_err}\nFix them and try again.\n"

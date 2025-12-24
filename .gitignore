@@ -46,3 +46,4 @@ venv/
 sandbox/
 *.log
 docs/
+run.sh

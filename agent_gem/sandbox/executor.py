@@ -457,22 +457,7 @@ class SandboxExecutor:
                 continue
         return snapshot
 
-    def _load_submitted_result(self) -> Any | None:
-        submitted = self.sandbox_dir / "submitted_result.json"
-        if not submitted.exists():
-            return None
-        try:
-            return json.loads(submitted.read_text(encoding="utf-8"))
-        except Exception:
-            return None
-
-    @staticmethod
-    def _unwrap_submitted_result(answer: Any) -> Any:
-        if isinstance(answer, dict) and "submitted_data" in answer:
-            status = answer.get("status")
-            message = answer.get("message")
-            if isinstance(status, str) or isinstance(message, str):
-                return answer.get("submitted_data")
+    def _process_solution_answer(self, answer: Any) -> Any:
         return answer
 
     def run_task(
@@ -497,12 +482,7 @@ class SandboxExecutor:
         verification_error: Optional[str] = None
         try:
             answer = package.run_solution(tool_proxy)
-            # If solve() forgot to return, fall back to the persisted submit_result payload.
-            if answer is None:
-                submitted_payload = self._load_submitted_result()
-                if submitted_payload is not None:
-                    answer = submitted_payload
-            answer = self._unwrap_submitted_result(answer)
+            answer = self._process_solution_answer(answer)
             verified, verification_score, verification_details, verification_message = package.verify_with_meta(
                 tool_proxy, answer
             )
@@ -533,7 +513,6 @@ class SandboxExecutor:
         # Ensure run_group dir exists before saving
         group_dir.mkdir(parents=True, exist_ok=True)
         dump_json(group_dir / f"{record.run_id}.json", record.model_dump())
-        self._archive_submitted_result(group_dir, run_id)
         logger.debug(f"Saved task run record: {record.run_id}.json in {group_dir}")
         return record
 
@@ -583,14 +562,20 @@ class SandboxExecutor:
             except Exception:
                 logger.debug("on_tool_call callback failed", exc_info=True)
 
-    def _archive_submitted_result(self, group_dir: Path, run_id: str) -> None:
-        source = self.sandbox_dir / "submitted_result.json"
-        if not source.exists():
+    def annotate_run_record(
+        self, *, run_group: str, run_id: str, updates: Dict[str, Any]
+    ) -> None:
+        if not updates:
             return
-        target_dir = group_dir / "submitted_results"
-        target_dir.mkdir(parents=True, exist_ok=True)
+        path = self._run_group_dir(run_group) / f"{run_id}.json"
+        if not path.exists():
+            return
         try:
-            shutil.copyfile(source, target_dir / f"{run_id}.json")
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                return
+            data.update(updates)
+            dump_json(path, data)
         except Exception:
             pass
 
@@ -760,21 +745,25 @@ class SandboxFusionExecutor(SandboxExecutor):
         result = self._run_remote(wrapped, language="bash", timeout_s=timeout_s)
         return result  # type: ignore[return-value]
 
-    def run_task(
-        self,
-        package: TaskPackage,
-        *,
-        tools: Optional[Dict[str, Callable[..., Any]]] = None,
-        run_group: str = "default",
-    ) -> TaskRunRecord:
-        run_id = uuid.uuid4().hex
-        started = time.time()
-        # Run solve/verify remotely using tools.py and local data files.
+    def _extra_runner_helpers(self) -> str:
+        return ""
+
+    def _answer_postprocess_snippet(self) -> str:
+        return ""
+
+    def _build_runner_code(self, package: TaskPackage) -> str:
         solution_code = package.solution or ""
         verification_code = package.verification or ""
-        group_dir = self._run_group_dir(run_group)
-        self._record_run_code(run_id, package, group_dir=group_dir)
         required_tools = [spec.name for spec in package.task.tool_set]
+
+        extra_helpers = textwrap.dedent(self._extra_runner_helpers() or "").strip("\n")
+        if extra_helpers:
+            extra_helpers = extra_helpers + "\n"
+
+        postprocess = textwrap.dedent(self._answer_postprocess_snippet() or "").strip("\n")
+        if postprocess:
+            postprocess = textwrap.indent(postprocess, "    ") + "\n"
+
         runner = textwrap.dedent(
             f'''
 import json
@@ -838,24 +827,7 @@ def _load_records():
         return [row for row in data if isinstance(row, dict)]
     return []
 
-def _load_submitted_result():
-    submitted_path = Path("submitted_result.json")
-    if not submitted_path.exists():
-        return None
-    try:
-        return json.loads(submitted_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-
-def _unwrap_answer(value):
-    if isinstance(value, dict) and "submitted_data" in value:
-        status = value.get("status")
-        message = value.get("message")
-        if isinstance(status, str) or isinstance(message, str):
-            return value.get("submitted_data")
-    return value
-
-# User requirement: all required tools MUST be implemented by the agent in tools.py.
+{extra_helpers}# User requirement: all required tools MUST be implemented by the agent in tools.py.
 missing = [name for name in {json.dumps(required_tools)} if name not in tools or not callable(tools.get(name))]
 if missing:
     print(json.dumps({{"error": f"missing_required_tools: {{missing}}"}}, ensure_ascii=False))
@@ -871,7 +843,7 @@ def _cache_key(args, kwargs):
 
 def _wrap_tool(name, fn):
     def _call(*args, **kwargs):
-        cache_key = name + \":\" + _cache_key(args, kwargs)
+        cache_key = name + ":" + _cache_key(args, kwargs)
         if cache_key in tool_cache:
             return tool_cache[cache_key]
         result = fn(*args, **kwargs)
@@ -930,13 +902,7 @@ try:
     exec(solution_src, globals())
     exec(verification_src, globals())
     answer = solve(tool_proxy)
-    # If solve() forgot to return, fall back to persisted payload from agent-authored submit_result.
-    if answer is None:
-        submitted_payload = _load_submitted_result()
-        if submitted_payload is not None:
-            answer = submitted_payload
-    answer = _unwrap_answer(answer)
-    raw_verified = verify(tool_proxy, answer)
+{postprocess}    raw_verified = verify(tool_proxy, answer)
     verified, score, details, message = _normalize_verification_output(raw_verified)
     if verified is False and message is None:
         message = "verification returned False"
@@ -947,6 +913,21 @@ except Exception:
     _emit({{"error": traceback.format_exc()}})
 '''
         ).strip()
+        return runner
+
+    def run_task(
+        self,
+        package: TaskPackage,
+        *,
+        tools: Optional[Dict[str, Callable[..., Any]]] = None,
+        run_group: str = "default",
+    ) -> TaskRunRecord:
+        run_id = uuid.uuid4().hex
+        started = time.time()
+        # Run solve/verify remotely using tools.py and local data files.
+        group_dir = self._run_group_dir(run_group)
+        self._record_run_code(run_id, package, group_dir=group_dir)
+        runner = self._build_runner_code(package)
         exec_result = self.execute_python(runner, timeout_s=self.timeout_s)
         answer: Any = None
         verified: Optional[bool] = None
@@ -996,7 +977,6 @@ except Exception:
         )
         group_dir.mkdir(parents=True, exist_ok=True)
         dump_json(group_dir / f"{record.run_id}.json", record.model_dump())
-        self._archive_submitted_result(group_dir, run_id)
         logger.debug(f"Saved task run record: {record.run_id}.json in {group_dir}")
         return record
 

@@ -9,9 +9,12 @@ from typing import Any, Optional, TYPE_CHECKING
 
 from agent_gem.core.task_schema import TaskPackage, ToolSpec
 from agent_gem.core.validation import CodeValidator
-from agent_gem.sandbox import SandboxExecutor, SandboxFusionExecutor
+from agent_gem.sandbox import SandboxFusionExecutor
 
 from ..base import TaskContext
+from .sandbox import GeneralAgentSandboxExecutor, GeneralAgentSandboxFusionExecutor
+
+SandboxType = GeneralAgentSandboxExecutor | GeneralAgentSandboxFusionExecutor
 
 if TYPE_CHECKING:  # pragma: no cover
     from agent_gem.generator import GenerationRequest  # noqa: F401
@@ -122,7 +125,7 @@ class ValidationMixin:
         request: "GenerationRequest",
         package: TaskPackage,
         ctx: TaskContext,
-        sandbox: SandboxExecutor,
+        sandbox: SandboxType,
         records: list[dict[str, Any]],
         *,
         tools_code: str | None = None,
@@ -227,7 +230,12 @@ class ValidationMixin:
             pre_snapshot = sandbox.snapshot_fs()
 
             run_start = time.time()
-            difficulty = int(getattr(package.task, "difficulty_level", 1) or 1)
+            difficulty = int(
+                getattr(ctx, "current_difficulty", 0)
+                or getattr(request, "difficulty", 0)
+                or getattr(package.task, "difficulty_level", 1)
+                or 1
+            )
             group_prefix = f"difficulty_{difficulty}"
             # User preference: only one folder per difficulty; all attempts (including retries) go into it.
             run = sandbox.run_task(package, run_group=group_prefix)
@@ -305,6 +313,19 @@ class ValidationMixin:
                 )
                 if target == "both":
                     last_error = f"{last_error}\nstagnation: solution/verification repeated; rewrite both."
+                try:
+                    sandbox.annotate_run_record(
+                        run_group=group_prefix,
+                        run_id=run.run_id,
+                        updates={
+                            "result_persisted": False,
+                            "result_persist_reason": last_error,
+                            "task_candidate": False,
+                            "task_candidate_reason": last_error,
+                        },
+                    )
+                except Exception:
+                    pass
                 package = self._repair_package(
                     request,
                     package,
@@ -320,6 +341,19 @@ class ValidationMixin:
                 )
                 if not fmt_ok:
                     last_error = f"answer_format_mismatch: {fmt_err}"
+                    try:
+                        sandbox.annotate_run_record(
+                            run_group=group_prefix,
+                            run_id=run.run_id,
+                            updates={
+                                "result_persisted": False,
+                                "result_persist_reason": last_error,
+                                "task_candidate": False,
+                                "task_candidate_reason": last_error,
+                            },
+                        )
+                    except Exception:
+                        pass
                     package = self._repair_package(request, package, ctx, error=last_error, records=records)
                     continue
             used_data_tools = {name for name in used_tools if name != submit_tool}
@@ -327,6 +361,19 @@ class ValidationMixin:
                 last_error = (
                     f"runtime tool calls insufficient; used={sorted(used_tools)} count={tool_call_count}"
                 )
+                try:
+                    sandbox.annotate_run_record(
+                        run_group=group_prefix,
+                        run_id=run.run_id,
+                        updates={
+                            "result_persisted": False,
+                            "result_persist_reason": last_error,
+                            "task_candidate": False,
+                            "task_candidate_reason": last_error,
+                        },
+                    )
+                except Exception:
+                    pass
                 package = self._repair_package(request, package, ctx, error=last_error, records=records)
                 continue
             if allow_permissive and run.answer is not None and run.verified is False:
@@ -361,36 +408,27 @@ class ValidationMixin:
                 if not tool_selftest or all(
                     not v.get("fields") for v in tool_selftest.values() if isinstance(v, dict)
                 ):
-                    new_specs, new_code = self._synthesize_task_tools(
-                        request.topic or package.task.task_title,
-                        records,
-                        ctx,
-                        sandbox,
-                        data_profile or {},
-                    )
-                    self._register_task_tools(new_specs, sandbox, ctx, tools_code=new_code)
-                    new_selftest = self._self_test_tools(new_specs, sandbox, request.topic, ctx)
-                    package = self._propose_task(
-                        package.task.task_id,
-                        request,
-                        records,
-                        new_specs,
-                        ctx,
-                        tools_code=new_code,
-                        data_profile=data_profile or {},
-                        tool_selftest=new_selftest,
-                    )
-                    package = package.copy(
-                        update={
-                            "metadata": {
-                                **(package.metadata or {}),
-                                "data_profile": json.dumps(data_profile, ensure_ascii=False)[:4000],
-                                "tool_selftest": json.dumps(new_selftest, ensure_ascii=False)[:4000],
-                                "tools_code": new_code,
+                    refreshed_selftest: dict[str, Any] = {}
+                    try:
+                        refreshed_selftest = self._self_test_tools(
+                            list(package.task.tool_set),
+                            sandbox,
+                            request.topic,
+                            ctx,
+                        )
+                    except Exception:
+                        refreshed_selftest = tool_selftest if isinstance(tool_selftest, dict) else {}
+                    if refreshed_selftest:
+                        tool_selftest = refreshed_selftest
+                        package = package.copy(
+                            update={
+                                "metadata": {
+                                    **(package.metadata or {}),
+                                    "data_profile": json.dumps(data_profile, ensure_ascii=False)[:4000],
+                                    "tool_selftest": json.dumps(refreshed_selftest, ensure_ascii=False)[:4000],
+                                }
                             }
-                        }
-                    )
-                    continue
+                        )
                 if not augmented_once:
                     new_specs, new_code, augmented = self._augment_toolset(
                         request.topic or package.task.task_title,
@@ -428,6 +466,19 @@ class ValidationMixin:
                             records=records,
                         )
                         continue
+                if not tool_selftest or all(
+                    not v.get("fields") for v in tool_selftest.values() if isinstance(v, dict)
+                ):
+                    last_error = "tool_selftest_missing_or_empty; skipping tool resynthesis; verify/solution must use existing tools"
+                    package = self._repair_package(
+                        request,
+                        package,
+                        ctx,
+                        error=last_error,
+                        records=records,
+                        repair_target="solution",
+                    )
+                    continue
                 if run.answer is None or run.verified is None:
                     last_error = run.error or run.verification_error or "missing_answer_or_verdict"
                     package = self._repair_package(request, package, ctx, error=last_error, records=records)
@@ -453,10 +504,50 @@ class ValidationMixin:
                         negative = sandbox.run_task(package, run_group=group_prefix)
                         if negative.verified:
                             last_error = "negative_check_failed"
+                            try:
+                                sandbox.annotate_run_record(
+                                    run_group=group_prefix,
+                                    run_id=run.run_id,
+                                    updates={
+                                        "result_persisted": False,
+                                        "result_persist_reason": last_error,
+                                        "task_candidate": False,
+                                        "task_candidate_reason": last_error,
+                                    },
+                                )
+                                sandbox.annotate_run_record(
+                                    run_group=group_prefix,
+                                    run_id=negative.run_id,
+                                    updates={
+                                        "result_persisted": False,
+                                        "result_persist_reason": last_error,
+                                        "task_candidate": False,
+                                        "task_candidate_reason": last_error,
+                                    },
+                                )
+                            except Exception:
+                                pass
                             package = self._repair_package(request, package, ctx, error=last_error, records=records)
                             continue
                     except Exception:
                         pass
+                try:
+                    sandbox.annotate_run_record(
+                        run_group=group_prefix,
+                        run_id=run.run_id,
+                        updates={
+                            "result_persisted": True,
+                            "result_persist_reason": "verified",
+                            "task_candidate": True,
+                            "task_candidate_reason": "verified",
+                        },
+                    )
+                except Exception:
+                    pass
+                try:
+                    sandbox.persist_verified_result(group_prefix)
+                except Exception:
+                    pass
                 return package
 
             if run.verified is False and not run.error:
@@ -469,6 +560,19 @@ class ValidationMixin:
                 )
                 if target == "both":
                     last_error = f"{last_error}\nstagnation: solution/verification repeated; rewrite both."
+                try:
+                    sandbox.annotate_run_record(
+                        run_group=group_prefix,
+                        run_id=run.run_id,
+                        updates={
+                            "result_persisted": False,
+                            "result_persist_reason": last_error,
+                            "task_candidate": False,
+                            "task_candidate_reason": last_error,
+                        },
+                    )
+                except Exception:
+                    pass
                 package = self._repair_package(
                     request,
                     package,
@@ -489,6 +593,19 @@ class ValidationMixin:
                 )
                 if target == "both":
                     last_error = f"{last_error}\nstagnation: solution/verification repeated; rewrite both."
+                try:
+                    sandbox.annotate_run_record(
+                        run_group=group_prefix,
+                        run_id=run.run_id,
+                        updates={
+                            "result_persisted": False,
+                            "result_persist_reason": last_error,
+                            "task_candidate": False,
+                            "task_candidate_reason": last_error,
+                        },
+                    )
+                except Exception:
+                    pass
                 package = self._repair_package(
                     request,
                     package,

@@ -13,7 +13,9 @@ from agent_gem.tools import BashTool, PythonRunnerTool, SearchTool
 
 from ..base import BaseAgent, TaskContext
 from .data_pipeline import DataPipelineMixin
+from .persist import persist_quadruple_format
 from .task_builder import TaskBuilderMixin
+from .sandbox import GeneralAgentSandboxFusionExecutor
 from .tool_synthesis import ToolSynthesisMixin
 from .validation_flow import ValidationMixin
 
@@ -57,7 +59,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 raise RuntimeError(
                     "SandboxFusion is required; local sandbox execution is disabled."
                 )
-            sandbox = SandboxFusionExecutor(
+            sandbox = GeneralAgentSandboxFusionExecutor(
                 sandbox_dir=sandbox_dir,
                 base_url=os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080"),
                 timeout_s=20,
@@ -176,6 +178,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             effective_refine_rounds = max(1, max(request.max_refine_rounds, int(request.difficulty)))
             for round_idx in range(2, effective_refine_rounds + 1):
                 target = min(int(request.difficulty), round_idx)
+                ctx.current_difficulty = target
                 refined = self._refine_task(
                     previous=package,
                     records=records,
@@ -209,7 +212,8 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                     },
                 )
                 try:
-                    self.writer.persist_quadruple_format(
+                    persist_quadruple_format(
+                        self.writer,
                         category=request.topic or "general task",
                         records=records,
                         packages=[package],
