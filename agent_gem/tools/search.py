@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -37,13 +38,18 @@ class SearchTool(BaseTool):
         self.bash_runner = bash_runner
         self._cache_lock = threading.Lock()
 
-    def execute(self, query: str, max_results: int = 5) -> list[dict[str, str]]:
+    def execute(self, query: str, max_results: int = 5, page: int = 1) -> list[dict[str, str]]:
+        if page != 1:
+            is_cached = False
+        else:
+            is_cached = True
+
         query = (query or "").strip()
         if not query:
             return []
 
         cached = self._load_cache()
-        if query in cached:
+        if is_cached and query in cached:
             return cached[query][:max_results]
 
         results: list[dict[str, str]] = []
@@ -52,7 +58,7 @@ class SearchTool(BaseTool):
                 results = self._execute_in_sandbox(query, max_results)
             else:
                 url = "https://google.serper.dev/search"
-                payload = {"q": query}
+                payload = {"q": query, "page": page}
                 headers = {
                     "X-API-KEY": self.api_key,
                     "Content-Type": "application/json",
@@ -83,8 +89,9 @@ class SearchTool(BaseTool):
 
             results = self._clean_results(results)
             results = self._rerank_with_jina(query, results)[:max_results]
-            cached[query] = results
-            self._save_cache(cached)
+            if is_cached:
+                cached[query] = results
+                self._save_cache(cached)
         except Exception as exc:  # pragma: no cover - network may be restricted
             raise ToolExecutionError("search_failed", results, message=str(exc))
 
@@ -231,7 +238,9 @@ class SearchTool(BaseTool):
             raise ToolExecutionError("search_failed", [], message=f"invalid output: {exc}")
 
         if isinstance(payload, dict) and payload.get("error"):
-            raise ToolExecutionError("search_failed", payload.get("results", []), message=str(payload.get("error")))
+            raise ToolExecutionError(
+                "search_failed", payload.get("results", []), message=str(payload.get("error"))
+            )
 
         records = payload.get("results") if isinstance(payload, dict) else None
         if not isinstance(records, list):
@@ -273,3 +282,46 @@ class SearchTool(BaseTool):
     def _save_cache(self, cache: dict[str, list[dict[str, str]]]) -> None:
         with self._cache_lock:
             dump_json(self.cache_path, cache)
+
+
+class VisitTool(BaseTool):
+    """Visit a URL and return the content."""
+
+    def __init__(
+        self,
+        *,
+        timeout_s: int = 100,
+        name: str = "visit",
+        description: str | None = None,
+        api_key: str | None = None,
+    ) -> None:
+        super().__init__(name=name, description=description)
+        self.timeout_s = timeout_s
+        self.api_key = api_key or os.environ.get("JINA_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "JINA_API_KEY is not set; please export it (e.g., via run.sh) before using VisitTool."
+            )
+
+    def execute(self, url: str, goal: str) -> str:
+        max_retries = 3
+        base_url = "https://r.jina.ai"
+
+        for attempt in range(max_retries):
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+            }
+            try:
+                response = requests.get(f"{base_url}/{url}", headers=headers, timeout=self.timeout_s)
+                if response.status_code == 200:
+                    webpage_content = response.text
+                    return webpage_content
+                else:
+                    print(response.text)
+                    raise ValueError("jina readpage error")
+            except requests.exceptions.RequestException as e:
+                time.sleep(0.5)
+                if attempt == max_retries - 1:
+                    return "[visit] Failed to read page."
+
+        return "[visit] Failed to read page."
