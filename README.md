@@ -59,6 +59,35 @@ Run a code-focused batch:
 agent_gem --agent-type code_agent --topic "python data pipelines" --count 1 --difficulty Hard
 ```
 
+## Code Agent
+
+The Code Agent generates function-implementation tasks by mining GitHub repositories. It extracts real Python functions, creates implementation challenges, and generates test suites with validation.
+
+### Workflow
+
+1. **Triple Generation**: Mines GitHub repos → filters quality files → extracts suitable functions
+2. **Task Creation**: Removes function body → generates task description → creates test suite
+3. **Validation**: Verifies tests pass with original code → validates in clean environment
+4. **Output**: Saves task + tests + solution to `{taskdb_root}/task_{id}/`
+
+### Usage
+
+See [examples/run_code_agent.sh](examples/run_code_agent.sh) for a complete example:
+
+```bash
+# Batch mode: generate from pre-computed triples
+python -m agent_gem code_synthesize --config config/code_agent.yaml
+
+# Single mode: target specific function
+python -m agent_gem code_synthesize \
+  --config config/code_agent.yaml \
+  --repo numpy/numpy \
+  --file numpy/matlib.py \
+  --function identity
+```
+
+Configuration (scoring weights, filters, test counts) is in [config/code_agent.yaml](config/code_agent.yaml).
+
 ## Project Layout
 
 - `agent_gem/config.py`, `agent_gem/llm.py`: DeepSeek-first client with retries.

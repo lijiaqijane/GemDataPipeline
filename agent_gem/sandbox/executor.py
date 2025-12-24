@@ -15,7 +15,7 @@ from pathlib import Path
 import requests
 import shutil
 import tarfile
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 from sandbox_fusion import set_endpoint, run_code, RunCodeRequest
@@ -72,6 +72,9 @@ class DockerAPIRunner:
                 ports={"8080/tcp": self.port},
                 detach=True,
                 remove=True,
+                # privileged=True,
+                # command="make run-online"
+
             )
             if not self.silent:
                 logger.info(
@@ -686,3 +689,403 @@ class SandboxFusionExecutor(SandboxExecutor):
     def execute_search(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:
         result = self.execute("search", query, max_results=max_results)
         return result  # type: ignore[return-value]
+
+
+class CodeExecutor:
+    """Utility wrapper around SandboxFusionExecutor for repo operations."""
+
+    def __init__(self, executor: SandboxFusionExecutor) -> None:
+        self.executor = executor
+
+    # ---------- low-level runners ----------
+    def run_command(self, command: str, *, timeout_s: int = 30) -> Dict[str, Any]:
+        return self.executor._run_remote(command, language="bash", timeout_s=timeout_s)
+
+    def run_code(self, code: str, *, language: str = "python", timeout_s: int = 30) -> Dict[str, Any]:
+        return self.executor._run_remote(code, language=language, timeout_s=timeout_s)
+
+    # ---------- helpers ----------
+    @staticmethod
+    def _extract_stdout(result: Dict[str, Any]) -> str:
+        raw = result.get("raw", {}) or {}
+        if isinstance(raw, dict):
+            for key in ("run_result", "result", "output"):
+                inner = raw.get(key)
+                if isinstance(inner, dict) and inner.get("stdout"):
+                    return str(inner.get("stdout", ""))
+            if raw.get("stdout"):
+                return str(raw.get("stdout", ""))
+        return str(result.get("stdout", ""))
+
+    @staticmethod
+    def _is_success(result: Dict[str, Any]) -> bool:
+        return result.get("status", "") == "Success"
+
+    # ---------- repo operations ----------
+
+    def detect_language(self, repo_path: str = "/workspace/repo") -> str:
+        code = f"""
+import os
+from pathlib import Path
+
+repo = Path("{repo_path}")
+ext_map = {{
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".java": "java",
+    ".go": "go",
+    ".rs": "rust",
+}}
+
+counts = {{}}
+for ext, lang in ext_map.items():
+    count = len(list(repo.rglob(f"*{{ext}}")))
+    if count:
+        counts[lang] = count
+
+print(max(counts, key=counts.get) if counts else "unknown")
+"""
+        result = self.run_code(code, language="python")
+        output = self._extract_stdout(result).strip()
+        return output.split("\n")[-1] if output else "unknown"
+
+    def extract_dependencies(self, repo_path: str = "/workspace/repo", language: str = "python") -> List[str]:
+        if language == "python":
+            code = f"""
+import json
+import re
+from pathlib import Path
+
+repo = Path("{repo_path}")
+deps = []
+
+# 1. Check requirements.txt
+req_file = repo / "requirements.txt"
+if req_file.exists():
+    deps.extend([
+        line.strip()
+        for line in req_file.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ])
+
+# 2. Check setup.py
+setup_py = repo / "setup.py"
+if setup_py.exists():
+    content = setup_py.read_text()
+    match = re.search(r"install_requires\\s*=\\s*\\[(.*?)\\]", content, re.DOTALL)
+    if match:
+        deps_str = match.group(1)
+        pairs = re.findall(r'"([^"]+)"|\\\'([^\\\']+)\\\'', deps_str)
+        deps.extend([p[0] or p[1] for p in pairs])
+
+# 3. Check pyproject.toml
+pyproject = repo / "pyproject.toml"
+if pyproject.exists():
+    content = pyproject.read_text()
+    match = re.search(r"dependencies\\s*=\\s*\\[(.*?)\\]", content, re.DOTALL)
+    if match:
+        deps_str = match.group(1)
+        pairs = re.findall(r'"([^"]+)"|\\\'([^\\\']+)\\\'', deps_str)
+        deps.extend([p[0] or p[1] for p in pairs])
+
+# 4. Check environment.yml (conda)
+env_yml_files = [
+    repo / "environment.yml",
+    repo / "environment.yaml",
+    repo / "conda.yml",
+    repo / "conda.yaml"
+]
+
+for env_file in env_yml_files:
+    if env_file.exists():
+        try:
+            import yaml
+            content = yaml.safe_load(env_file.read_text())
+            
+            # Extract conda dependencies
+            if 'dependencies' in content:
+                for dep in content['dependencies']:
+                    if isinstance(dep, str):
+                        # Simple package name or package=version
+                        # Extract just the package name before = or version specifier
+                        pkg_name = re.split(r'[=<>!]', dep)[0].strip()
+                        if pkg_name and not pkg_name.startswith('-'):
+                            deps.append(pkg_name)
+                    elif isinstance(dep, dict) and 'pip' in dep:
+                        # Pip dependencies nested in conda environment
+                        deps.extend(dep['pip'])
+        except ImportError:
+            # yaml not available, try simple parsing
+            try:
+                content = env_file.read_text()
+                # Find dependencies section
+                in_deps = False
+                in_pip = False
+                for line in content.splitlines():
+                    line = line.strip()
+                    if line.startswith('dependencies:'):
+                        in_deps = True
+                        continue
+                    if in_deps:
+                        if line.startswith('-'):
+                            if 'pip:' in line:
+                                in_pip = True
+                                continue
+                            elif in_pip:
+                                # pip dependency
+                                pkg = line.lstrip('- ').strip()
+                                deps.append(pkg)
+                            else:
+                                # conda dependency
+                                pkg = line.lstrip('- ').strip()
+                                pkg_name = re.split(r'[=<>!]', pkg)[0].strip()
+                                if pkg_name:
+                                    deps.append(pkg_name)
+                        elif not line.startswith('#') and line and not line.endswith(':'):
+                            in_deps = False
+            except Exception:
+                pass
+        break  # Only process the first found environment file
+
+print(json.dumps(sorted(set(deps))))
+"""
+            result = self.run_code(code, language="python")
+            output = self._extract_stdout(result).strip()
+            
+            try:
+                return json.loads(output)
+            except json.JSONDecodeError:
+                return []
+
+        if language in {"javascript", "typescript"}:
+            code = f"""
+import json
+from pathlib import Path
+
+repo = Path("{repo_path}")
+pkg_json = repo / "package.json"
+deps = []
+
+if pkg_json.exists():
+    try:
+        data = json.loads(pkg_json.read_text())
+        deps.extend(list(data.get("dependencies", {{}}).keys()))
+        deps.extend(list(data.get("devDependencies", {{}}).keys()))
+    except Exception:
+        pass
+
+print(json.dumps(sorted(set(deps))))
+"""
+            result = self.run_code(code, language="python")
+            output = self._extract_stdout(result).strip()
+            try:
+                return json.loads(output)
+            except json.JSONDecodeError:
+                return []
+
+        return []
+
+    def list_files(self, directory: str, extensions: Optional[tuple] = None) -> List[str]:
+        """
+        List files in the core source directory of a repository.
+        
+        Args:
+            directory: Repository directory path
+            extensions: Optional tuple of file extensions to filter (e.g., (".py", ".js"))
+                       If None, uses default code extensions
+                       
+        Returns:
+            List of file paths relative to the repository root
+        """
+        # Convert extensions tuple to JSON-compatible list
+        if extensions is None:
+            extensions_json = '[".py", ".js", ".ts", ".java", ".go", ".rs", ".cpp", ".c", ".h", ".hpp"]'
+        else:
+            extensions_json = json.dumps(list(extensions))
+        
+        code = f"""
+import json
+import subprocess
+from pathlib import Path
+
+base = Path("{directory}")
+
+# Find the core source directory
+core_dir = base
+
+# Strategy 1: Try to get real repo name from git remote
+try:
+    result = subprocess.run(
+        ["git", "config", "--get", "remote.origin.url"],
+        cwd=str(base),
+        capture_output=True,
+        text=True,
+        timeout=5
+    )
+    if result.returncode == 0:
+        remote_url = result.stdout.strip()
+        # Extract repo name from URL (e.g., "https://github.com/numpy/numpy.git" -> "numpy")
+        repo_name = remote_url.rstrip("/").rstrip(".git").split("/")[-1]
+    else:
+        repo_name = None
+except Exception:
+    repo_name = None
+
+# Strategy 2: Find directories with __init__.py at top level (likely package directories)
+if not repo_name or not (base / repo_name).is_dir():
+    top_level_packages = [
+        d for d in base.iterdir()
+        if d.is_dir() and (d / "__init__.py").exists() and not d.name.startswith(".")
+    ]
+    if top_level_packages:
+        # Use the first package directory found
+        repo_name = top_level_packages[0].name
+
+# Strategy 3: Try common source directory names
+if repo_name and (base / repo_name).is_dir():
+    candidate = base / repo_name
+    if (candidate / "__init__.py").exists():
+        core_dir = candidate
+elif top_level_packages:
+    core_dir = top_level_packages[0]
+else:
+    # Fallback: check common source directories
+    for common_name in ["src", "lib"]:
+        candidate = base / common_name
+        if candidate.is_dir():
+            # Check if it contains Python packages
+            if (candidate / "__init__.py").exists() or any(candidate.glob("**/__init__.py")):
+                core_dir = candidate
+                break
+
+# List files, filtering by specified extensions
+code_extensions = set({extensions_json})
+files = []
+for p in core_dir.rglob("*"):
+    if p.is_file() and p.suffix in code_extensions:
+        try:
+            files.append(str(p.relative_to(base)))
+        except ValueError:
+            files.append(str(p))
+        if len(files) >= 50:
+            break
+
+print(json.dumps(files))
+"""
+        result = self.run_code(code, language="python")
+        output = self._extract_stdout(result).strip()
+        
+        try:
+            return json.loads(output)
+        except json.JSONDecodeError:
+            return []
+
+    def read_file(self, file_path: str) -> Optional[str]:
+        code = f"""
+from pathlib import Path
+try:
+    print(Path("{file_path}").read_text())
+except Exception as exc:
+    print(f"ERROR: {{exc}}")
+"""
+        result = self.run_code(code, language="python")
+        output = self._extract_stdout(result)
+        if output.startswith("ERROR:"):
+            return None
+        return output
+
+    def write_file(self, file_path: str, content: str) -> bool:
+        code = f"""
+from pathlib import Path
+path = Path("{file_path}")
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text('''{content}''')
+print("OK")
+"""
+        result = self.run_code(code, language="python")
+        output = self._extract_stdout(result)
+        return "OK" in output
+
+    def run_tests_in_repo(self, test_command: str = "pytest -v", repo_path: str = "/workspace/repo") -> Dict[str, Any]:
+        cmd = f"cd {repo_path} && {test_command}"
+        return self.run_command(cmd)
+
+    # ---------- git helpers ----------
+    def git_command(self, args: List[str], cwd: str = "/workspace/repo") -> Dict[str, Any]:
+        cmd = f"cd {cwd} && git " + " ".join(args)
+        return self.run_command(cmd)
+
+    def apply_code_to_file(self, file_path: str, code: str, repo_path: str = "/workspace/repo") -> bool:
+        full_path = f"{repo_path}/{file_path}"
+        cmd = f"cat > {full_path} << 'EOF'\n{code}\nEOF"
+        result = self.run_command(cmd)
+        return self._is_success(result)
+
+    def apply_patch(self, patch_content: str, repo_path: str = "/workspace/repo") -> bool:
+        tmp_name = f"/workspace/tmp/patch_{uuid.uuid4().hex[:8]}.patch"
+        write_cmd = f"mkdir -p /workspace/tmp && cat > {tmp_name} << 'EOF'\n{patch_content}\nEOF"
+        apply_cmd = f"cd {repo_path} && patch -p1 --verbose < {tmp_name}"
+        result_write = self.run_command(write_cmd)
+        if not self._is_success(result_write):
+            return False
+        result_apply = self.run_command(apply_cmd)
+        return self._is_success(result_apply)
+    
+    def apply_patch_with_result(self, patch_content: str, repo_path: str = "/workspace/repo", fuzz: int = 3) -> Tuple[bool, str]:
+        """
+        Apply patch and return success status with error message.
+        
+        Args:
+            patch_content: Patch content in unified diff format
+            repo_path: Path to repository
+            fuzz: Fuzz factor for patch application
+            
+        Returns:
+            Tuple of (success, error_message)
+        """
+        tmp_name = f"/workspace/tmp/patch_{uuid.uuid4().hex[:8]}.patch"
+        write_cmd = f"mkdir -p /workspace/tmp && cat > {tmp_name} << 'EOF'\n{patch_content}\nEOF"
+        apply_cmd = f"cd {repo_path} && patch -p1 --fuzz={fuzz} --verbose < {tmp_name}"
+        result_write = self.run_command(write_cmd)
+        if not self._is_success(result_write):
+            return False, f"Failed to write patch file: {self._extract_stdout(result_write)}"
+        result_apply = self.run_command(apply_cmd)
+        ok = self._is_success(result_apply)
+        err = self._extract_stdout(result_apply) if not ok else ""
+        return ok, err
+
+    def validate_patch(self, patch_content: str, repo_path: str = "/workspace/repo", fuzz: int = 3) -> Tuple[bool, str]:
+        tmp_name = f"/workspace/tmp/validate_{uuid.uuid4().hex[:8]}.patch"
+        write_cmd = f"mkdir -p /workspace/tmp && cat > {tmp_name} << 'EOF'\n{patch_content}\nEOF"
+        validate_cmd = f"cd {repo_path} && patch -p1 --dry-run --fuzz={fuzz} --verbose < {tmp_name}"
+        result_write = self.run_command(write_cmd)
+        if not self._is_success(result_write):
+            return False, self._extract_stdout(result_write)
+        result_validate = self.run_command(validate_cmd)
+        ok = self._is_success(result_validate)
+        err = self._extract_stdout(result_validate) if not ok else ""
+        return ok, err
+
+    def create_git_branch(self, branch_name: str, repo_path: str = "/workspace/repo") -> bool:
+        result = self.git_command(["checkout", "-b", branch_name], cwd=repo_path)
+        return self._is_success(result)
+
+    def checkout_git_branch(self, branch_name: str, repo_path: str = "/workspace/repo") -> bool:
+        result = self.git_command(["checkout", branch_name], cwd=repo_path)
+        return self._is_success(result)
+
+    def git_commit(self, message: str, file_paths: Optional[List[str]] = None, repo_path: str = "/workspace/repo") -> bool:
+        self.git_command(["config", "user.email", "codeagent@example.com"], cwd=repo_path)
+        self.git_command(["config", "user.name", "CodeAgent"], cwd=repo_path)
+        if file_paths:
+            for path in file_paths:
+                self.git_command(["add", path], cwd=repo_path)
+        else:
+            self.git_command(["add", "-A"], cwd=repo_path)
+        result = self.git_command(["commit", "-m", message], cwd=repo_path)
+        return self._is_success(result)
+
+    def get_git_diff(self, branch1: str, branch2: str, repo_path: str = "/workspace/repo") -> str:
+        result = self.git_command(["diff", branch1, branch2], cwd=repo_path)
+        return self._extract_stdout(result)
