@@ -994,11 +994,11 @@ Respond with JSON (properly escaped):
             
             # 1. Check for common dependency files and add appropriate commands
             file_checks = {
-                "environment.yml": "cd /workspace/repo && conda env update -f environment.yml 2>&1 | tail -20",
-                "environment.yaml": "cd /workspace/repo && conda env update -f environment.yaml 2>&1 | tail -20",
-                "requirements.txt": "cd /workspace/repo && pip install -r requirements.txt 2>&1 | tail -20",
+                # "environment.yml": "cd /workspace/repo && conda env update -f environment.yml 2>&1 | tail -20",
+                # "environment.yaml": "cd /workspace/repo && conda env update -f environment.yaml 2>&1 | tail -20",
+                # "requirements.txt": "cd /workspace/repo && pip install -r requirements.txt 2>&1 | tail -20",
                 "setup.py": "cd /workspace/repo && pip install -e . 2>&1 | tail -20",
-                "pyproject.toml": "cd /workspace/repo && pip install . 2>&1 | tail -20",
+                # "pyproject.toml": "cd /workspace/repo && pip install . 2>&1 | tail -20",
             }
             
             for file_name, install_cmd in file_checks.items():
