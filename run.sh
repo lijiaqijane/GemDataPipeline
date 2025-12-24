@@ -29,6 +29,8 @@ export DATASET_MAX_BYTES="${DATASET_MAX_BYTES:-20000000}"
 # Data file output limits (0 means no limit)
 export MAX_DATA_FILES="${MAX_DATA_FILES:-6}"
 export MAX_SAMPLE_ROWS="${MAX_SAMPLE_ROWS:-1000}"
+# Raw page capture toggle (1 = save raw HTML + web_pages.db, 0 = skip raw HTML)
+export USE_RAW_PAGES="${USE_RAW_PAGES:-0}"
 
 # SandboxFusion
 export SANDBOX_FUSION_URL="${SANDBOX_FUSION_URL:-http://localhost:8080}"
@@ -38,9 +40,9 @@ export SANDBOX_FUSION_PORT="${SANDBOX_FUSION_PORT:-8080}"
 # Runtime parameters
 CATEGORY="${CATEGORY:-Paris Travel Planning}"
 SANDBOX="${SANDBOX:-./sandbox/run}"
-ROUNDS="${ROUNDS:-2}"
+ROUNDS="${ROUNDS:-5}"
 VALIDATE="${VALIDATE:-1}"
-MAX_VALIDATION_ROUNDS="${MAX_VALIDATION_ROUNDS:-2}"
+MAX_VALIDATION_ROUNDS="${MAX_VALIDATION_ROUNDS:-5}"
 USE_SANDBOX_FUSION="${USE_SANDBOX_FUSION:-1}"
 MERGE="${MERGE:-0}"  # Default: overwrite (0), set to 1 to merge
 MAX_TOKENS="${MAX_TOKENS:-10000}"  # Maximum tokens for LLM generation
@@ -61,11 +63,11 @@ if [[ "$VALIDATE" == "0" ]]; then
   args+=(--no-validate)
 fi
 
-if [[ "$USE_SANDBOX_FUSION" == "1" ]]; then
-  args+=(--use-sandbox-fusion)
-else
-  args+=(--no-sandbox-fusion)
+if [[ "$USE_SANDBOX_FUSION" != "1" ]]; then
+  echo "ERROR: SandboxFusion is required. Set USE_SANDBOX_FUSION=1." >&2
+  exit 1
 fi
+args+=(--use-sandbox-fusion)
 
 if [[ "$MERGE" == "1" ]]; then
   args+=(--merge)

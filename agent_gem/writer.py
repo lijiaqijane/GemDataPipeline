@@ -4,6 +4,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -30,14 +31,42 @@ class TaskWriter:
                 self.records = []
     
     def merge_records(self, new_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Merge new records with existing records, deduplicating by title."""
-        existing_titles = {r.get("title", "").lower().strip() for r in self.records if r.get("title")}
+        """Merge new records with existing records, deduplicating by title and URL."""
+        def _canon_url(value: str) -> str:
+            if not value:
+                return ""
+            try:
+                parsed = urlparse(value)
+            except Exception:
+                return value.strip()
+            scheme = (parsed.scheme or "https").lower()
+            netloc = parsed.netloc.lower()
+            path = parsed.path or ""
+            if path != "/" and path.endswith("/"):
+                path = path[:-1]
+            return f"{scheme}://{netloc}{path}"
+
+        existing_titles = {
+            r.get("title", "").lower().strip() for r in self.records if r.get("title")
+        }
+        existing_urls = {
+            _canon_url(r.get("url", ""))
+            for r in self.records
+            if r.get("url")
+        }
         merged = list(self.records)
         for record in new_records:
             title = record.get("title", "").lower().strip()
-            if title and title not in existing_titles:
-                merged.append(record)
+            url = _canon_url(record.get("url", ""))
+            if url and url in existing_urls:
+                continue
+            if title and title in existing_titles:
+                continue
+            merged.append(record)
+            if title:
                 existing_titles.add(title)
+            if url:
+                existing_urls.add(url)
         return merged
 
     def persist(self, packages: Iterable[TaskPackage]) -> List[TaskPackage]:
@@ -101,7 +130,6 @@ class TaskWriter:
         Output structure matches general_agent/synthesis/_persist format.
 
         Extended fields:
-        - setup_bundle: setup_env.py code + stdout/stderr/returncode
         - tools_interface: synthesized tools.py code (preview)
         - reward_function: verification code (full text)
         - reference_solution: solution code (full text)
@@ -124,26 +152,27 @@ class TaskWriter:
         # Load existing tasks if merging
         existing_tasks = []
         existing_tools = []
-        existing_task_ids = set()
+        existing_task_keys = set()
         if merge and target.exists():
             try:
                 existing_data = json.loads(target.read_text())
                 existing_tasks = existing_data.get("tasks", [])
                 existing_tools = existing_data.get("tools", [])
-                existing_task_ids = {t.get("task", {}).get("id") or t.get("name", "") for t in existing_tasks}
+                for entry in existing_tasks:
+                    task = entry.get("task", {}) if isinstance(entry, dict) else {}
+                    task_id = task.get("id") or entry.get("name", "")
+                    difficulty = task.get("difficulty") or entry.get("difficulty")
+                    existing_task_keys.add((task_id, difficulty))
             except Exception as e:
                 logger.warning(f"Failed to load existing tasks.json for merging: {e}")
 
         first_meta = packages_list[0].metadata if packages_list else {}
-        setup_bundle = None
-        if first_meta:
-            setup_bundle = {
-                "script": first_meta.get("setup_code", ""),
-                "stdout": first_meta.get("setup_stdout_preview", ""),
-                "stderr": first_meta.get("setup_stderr_preview", ""),
-                "returncode": first_meta.get("setup_returncode", ""),
-            }
         tools_interface = first_meta.get("tools_code", "")
+        if packages_list:
+            candidate = packages_list[0]
+            tools_path = self.task_dir(candidate.task.task_id, candidate.agent_type) / "_sandbox" / "tools.py"
+            if tools_path.exists():
+                tools_interface = tools_path.read_text(encoding="utf-8")
 
         # Collect all tools from all packages and existing tasks
         all_tools = list(existing_tools)  # Start with existing tools
@@ -163,8 +192,16 @@ class TaskWriter:
         tasks_with_verifiers = list(existing_tasks)  # Start with existing tasks
         for package in packages_list:
             # Skip if task already exists (by task_id)
-            if package.task.task_id in existing_task_ids:
-                logger.debug(f"Skipping duplicate task: {package.task.task_id}")
+            key = (package.task.task_id, package.task.difficulty_level)
+            if key in existing_task_keys:
+                logger.debug("Skipping duplicate task: %s (difficulty %s)", package.task.task_id, package.task.difficulty_level)
+                continue
+            if not isinstance(package.verification, str) or "def verify" not in package.verification:
+                logger.warning("Skipping task with invalid verification code: %s", package.task.task_id)
+                continue
+            meta = package.metadata or {}
+            if any(meta.get(key) for key in ("validation_error", "verification_error", "repair_failed")):
+                logger.warning("Skipping task with validation errors: %s", package.task.task_id)
                 continue
                 
             task_entry = {
@@ -196,9 +233,16 @@ class TaskWriter:
                 "metadata": package.metadata,
             }
             tasks_with_verifiers.append(task_entry)
+            existing_task_keys.add(key)
 
         # Merge records if merging (use existing records from db.json if available)
         final_records = records
+        if not final_records and self.path.exists():
+            try:
+                db_data = json.loads(self.path.read_text())
+                final_records = db_data.get("records", [])
+            except Exception:
+                final_records = records
         if merge and self.path.exists():
             try:
                 db_data = json.loads(self.path.read_text())
@@ -220,7 +264,6 @@ class TaskWriter:
                 "category": category,
                 "records": final_records,
                 "record_count": len(final_records),
-                "setup_bundle": setup_bundle or {},
             },
             "tools": all_tools,
             "tools_interface": tools_interface,

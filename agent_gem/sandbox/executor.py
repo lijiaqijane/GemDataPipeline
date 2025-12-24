@@ -144,6 +144,7 @@ class TaskRunRecord(BaseModel):
     run_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     task_id: Optional[str] = None
     task_title: Optional[str] = None
+    run_group: str = "default"
     started_at: float
     ended_at: float
     duration_s: float
@@ -204,14 +205,40 @@ class SandboxExecutor:
             root / package.agent_type / f"task-{package.task.task_id}" / "_sandbox"
         )
 
-    def as_tools(self, extra: Optional[Dict[str, Any]] = None) -> ToolProxy:
+    def as_tools(
+        self,
+        extra: Optional[Dict[str, Any]] = None,
+        *,
+        cache_calls: bool = False,
+    ) -> ToolProxy:
         if extra:
             for name, value in extra.items():
                 self.register_tool(name, value)
 
         tools: Dict[str, Callable[..., Any]] = {}
+        cache: Dict[str, Any] = {}
+
+        def _cache_key(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
+            payload = {"args": args, "kwargs": kwargs}
+            try:
+                return json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+            except Exception:
+                return repr(payload)
+
         for name in sorted(self._tools):
-            tools[name] = self._make_tool_callable(name)
+            base = self._make_tool_callable(name)
+            if cache_calls:
+                def _call(*args: Any, _base=base, _name=name, **kwargs: Any) -> Any:
+                    cache_key = f"{_name}:{_cache_key(args, kwargs)}"
+                    if cache_key in cache:
+                        return cache[cache_key]
+                    result = _base(*args, **kwargs)
+                    cache[cache_key] = result
+                    return result
+
+                tools[name] = _call
+            else:
+                tools[name] = base
         return ToolProxy(**tools)
 
     def describe_tools(self) -> List[Dict[str, str]]:
@@ -430,14 +457,36 @@ class SandboxExecutor:
                 continue
         return snapshot
 
+    def _load_submitted_result(self) -> Any | None:
+        submitted = self.sandbox_dir / "submitted_result.json"
+        if not submitted.exists():
+            return None
+        try:
+            return json.loads(submitted.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _unwrap_submitted_result(answer: Any) -> Any:
+        if isinstance(answer, dict) and "submitted_data" in answer:
+            status = answer.get("status")
+            message = answer.get("message")
+            if isinstance(status, str) or isinstance(message, str):
+                return answer.get("submitted_data")
+        return answer
+
     def run_task(
         self,
         package: TaskPackage,
         *,
         tools: Optional[Dict[str, Callable[..., Any]]] = None,
+        run_group: str = "default",
     ) -> TaskRunRecord:
+        run_id = uuid.uuid4().hex
         started = time.time()
-        tool_proxy = self.as_tools(extra=tools)
+        tool_proxy = self.as_tools(extra=tools, cache_calls=True)
+        group_dir = self._run_group_dir(run_group)
+        self._record_run_code(run_id, package, group_dir=group_dir)
 
         answer: Any = None
         verified: Optional[bool] = None
@@ -448,6 +497,12 @@ class SandboxExecutor:
         verification_error: Optional[str] = None
         try:
             answer = package.run_solution(tool_proxy)
+            # If solve() forgot to return, fall back to the persisted submit_result payload.
+            if answer is None:
+                submitted_payload = self._load_submitted_result()
+                if submitted_payload is not None:
+                    answer = submitted_payload
+            answer = self._unwrap_submitted_result(answer)
             verified, verification_score, verification_details, verification_message = package.verify_with_meta(
                 tool_proxy, answer
             )
@@ -461,8 +516,10 @@ class SandboxExecutor:
 
         ended = time.time()
         record = TaskRunRecord(
+            run_id=run_id,
             task_id=package.task.task_id,  # Use task.task_id instead of package.id for consistency
             task_title=package.task.task_title,
+            run_group=run_group,
             started_at=started,
             ended_at=ended,
             duration_s=ended - started,
@@ -473,11 +530,46 @@ class SandboxExecutor:
             error=error,
             verification_error=verification_error,
         )
-        # Ensure runs_dir exists before saving
-        self.runs_dir.mkdir(parents=True, exist_ok=True)
-        dump_json(self.runs_dir / f"{record.run_id}.json", record.model_dump())
-        logger.debug(f"Saved task run record: {record.run_id}.json in {self.runs_dir}")
+        # Ensure run_group dir exists before saving
+        group_dir.mkdir(parents=True, exist_ok=True)
+        dump_json(group_dir / f"{record.run_id}.json", record.model_dump())
+        self._archive_submitted_result(group_dir, run_id)
+        logger.debug(f"Saved task run record: {record.run_id}.json in {group_dir}")
         return record
+
+    @staticmethod
+    def _run_group_dir_from(base: Path, run_group: str) -> Path:
+        text = (run_group or "").strip()
+        if not text:
+            return base / "default"
+        parts = []
+        for raw in text.split("/"):
+            raw = raw.strip()
+            if not raw or raw in {".", ".."}:
+                continue
+            parts.append(slugify(raw))
+        if not parts:
+            parts = ["default"]
+        return base.joinpath(*parts)
+
+    def _run_group_dir(self, run_group: str) -> Path:
+        return self._run_group_dir_from(self.runs_dir, run_group)
+
+    def _record_run_code(self, run_id: str, package: TaskPackage, *, group_dir: Path) -> None:
+        """Persist solution/verification code per run for debugging."""
+        try:
+            solutions_dir = group_dir / "solutions"
+            verifications_dir = group_dir / "verifications"
+            solutions_dir.mkdir(parents=True, exist_ok=True)
+            verifications_dir.mkdir(parents=True, exist_ok=True)
+            (solutions_dir / f"{run_id}.py").write_text(
+                package.solution or "", encoding="utf-8"
+            )
+            (verifications_dir / f"{run_id}.py").write_text(
+                package.verification or "", encoding="utf-8"
+            )
+        except Exception:
+            logger.debug("Failed to record run code", exc_info=True)
 
     def _append_tool_call(self, record: ToolCallRecord) -> None:
         line = json.dumps(record.model_dump(), ensure_ascii=False, default=str)
@@ -490,6 +582,17 @@ class SandboxExecutor:
                 self._on_tool_call(record)
             except Exception:
                 logger.debug("on_tool_call callback failed", exc_info=True)
+
+    def _archive_submitted_result(self, group_dir: Path, run_id: str) -> None:
+        source = self.sandbox_dir / "submitted_result.json"
+        if not source.exists():
+            return
+        target_dir = group_dir / "submitted_results"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copyfile(source, target_dir / f"{run_id}.json")
+        except Exception:
+            pass
 
     @staticmethod
     def _to_jsonable(value: Any) -> Any:
@@ -567,6 +670,13 @@ class SandboxFusionExecutor(SandboxExecutor):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(path), str(target))
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        # Consolidate temp scripts from SandboxFusion runs
+        tmp_scripts_dir = self.logs_dir / "tmp_scripts"
+        tmp_scripts_dir.mkdir(parents=True, exist_ok=True)
+        for path in self.sandbox_dir.iterdir():
+            if path.is_file() and path.name.startswith("tmp") and path.suffix == ".sh":
+                shutil.move(str(path), str(tmp_scripts_dir / path.name))
 
     def _run_remote(
         self,
@@ -655,16 +765,41 @@ class SandboxFusionExecutor(SandboxExecutor):
         package: TaskPackage,
         *,
         tools: Optional[Dict[str, Callable[..., Any]]] = None,
+        run_group: str = "default",
     ) -> TaskRunRecord:
+        run_id = uuid.uuid4().hex
         started = time.time()
         # Run solve/verify remotely using tools.py and local data files.
         solution_code = package.solution or ""
         verification_code = package.verification or ""
+        group_dir = self._run_group_dir(run_group)
+        self._record_run_code(run_id, package, group_dir=group_dir)
+        required_tools = [spec.name for spec in package.task.tool_set]
         runner = textwrap.dedent(
             f'''
 import json
 import importlib.util
 import traceback
+from pathlib import Path
+import sys
+import types
+
+# Ensure a usable @mcp.tool decorator exists at import-time.
+# This does NOT provide any tool implementations; it only prevents import failures
+# when a real `mcp` package is present but lacks `tool`.
+try:
+    import mcp  # type: ignore
+except Exception:
+    mcp = types.ModuleType("mcp")
+if not hasattr(mcp, "tool"):
+    def _tool(func=None, **kwargs):
+        if func is None:
+            def wrapper(f):
+                return f
+            return wrapper
+        return func
+    mcp.tool = _tool  # type: ignore[attr-defined]
+sys.modules["mcp"] = mcp
 
 class ToolProxy(dict):
     def __getattr__(self, name):
@@ -689,17 +824,125 @@ try:
 except Exception:
     pass
 
+def _load_records():
+    records_path = Path("records.json")
+    if not records_path.exists():
+        return []
+    try:
+        data = json.loads(records_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if isinstance(data, dict) and isinstance(data.get("records"), list):
+        data = data["records"]
+    if isinstance(data, list):
+        return [row for row in data if isinstance(row, dict)]
+    return []
+
+def _load_submitted_result():
+    submitted_path = Path("submitted_result.json")
+    if not submitted_path.exists():
+        return None
+    try:
+        return json.loads(submitted_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+def _unwrap_answer(value):
+    if isinstance(value, dict) and "submitted_data" in value:
+        status = value.get("status")
+        message = value.get("message")
+        if isinstance(status, str) or isinstance(message, str):
+            return value.get("submitted_data")
+    return value
+
+# User requirement: all required tools MUST be implemented by the agent in tools.py.
+missing = [name for name in {json.dumps(required_tools)} if name not in tools or not callable(tools.get(name))]
+if missing:
+    print(json.dumps({{"error": f"missing_required_tools: {{missing}}"}}, ensure_ascii=False))
+    raise SystemExit(0)
+
+tool_cache = {{}}
+def _cache_key(args, kwargs):
+    payload = {{"args": args, "kwargs": kwargs}}
+    try:
+        return json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+    except Exception:
+        return repr(payload)
+
+def _wrap_tool(name, fn):
+    def _call(*args, **kwargs):
+        cache_key = name + \":\" + _cache_key(args, kwargs)
+        if cache_key in tool_cache:
+            return tool_cache[cache_key]
+        result = fn(*args, **kwargs)
+        tool_cache[cache_key] = result
+        return result
+    return _call
+
+for name in list(tools.keys()):
+    if callable(tools[name]):
+        tools[name] = _wrap_tool(name, tools[name])
+
 tool_proxy = ToolProxy(**tools)
 
 def _emit(payload):
     print(json.dumps(payload, ensure_ascii=False))
 
 try:
-    {solution_code}
-    {verification_code}
+    solution_src = {json.dumps(solution_code)}
+    verification_src = {json.dumps(verification_code)}
+    def _coerce_score(value):
+        try:
+            return float(value)
+        except Exception:
+            return None
+
+    def _normalize_verification_output(output):
+        verified = None
+        score = None
+        details = None
+        message = None
+        if isinstance(output, dict):
+            for key in ("passed", "success", "ok", "result"):
+                if key in output:
+                    verified = bool(output.get(key))
+                    break
+            score = _coerce_score(output.get("score"))
+            details = output.get("details") or output
+            message = output.get("message") or output.get("error")
+        elif isinstance(output, (list, tuple)) and output:
+            if isinstance(output[0], bool):
+                verified = output[0]
+            if len(output) > 1:
+                score = _coerce_score(output[1])
+                if score is None and isinstance(output[1], str):
+                    message = output[1]
+            if len(output) > 2:
+                details = output[2]
+            if len(output) > 3 and message is None and isinstance(output[3], str):
+                message = output[3]
+        elif isinstance(output, bool):
+            verified = output
+        else:
+            details = output
+        return verified, score, details, message
+
+    exec(solution_src, globals())
+    exec(verification_src, globals())
     answer = solve(tool_proxy)
-    verified = verify(tool_proxy, answer)
-    _emit({{"answer": answer, "verified": verified}})
+    # If solve() forgot to return, fall back to persisted payload from agent-authored submit_result.
+    if answer is None:
+        submitted_payload = _load_submitted_result()
+        if submitted_payload is not None:
+            answer = submitted_payload
+    answer = _unwrap_answer(answer)
+    raw_verified = verify(tool_proxy, answer)
+    verified, score, details, message = _normalize_verification_output(raw_verified)
+    if verified is False and message is None:
+        message = "verification returned False"
+    if verified is None and message is None:
+        message = f"verification returned unsupported type: {{type(raw_verified).__name__}}"
+    _emit({{"answer": answer, "verified": verified, "verification_score": score, "verification_details": details, "verification_message": message}})
 except Exception:
     _emit({{"error": traceback.format_exc()}})
 '''
@@ -713,20 +956,34 @@ except Exception:
         error: Optional[str] = None
         verification_error: Optional[str] = None
         try:
-            lines = (exec_result.get("stdout") or "").strip().splitlines()
+            stdout = (exec_result.get("stdout") or "").strip()
+            stderr = (exec_result.get("stderr") or "").strip()
+            lines = stdout.splitlines() if stdout else []
             payload = json.loads(lines[-1]) if lines else {}
             if "error" in payload:
                 error = payload.get("error")
             else:
                 answer = payload.get("answer")
                 verified = payload.get("verified")
+                verification_score = payload.get("verification_score")
+                verification_details = payload.get("verification_details")
+                verification_message = payload.get("verification_message")
+            if not lines and (stderr or exec_result.get("return_code", 0) not in (0, None)):
+                error = stderr or "sandbox_no_output"
         except Exception:
             error = "failed_to_parse_sandbox_output"
 
         ended = time.time()
+        if verified is False:
+            verification_error = verification_message or "verification returned False"
+        elif verified is None:
+            verification_error = verification_message or "verification returned no boolean result"
+
         record = TaskRunRecord(
+            run_id=run_id,
             task_id=package.task.task_id,
             task_title=package.task.task_title,
+            run_group=run_group,
             started_at=started,
             ended_at=ended,
             duration_s=ended - started,
@@ -737,9 +994,10 @@ except Exception:
             error=error,
             verification_error=verification_error,
         )
-        self.runs_dir.mkdir(parents=True, exist_ok=True)
-        dump_json(self.runs_dir / f"{record.run_id}.json", record.model_dump())
-        logger.debug(f"Saved task run record: {record.run_id}.json in {self.runs_dir}")
+        group_dir.mkdir(parents=True, exist_ok=True)
+        dump_json(group_dir / f"{record.run_id}.json", record.model_dump())
+        self._archive_submitted_result(group_dir, run_id)
+        logger.debug(f"Saved task run record: {record.run_id}.json in {group_dir}")
         return record
 
     def execute_search(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:

@@ -155,15 +155,19 @@ def _handle_generate(args: argparse.Namespace) -> None:
 
 def _handle_synthesize(args: argparse.Namespace) -> None:
     """Handle synthesize command (compatible with general_agent CLI)."""
+    if not args.use_sandbox_fusion:
+        logging.error("SandboxFusion is required for synthesis; local sandbox execution is disabled.")
+        logging.error("Please enable SandboxFusion or remove --no-sandbox-fusion.")
+        sys.exit(1)
+
     # Validate environment before starting
-    if args.use_sandbox_fusion:
-        sandbox_url = os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080")
-        logging.info("Checking SandboxFusion service...")
-        if not check_sandbox_fusion(sandbox_url):
-            logging.error("SandboxFusion service unavailable (%s)", sandbox_url)
-            logging.error("Please start SandboxFusion service first, then retry.")
-            sys.exit(1)
-        logging.info("SandboxFusion service available")
+    sandbox_url = os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080")
+    logging.info("Checking SandboxFusion service...")
+    if not check_sandbox_fusion(sandbox_url):
+        logging.error("SandboxFusion service unavailable (%s)", sandbox_url)
+        logging.error("Please start SandboxFusion service first, then retry.")
+        sys.exit(1)
+    logging.info("SandboxFusion service available")
 
     is_valid, error_msg = validate_environment(use_sandbox_fusion=args.use_sandbox_fusion)
     if not is_valid:
@@ -220,6 +224,7 @@ def _handle_synthesize(args: argparse.Namespace) -> None:
         num=1,
         difficulty=1,
         validate=not args.no_validate,
+        use_sandbox_fusion=args.use_sandbox_fusion,
         max_refine_rounds=1,  # Only initial task, no refinement
         max_validation_rounds=args.max_validation_rounds,
         persist_result=False,

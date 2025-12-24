@@ -10,7 +10,7 @@ from typing import Any, TYPE_CHECKING
 
 from agent_gem.core.task_schema import ToolSpec
 from agent_gem.sandbox import SandboxExecutor
-from agent_gem.tools import CallableTool, JsonRecordsQueryTool
+from agent_gem.tools import CallableTool
 
 from ..base import BaseAgent, TaskContext
 
@@ -22,6 +22,181 @@ logger = logging.getLogger(__name__)
 
 class ToolSynthesisMixin:
     """Tool generation, compilation, and registration helpers."""
+    _SUBMIT_RESULT_TOOL = "submit_result"
+
+    @staticmethod
+    def _tool_code_uses_mcp_tool(code: str) -> bool:
+        """Detect whether code uses @mcp.tool decorators (which require a runtime `mcp` binding)."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return False
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for dec in node.decorator_list:
+                # @mcp.tool
+                if isinstance(dec, ast.Attribute) and isinstance(dec.value, ast.Name):
+                    if dec.value.id == "mcp" and dec.attr == "tool":
+                        return True
+                # @mcp.tool(...)
+                if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute) and isinstance(dec.func.value, ast.Name):
+                    if dec.func.value.id == "mcp" and dec.func.attr == "tool":
+                        return True
+        return False
+
+    @staticmethod
+    def _tool_code_has_mcp_binding(code: str) -> bool:
+        """Detect an import or assignment that binds the name `mcp` in module scope."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return False
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.asname == "mcp" or alias.name == "mcp":
+                        return True
+            if isinstance(node, ast.ImportFrom) and node.module == "mcp":
+                # This binds specific names, not `mcp` itself, but allow it if user still uses @mcp.tool
+                # (In practice, LLM should prefer `import mcp` for @mcp.tool.)
+                continue
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == "mcp":
+                        return True
+            if isinstance(node, ast.AnnAssign):
+                if isinstance(node.target, ast.Name) and node.target.id == "mcp":
+                    return True
+            if isinstance(node, ast.Try):
+                # allow patterns like:
+                # try: import mcp
+                # except: mcp = ...
+                for inner in node.body:
+                    if isinstance(inner, ast.Import):
+                        for alias in inner.names:
+                            if alias.asname == "mcp" or alias.name == "mcp":
+                                return True
+                for inner in node.handlers:
+                    for hstmt in inner.body:
+                        if isinstance(hstmt, ast.Assign):
+                            for target in hstmt.targets:
+                                if isinstance(target, ast.Name) and target.id == "mcp":
+                                    return True
+        return False
+
+    @staticmethod
+    def _tool_code_reads_data(code: str) -> bool:
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if isinstance(func, ast.Name) and func.id == "open":
+                return True
+            if isinstance(func, ast.Attribute):
+                attr = func.attr
+                if attr in {"read_text", "read_bytes", "read_csv", "read_json", "connect"}:
+                    return True
+                if isinstance(func.value, ast.Name):
+                    base = func.value.id
+                    if base == "csv" and attr == "DictReader":
+                        return True
+                    if base == "json" and attr == "load":
+                        return True
+                    if base == "sqlite3" and attr == "connect":
+                        return True
+                    if base in {"pd", "pandas"} and attr in {"read_csv", "read_json"}:
+                        return True
+        return False
+
+    @staticmethod
+    def _tool_code_embeds_dataset(code: str) -> bool:
+        """Detect large embedded list-of-dict literals (likely sample data leakage)."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                value = node.value
+            elif isinstance(node, ast.AnnAssign):
+                value = node.value
+            else:
+                continue
+            if isinstance(value, (ast.List, ast.Tuple)):
+                dict_items = [elt for elt in value.elts if isinstance(elt, ast.Dict)]
+                if len(dict_items) >= 3:
+                    for dct in dict_items:
+                        key_count = sum(1 for k in dct.keys if k is not None)
+                        if key_count >= 2:
+                            return True
+        return False
+
+    @classmethod
+    def _validate_tool_code(cls, code: str) -> tuple[bool, list[str]]:
+        """Return (ok, reasons). ok means code reads from local data sources."""
+        reasons: list[str] = []
+        uses_mcp = cls._tool_code_uses_mcp_tool(code)
+        has_mcp = cls._tool_code_has_mcp_binding(code)
+        if uses_mcp and not has_mcp:
+            reasons.append("missing_mcp_import_or_binding")
+            return False, reasons
+        reads_data = cls._tool_code_reads_data(code)
+        embeds_data = cls._tool_code_embeds_dataset(code)
+        if not reads_data:
+            reasons.append("no_data_io_detected")
+            if embeds_data:
+                reasons.append("embedded_dataset_literal")
+            return False, reasons
+        if embeds_data:
+            reasons.append("embedded_dataset_literal")
+        return True, reasons
+
+    @staticmethod
+    def _sanitize_llm_code(raw: str) -> str:
+        """Best-effort cleanup for LLM outputs that omit code fences."""
+        text = (raw or "").strip()
+        if not text:
+            return ""
+        # If code blocks exist, join them.
+        blocks = BaseAgent._extract_code_blocks(text)
+        if blocks:
+            return "\n\n".join(BaseAgent._strip_code_fences(block) for block in blocks).strip()
+        # Otherwise, strip leading prose until a likely code line.
+        lines = text.splitlines()
+        start = 0
+        for i, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith(("import ", "from ", "@", "def ", "class ")):
+                start = i
+                break
+        cleaned = "\n".join(lines[start:]).strip()
+        return cleaned.replace("```", "").strip()
+
+    @staticmethod
+    def _submit_result_handler(result: Any) -> Any:
+        return result
+
+    def _submit_result_spec(self) -> ToolSpec:
+        def submit_result(result: Any) -> Any:
+            """Submit the final answer payload from solve()."""
+            return result
+
+        return ToolSpec.from_function(
+            submit_result,
+            name=self._SUBMIT_RESULT_TOOL,
+            description="Submit the final answer payload.",
+            meta={"system": True},
+        )
+
+    def _ensure_submit_result_tool(self, tool_specs: list[ToolSpec]) -> list[ToolSpec]:
+        if any(spec.name == self._SUBMIT_RESULT_TOOL for spec in tool_specs):
+            return tool_specs
+        return tool_specs + [self._submit_result_spec()]
 
     def _synthesize_task_tools(
         self,
@@ -32,32 +207,101 @@ class ToolSynthesisMixin:
         data_profile: dict[str, Any],
     ) -> tuple[list[ToolSpec], str]:
         """Generate task-specific tools using detected data sources."""
-        data_profile_json = json.dumps(data_profile, ensure_ascii=False)
-        prompt = (
-            "You are designing a deterministic toolset for a sandboxed RL agent.\n"
-            "Goal: generate 3-5 @mcp.tool functions tailored to the AVAILABLE local data sources.\n"
-            "Hard rules:\n"
-            "- NO network, NO external APIs. Only read the listed local files/SQLite.\n"
-            "- Deterministic: set random.seed(0) if randomness is used.\n"
-            "- Tools must accept (query: str, max_results: int = 5) and return list[dict].\n"
-            "- Implement the body to actually parse the data sources; do not stub/raise.\n"
-            "- If fields are insufficient, add additional tools or extend returned dicts to cover likely needs.\n"
-            "- Prefer descriptive snake_case names; avoid 'bash'/'search'/'python_runner'.\n"
-            "Data sources (JSON, sampled schemas):\n"
-            f"{data_profile_json}\n"
-            f"Topic: {topic}\n"
-            f"Curated records sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
-            "Output ONLY one Python code block defining the tools (including imports)."
-        )
-
+        data_profile_json = json.dumps(self._compact_data_profile(data_profile), ensure_ascii=False)
+        if len(data_profile_json) > 12000:
+            data_profile_json = data_profile_json[:12000] + "..."
         max_tokens = getattr(ctx.request, "max_tokens", 10000)
-        raw = self.llm.simple_complete(prompt, temperature=0.6, max_tokens=max_tokens)
-        ctx.add_step({"type": "tool_synthesis", "content": raw})
-        specs = self._extract_mcp_tools(raw)
+        last_raw = ""
+        specs: list[ToolSpec] = []
         tools_code = ""
-        blocks = BaseAgent._extract_code_blocks(raw)
-        if blocks:
-            tools_code = BaseAgent._strip_code_fences(blocks[0])
+        submit_persists = False
+        last_code_reasons: list[str] = []
+        for attempt in range(1, 4):
+            prompt = (
+                "You are designing a deterministic toolset for a sandboxed RL agent.\n"
+                "Goal: generate 3-5 @mcp.tool functions tailored to the AVAILABLE local data sources.\n"
+                "Hard rules:\n"
+                "- IMPORTANT: decorators execute at import-time. Since you MUST use @mcp.tool, you MUST also bind `mcp`.\n"
+                "  Add `import mcp` near the top (preferred). If unavailable, you may create a tiny fallback shim that defines\n"
+                "  `mcp.tool` as an identity decorator. Do NOT implement tool logic in the framework; all tool bodies must be yours.\n"
+                "- NO network, NO external APIs. Only read the listed local files/SQLite.\n"
+                "- Deterministic: set random.seed(0) if randomness is used.\n"
+                "- Tools must accept (query: str, max_results: int = 5) and return list[dict].\n"
+                "- Implement the body to actually parse the data sources; do not stub/raise.\n"
+                "- Read from the local files/SQLite shown in the data profile; do NOT hardcode sample records.\n"
+                "- You MUST define a tool named submit_result with signature submit_result(result) that returns `result`.\n"
+                "  submit_result MUST be implemented (no pass/raise) and MUST persist the payload to submitted_result.json\n"
+                "  in the current working directory for inspection.\n"
+                "- If fields are insufficient, add additional tools or extend returned dicts to cover likely needs.\n"
+                "- Prefer descriptive snake_case names; avoid 'bash'/'search'/'python_runner'.\n"
+                "Data sources (JSON, sampled schemas):\n"
+                f"{data_profile_json}\n"
+                f"Topic: {topic}\n"
+                f"Curated records sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
+                "Output ONLY one Python code block defining the tools (including imports).\n"
+                "Do NOT include prose. Ensure each function has the @mcp.tool decorator."
+            )
+            if attempt > 1:
+                prompt += "\nPrevious attempt returned no valid @mcp.tool code. Try again with a valid code block."
+                logger.warning("Tool synthesis retrying (attempt %s/3).", attempt)
+            if last_code_reasons:
+                prompt += (
+                    "\nPrevious attempt issues: "
+                    + ", ".join(last_code_reasons)
+                    + ". Ensure tools READ local files (csv/json/sqlite) and avoid inline sample datasets."
+                )
+            raw = self.llm.simple_complete(prompt, temperature=0.6, max_tokens=max_tokens)
+            last_raw = raw
+            ctx.add_step({"type": "tool_synthesis", "content": raw, "attempt": attempt})
+            specs = self._extract_mcp_tools(raw)
+            tools_code = self._sanitize_llm_code(raw)
+            # Enforce: submit_result must be present and implemented by the agent.
+            has_submit = any(spec.name == self._SUBMIT_RESULT_TOOL for spec in specs)
+            submit_stubbed = False
+            try:
+                if tools_code and "def submit_result" in tools_code:
+                    tree = ast.parse(tools_code)
+                    for node in tree.body:
+                        if isinstance(node, ast.FunctionDef) and node.name == self._SUBMIT_RESULT_TOOL:
+                            body = node.body
+                            if (not body) or all(isinstance(stmt, ast.Pass) for stmt in body):
+                                submit_stubbed = True
+                            if len(body) == 1 and isinstance(body[0], ast.Raise):
+                                submit_stubbed = True
+                            for stmt in ast.walk(node):
+                                if isinstance(stmt, ast.Raise):
+                                    submit_stubbed = True
+                                    break
+            except Exception:
+                # If parsing fails, treat as invalid.
+                submit_stubbed = True
+
+            submit_persists = bool(tools_code and "submitted_result.json" in tools_code)
+            code_ok, code_reasons = (False, ["no_tools_code"])
+            if tools_code:
+                code_ok, code_reasons = self._validate_tool_code(tools_code)
+
+            if specs and has_submit and not submit_stubbed and submit_persists and code_ok:
+                if code_reasons:
+                    ctx.add_step(
+                        {
+                            "type": "tool_synthesis_warning",
+                            "tool_code_reasons": code_reasons,
+                        }
+                    )
+                break
+            if specs and (not has_submit or submit_stubbed or not submit_persists or not code_ok):
+                last_code_reasons = code_reasons or []
+                ctx.add_step(
+                    {
+                        "type": "tool_synthesis_missing_submit_result",
+                        "has_submit_result": bool(has_submit),
+                        "submit_stubbed": bool(submit_stubbed),
+                        "submit_persists": bool(submit_persists),
+                        "tool_code_valid": bool(code_ok),
+                        "tool_code_reasons": code_reasons,
+                    }
+                )
 
         seen: set[str] = set()
         filtered: list[ToolSpec] = []
@@ -77,7 +321,23 @@ class ToolSynthesisMixin:
                 )
             )
 
-        specs = filtered or self._fallback_tool_specs(topic)
+        if not filtered:
+            ctx.add_step(
+                {
+                    "type": "tool_synthesis_failed",
+                    "error": "no_tools_parsed",
+                    "raw_preview": (last_raw or "")[:400],
+                }
+            )
+            raise RuntimeError("Tool synthesis failed: no tools parsed from LLM output.")
+        if not submit_persists:
+            raise RuntimeError(
+                "Tool synthesis failed: submit_result must persist to submitted_result.json."
+            )
+        if not tools_code or not self._validate_tool_code(tools_code)[0]:
+            raise RuntimeError("Tool synthesis failed: tool code not data-driven.")
+        # Keep submit_result in the tool_set; it must be implemented in tools.py by the agent.
+        specs = self._ensure_submit_result_tool(filtered)
         ctx.add_step(
             {
                 "type": "tool_synthesis",
@@ -105,7 +365,61 @@ class ToolSynthesisMixin:
                     "stderr": compile_result.get("stderr", "")[:500],
                 }
             )
+            # Smoke test: ensure tools.py is importable (py_compile does NOT execute decorators).
+            try:
+                import_result = sandbox.execute_bash('python -c "import tools; print(\'TOOLS_IMPORT_OK\')"')
+                ctx.add_step(
+                    {
+                        "type": "tool_import_smoketest",
+                        "returncode": import_result.get("returncode"),
+                        "stdout": import_result.get("stdout", "")[:500],
+                        "stderr": import_result.get("stderr", "")[:500],
+                    }
+                )
+            except Exception as exc:
+                ctx.add_step(
+                    {
+                        "type": "tool_import_smoketest_failed",
+                        "error": str(exc)[:500],
+                    }
+                )
+                raise RuntimeError(
+                    "Tool synthesis failed: tools.py is not importable. "
+                    "If you used @mcp.tool, ensure `import mcp` (or a small shim defining mcp.tool) exists."
+            )
         return specs, tools_code
+
+    def _compact_data_profile(self, data_profile: dict[str, Any]) -> dict[str, Any]:
+        """Trim large samples to keep prompts within limits."""
+        compact: dict[str, Any] = {}
+        for key, items in data_profile.items():
+            if not isinstance(items, list):
+                compact[key] = items
+                continue
+            trimmed = []
+            for item in items[:5]:
+                if not isinstance(item, dict):
+                    trimmed.append(item)
+                    continue
+                small = dict(item)
+                if "sample_rows" in small and isinstance(small["sample_rows"], list):
+                    small["sample_rows"] = small["sample_rows"][:2]
+                if "sample_items" in small and isinstance(small["sample_items"], list):
+                    small["sample_items"] = small["sample_items"][:2]
+                if "tables" in small and isinstance(small["tables"], list):
+                    tables = []
+                    for t in small["tables"][:4]:
+                        if isinstance(t, dict):
+                            t = dict(t)
+                            if "rows" in t and isinstance(t["rows"], list):
+                                t["rows"] = t["rows"][:2]
+                            tables.append(t)
+                        else:
+                            tables.append(t)
+                    small["tables"] = tables
+                trimmed.append(small)
+            compact[key] = trimmed
+        return compact
 
     def _generate_tool_implementations(
         self,
@@ -116,144 +430,42 @@ class ToolSynthesisMixin:
         topic: str,
         data_profile: dict[str, Any],
     ) -> str:
-        """Post-process LLM-generated tools to enforce determinism and local-only access."""
-        code = tools_code.strip()
-        prepend: list[str] = []
-        if "import random" not in code:
-            prepend.append("import random")
-        if "from pathlib import Path" not in code:
-            prepend.append("from pathlib import Path")
-        if prepend:
-            code = "\n".join(prepend) + "\n" + code
-        if "random.seed(" not in code:
-            code = "random.seed(0)\n" + code
-        # Guardrail: remind about local-only data
-        guard_comment = f"# Data profile (truncated): {json.dumps(data_profile, ensure_ascii=False)[:400]}"
+        """Return agent-authored tools code with minimal formatting cleanup.
 
-        tool_names = [spec.name for spec in tool_specs]
-        fallback_profile = json.dumps(data_profile, ensure_ascii=False)
-        tools_literal = json.dumps(tool_names, ensure_ascii=False)
+        User requirement: do NOT inject/override any tool implementations here.
+        We only validate and fail-fast so the agent can regenerate.
+        """
+        code = (tools_code or "").strip()
+        if not code:
+            raise RuntimeError("tools.py generation failed: empty tools code")
 
-        stubbed_functions: set[str] = set()
+        # Validate: tool code must be data-driven (read local files) and avoid embedding datasets.
+        code_ok, reasons = self._validate_tool_code(code)
+        if not code_ok:
+            raise RuntimeError(f"tools.py invalid (not data-driven): {reasons}")
+
+        # Validate: submit_result must be implemented by the agent and persist the payload.
+        if "def submit_result" not in code:
+            raise RuntimeError("tools.py missing required submit_result implementation (agent-authored).")
+        if "submitted_result.json" not in code:
+            raise RuntimeError("tools.py submit_result must persist to submitted_result.json (agent-authored).")
+
+        # Validate: required tool functions should exist in the module source.
         try:
             tree = ast.parse(code)
-            for node in tree.body:
-                if isinstance(node, ast.FunctionDef):
-                    body = node.body
-                    if not body or all(isinstance(stmt, ast.Pass) for stmt in body):
-                        stubbed_functions.add(node.name)
-                        continue
-                    if len(body) == 1 and isinstance(body[0], ast.Raise):
-                        stubbed_functions.add(node.name)
-                        continue
-                    for stmt in ast.walk(node):
-                        if isinstance(stmt, ast.Raise):
-                            exc = getattr(stmt, "exc", None)
-                            if isinstance(exc, ast.Call) and getattr(exc.func, "id", "") == "RuntimeError":
-                                stubbed_functions.add(node.name)
-                                break
-        except Exception:
-            logger.debug("stub detection failed", exc_info=True)
+            defined = {
+                node.name
+                for node in tree.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+        except Exception as exc:
+            raise RuntimeError(f"tools.py parse failed: {exc}")
+        required = {spec.name for spec in tool_specs}
+        missing = sorted(name for name in required if name not in defined)
+        if missing:
+            raise RuntimeError(f"tools.py missing required tool defs: {missing}")
 
-        stub_literal = json.dumps(sorted(stubbed_functions), ensure_ascii=False)
-        fallback_block = """
-# --- Auto-fallback to avoid stubbed tools; reads local data only ---
-import json as _json
-import csv as _csv
-import sqlite3 as _sqlite3
-from pathlib import Path as _Path
-
-_FALLBACK_PROFILE = _json.loads(_json.dumps({fallback_profile}))
-_STUBBED_TO_PATCH = {stub_literal}
-
-def _fallback_records(base_dir: _Path) -> list:
-    # Try CSV first
-    for entry in _FALLBACK_PROFILE.get("csv", []):
-        p = base_dir / entry.get("path", "")
-        if p.exists():
-            try:
-                with p.open("r", encoding="utf-8", errors="ignore") as f:
-                    r = _csv.DictReader(f)
-                    return [row for _, row in zip(range(20), r)]
-            except Exception:
-                pass
-    # Then JSON
-    for entry in _FALLBACK_PROFILE.get("json", []):
-        p = base_dir / entry.get("path", "")
-        if p.exists():
-            try:
-                data = _json.loads(p.read_text(encoding="utf-8"))
-                if isinstance(data, list):
-                    return data[:20]
-                if isinstance(data, dict):
-                    return [data]
-            except Exception:
-                pass
-    # Then SQLite
-    for entry in _FALLBACK_PROFILE.get("sqlite", []):
-        p = base_dir / entry.get("path", "")
-        if p.exists():
-            try:
-                conn = _sqlite3.connect(p)
-                cur = conn.cursor()
-                cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                tables = [r[0] for r in cur.fetchall()]
-                for table in tables:
-                    cur.execute("SELECT * FROM '{tbl}' LIMIT 20".format(tbl=table))
-                    rows = cur.fetchall()
-                    cols = [d[0] for d in cur.description] if cur.description else []
-                    conn.close()
-                    return [dict(zip(cols, row)) for row in rows]
-                conn.close()
-            except Exception:
-                pass
-    return []
-
-def _filter_records(data, query: str, max_results: int = 5):
-    if not isinstance(data, list):
-        return []
-    if not query or not isinstance(query, str):
-        return data[:max_results]
-    q = query.lower()
-    filtered = []
-    for item in data:
-        if isinstance(item, dict):
-            text = " ".join(str(v) for v in item.values()).lower()
-            if q in text:
-                filtered.append(item)
-    if not filtered:
-        filtered = data
-    return filtered[:max_results]
-
-def _make_impl():
-    def _impl(query: str, max_results: int = 5, _base=_Path(__file__).parent):
-        data = _fallback_records(_base)
-        return _filter_records(data, query, max_results)
-    return _impl
-
-def _wrap_stub(fn):
-    def _wrapped(query: str, max_results: int = 5):
-        base_dir = _Path(__file__).parent
-        try:
-            out = fn(query, max_results)
-            if out is not None:
-                return out
-        except Exception:
-            pass
-        data = _fallback_records(base_dir)
-        return _filter_records(data, query, max_results)
-    return _wrapped
-
-for _name in _STUBBED_TO_PATCH:
-    globals()[_name] = _make_impl()
-
-for _name in {tools_literal}:
-    fn = globals().get(_name)
-    if callable(fn):
-        globals()[_name] = _wrap_stub(fn)
-# --- End fallback patch ---
-""".replace("{fallback_profile}", fallback_profile).replace("{tools_literal}", tools_literal).replace("{stub_literal}", stub_literal)
-        return guard_comment + "\n" + code + "\n" + fallback_block
+        return code + ("\n" if not code.endswith("\n") else "")
 
     def _self_test_tools(
         self,
@@ -266,6 +478,8 @@ for _name in {tools_literal}:
         profile: dict[str, Any] = {}
         queries = [topic, "sample", "test"]
         for spec in tool_specs:
+            if spec.name == self._SUBMIT_RESULT_TOOL:
+                continue
             samples = []
             keys: set[str] = set()
             for q in queries:
@@ -304,16 +518,6 @@ for _name in {tools_literal}:
         return True
 
     @staticmethod
-    def _collect_selftest_fields(tool_selftest: dict[str, Any]) -> set[str]:
-        fields: set[str] = set()
-        for info in tool_selftest.values():
-            if isinstance(info, dict):
-                for key in info.get("fields", []) or []:
-                    if isinstance(key, str):
-                        fields.add(key)
-        return fields
-
-    @staticmethod
     def _expected_fields_from_format(submit_result_format: Any) -> set[str]:
         fmt = submit_result_format
         if isinstance(fmt, str):
@@ -343,6 +547,8 @@ for _name in {tools_literal}:
             return True, ["selftest_missing"]
         union_fields = set()
         for name, info in tool_selftest.items():
+            if name == self._SUBMIT_RESULT_TOOL:
+                continue
             if not isinstance(info, dict):
                 reasons.append(f"{name}:invalid_profile")
                 continue
@@ -389,10 +595,27 @@ for _name in {tools_literal}:
         ctx.add_step({"type": "tool_regeneration", "content": raw})
 
         specs = self._extract_mcp_tools(raw)
-        blocks = BaseAgent._extract_code_blocks(raw)
-        new_code = BaseAgent._strip_code_fences(blocks[0]) if blocks else ""
+        new_code = self._sanitize_llm_code(raw)
         if not specs or not new_code:
             return existing_specs, previous_code, tool_selftest
+        code_ok, code_reasons = self._validate_tool_code(new_code)
+        if not code_ok:
+            ctx.add_step(
+                {
+                    "type": "tool_regeneration_invalid_tool_code",
+                    "tool_code_reasons": code_reasons,
+                }
+            )
+            return existing_specs, previous_code, tool_selftest
+        if "submitted_result.json" not in new_code:
+            ctx.add_step(
+                {
+                    "type": "tool_regeneration_missing_submit_result",
+                    "submit_persists": False,
+                }
+            )
+            return existing_specs, previous_code, tool_selftest
+        specs = self._ensure_submit_result_tool(specs)
 
         tools_path = sandbox.sandbox_dir / "tools.py"
         implemented_code = self._generate_tool_implementations(
@@ -404,6 +627,8 @@ for _name in {tools_literal}:
         )
         tools_path.write_text(implemented_code, encoding="utf-8")
         sandbox.execute_bash("python -m py_compile tools.py")
+        # Ensure import-time decorators don't fail.
+        sandbox.execute_bash('python -c "import tools; print(\'TOOLS_IMPORT_OK\')"')
         self._register_task_tools(specs, sandbox, ctx, tools_code=new_code)
         updated_selftest = self._self_test_tools(specs, sandbox, topic, ctx)
         return specs, new_code, updated_selftest
@@ -416,11 +641,31 @@ for _name in {tools_literal}:
         *,
         tools_code: str | None = None,
     ) -> None:
+        tool_specs = self._ensure_submit_result_tool(list(tool_specs))
         records_path = sandbox.sandbox_dir / self._RECORDS_FILENAME
         tools_path = sandbox.sandbox_dir / "tools.py"
         module = None
         if tools_path.exists():
             try:
+                # Ensure a usable @mcp.tool decorator exists at import-time.
+                # This does NOT provide any tool implementations; it only prevents import failures
+                # when a real `mcp` package is present but lacks `tool`.
+                import sys
+                import types
+                try:
+                    import mcp  # type: ignore
+                except Exception:
+                    mcp = types.ModuleType("mcp")
+                if not hasattr(mcp, "tool"):
+                    def _tool(func=None, **kwargs):
+                        if func is None:
+                            def wrapper(f):
+                                return f
+                            return wrapper
+                        return func
+                    mcp.tool = _tool  # type: ignore[attr-defined]
+                sys.modules["mcp"] = mcp
+
                 spec_module = importlib.util.spec_from_file_location("generated_tools", tools_path)
                 if spec_module and spec_module.loader:
                     module = importlib.util.module_from_spec(spec_module)
@@ -442,13 +687,11 @@ for _name in {tools_literal}:
                     )
                     registered = True
             if not registered:
-                sandbox.register_tool(
-                    JsonRecordsQueryTool(
-                        name=spec.name,
-                        description=spec.description,
-                        records_path=records_path,
+                # User requirement: ALL tool implementations must be agent-authored.
+                # Therefore, missing tools are a hard error (no fallback).
+                raise RuntimeError(
+                    f"Missing agent-authored tool implementation in tools.py: {spec.name}"
                     )
-                )
 
         ctx.add_step(
             {
@@ -490,10 +733,7 @@ for _name in {tools_literal}:
         ctx.add_step({"type": "tool_augmentation", "content": raw})
 
         specs = self._extract_mcp_tools(raw)
-        tools_code = ""
-        blocks = BaseAgent._extract_code_blocks(raw)
-        if blocks:
-            tools_code = BaseAgent._strip_code_fences(blocks[0])
+        tools_code = self._sanitize_llm_code(raw)
 
         new_specs: list[ToolSpec] = []
         for spec in specs:
@@ -514,6 +754,16 @@ for _name in {tools_literal}:
 
         if not new_specs:
             return existing_specs, tools_code, False
+        if tools_code:
+            code_ok, code_reasons = self._validate_tool_code(tools_code)
+            if not code_ok:
+                ctx.add_step(
+                    {
+                        "type": "tool_augmentation_invalid_tool_code",
+                        "tool_code_reasons": code_reasons,
+                    }
+                )
+            return existing_specs, tools_code, False
 
         if tools_code:
             tools_path = sandbox.sandbox_dir / "tools.py"
@@ -530,103 +780,11 @@ for _name in {tools_literal}:
                     handle.write("\n\n")
                 handle.write(implemented_code)
             sandbox.execute_bash("python -m py_compile tools.py")
+            sandbox.execute_bash('python -c "import tools; print(\'TOOLS_IMPORT_OK\')"')
 
         self._register_task_tools(new_specs, sandbox, ctx, tools_code=tools_code)
-        return existing_specs + new_specs, tools_code, True
-
-    def _fallback_tool_specs(self, topic: str) -> list[ToolSpec]:
-        """Minimal toolset when generation fails."""
-
-        records_filename = getattr(self, "_RECORDS_FILENAME", "records.json")
-
-        def _load_records(max_results: int = 20) -> list[dict]:
-            base_candidates = [
-                Path(records_filename),
-                Path("records.json"),
-                Path.cwd() / records_filename,
-            ]
-            for candidate in base_candidates:
-                if candidate.exists():
-                    try:
-                        data = json.loads(candidate.read_text(encoding="utf-8"))
-                        if isinstance(data, list):
-                            return data[:max_results]
-                        if isinstance(data, dict):
-                            return [data]
-                    except Exception:
-                        continue
-            return []
-
-        def _filter_query(data: list[dict], query: str, max_results: int = 5) -> list[dict]:
-            if not data:
-                return []
-            if not query or not isinstance(query, str):
-                return data[:max_results]
-            q = query.lower()
-            filtered = []
-            for item in data:
-                if isinstance(item, dict):
-                    text = " ".join(str(v) for v in item.values()).lower()
-                    if q in text:
-                        filtered.append(item)
-            if not filtered:
-                filtered = data
-            return filtered[:max_results]
-
-        def fetch_related_records(query: str, max_results: int = 5) -> list[dict]:
-            """Retrieve records that loosely match the query text."""
-            data = _load_records(max_results=max_results)
-            return _filter_query(data, query, max_results)
-
-        def summarize_records(query: str, max_results: int = 5) -> list[dict]:
-            """Return compact summaries for records associated with the topic."""
-            data = _load_records(max_results=max_results * 2)
-            summarized: list[dict] = []
-            for item in data[: max_results * 2]:
-                if isinstance(item, dict):
-                    summarized.append(
-                        {
-                            "summary": " ".join(
-                                str(v) for v in item.values()
-                            )[:200],
-                            **item,
-                        }
-                    )
-            return _filter_query(summarized or data, query, max_results)
-
-        def cross_reference_entities(query: str, max_results: int = 5) -> list[dict]:
-            """Find entities connected to the topic with brief justification."""
-            data = _load_records(max_results=max_results * 3)
-            enriched: list[dict] = []
-            for item in data:
-                if isinstance(item, dict):
-                    enriched.append(
-                        {
-                            "entity": item.get("name") or item.get("id") or item.get("title"),
-                            "link": item.get("related") or item.get("relations"),
-                            **item,
-                        }
-                    )
-            return _filter_query(enriched or data, query, max_results)
-
-        defaults = [
-            ToolSpec.from_function(
-                fetch_related_records,
-                name="fetch_related_records",
-                description=f"Find records related to {topic}",
-            ),
-            ToolSpec.from_function(
-                summarize_records,
-                name="summarize_records",
-                description=f"Summarize key points for {topic}",
-            ),
-            ToolSpec.from_function(
-                cross_reference_entities,
-                name="cross_reference_entities",
-                description=f"Cross-check entities connected to {topic}",
-            ),
-        ]
-        return defaults
+        combined_specs = self._ensure_submit_result_tool(existing_specs + new_specs)
+        return combined_specs, tools_code, True
 
     @staticmethod
     def _extract_mcp_tools(raw: str) -> list[ToolSpec]:
@@ -645,28 +803,67 @@ for _name in {tools_literal}:
 
         # Extract code blocks wrapped in markdown
         code_blocks = BaseAgent._extract_code_blocks(text)
-
         mcp_tools: list[ToolSpec] = []
+        if code_blocks:
+            for code in code_blocks:
+                mcp_tools.extend(ToolSynthesisMixin._extract_mcp_tools_from_python(code))
+        return mcp_tools
+        # Fallback: attempt to parse raw output as code.
+        cleaned = ToolSynthesisMixin._sanitize_llm_code(text)
+        if cleaned:
+            return ToolSynthesisMixin._extract_mcp_tools_from_python(cleaned)
+        return []
 
-        for code in code_blocks:
-            # Regular expression to capture function definitions with @mcp.tool decorators
-            mcp_pattern = r"(@mcp\.tool\((.*?)\)\s*def\s+([a-zA-Z_][a-zA-Z0-9_]*\s*\([^\)]*\))\s*(->\s*[a-zA-Z_][a-zA-Z0-9_\[\],]*)?\s*:([\s\S]+?))(?=\n\s*@mcp|\Z)"
-
-            # Match all decorators and the corresponding function definitions
-            matches = re.findall(mcp_pattern, code, re.DOTALL)
-
-            for match in matches:
-                function_signature = match[2]
-
-                # Generate a ToolSpec from the function string
-                function_string = match[0]
-
+    @staticmethod
+    def _extract_mcp_tools_from_python(raw: str) -> list[ToolSpec]:
+        text = (raw or "").strip()
+        if not text:
+            return []
+        normalized = re.sub(r"@mcp\.tool\s*(?=\n)", "@mcp.tool()", text)
+        mcp_tools: list[ToolSpec] = []
+        try:
+            module = ast.parse(normalized)
+            lines = normalized.splitlines()
+            for node in module.body:
+                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if not any(
+                    isinstance(dec, ast.Call)
+                    and isinstance(dec.func, ast.Attribute)
+                    and dec.func.attr == "tool"
+                    for dec in node.decorator_list
+                ):
+                    continue
+                if node.lineno is None or node.end_lineno is None:
+                    continue
+                decorator_lines = [
+                    dec.lineno for dec in node.decorator_list if getattr(dec, "lineno", None)
+                ]
+                start_line = min(decorator_lines) if decorator_lines else node.lineno
+                function_string = "\n".join(lines[start_line - 1 : node.end_lineno]).strip()
                 try:
                     tool = ToolSpec.from_function_string(function_string)
                     mcp_tools.append(tool)
                 except ValueError as e:
                     logger.error(
-                        f"Error creating ToolSpec for function {function_signature}: {e}"
+                        f"Error creating ToolSpec for function {node.name}: {e}"
                     )
+            if mcp_tools:
+                return mcp_tools
+        except Exception:
+            logger.debug("AST tool extraction failed; falling back to regex.", exc_info=True)
 
+        # Regex fallback for malformed code blocks.
+        mcp_pattern = r"(@mcp\.tool(?:\((.*?)\))?\s*def\s+([a-zA-Z_][a-zA-Z0-9_]*\s*\([^\)]*\))\s*(->\s*[^:]+)?\s*:([\s\S]+?))(?=\n\s*@mcp|\Z)"
+        matches = re.findall(mcp_pattern, normalized, re.DOTALL)
+        for match in matches:
+            function_signature = match[2]
+            function_string = match[0]
+            try:
+                tool = ToolSpec.from_function_string(function_string)
+                mcp_tools.append(tool)
+            except ValueError as e:
+                logger.error(
+                    f"Error creating ToolSpec for function {function_signature}: {e}"
+                )
         return mcp_tools

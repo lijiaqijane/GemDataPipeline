@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import urllib.error
 import urllib.request
 from typing import Any
+
+
+logger = logging.getLogger(__name__)
 
 
 def check_sandbox_fusion(url: str | None = None, timeout: int = 3, max_attempts: int = 3) -> bool:
@@ -24,6 +28,7 @@ def check_sandbox_fusion(url: str | None = None, timeout: int = 3, max_attempts:
     if url is None:
         url = os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080")
 
+    last_error = ""
     for attempt in range(1, max_attempts + 1):
         try:
             # Extract host and port from URL
@@ -41,7 +46,14 @@ def check_sandbox_fusion(url: str | None = None, timeout: int = 3, max_attempts:
             sock.close()
 
             if result != 0:
+                last_error = f"port connectivity failed (result={result})"
                 if attempt < max_attempts:
+                    logger.warning(
+                        "Retrying SandboxFusion check (attempt %s/%s). Previous error: %s",
+                        attempt + 1,
+                        max_attempts,
+                        last_error,
+                    )
                     continue
                 return False
 
@@ -57,11 +69,25 @@ def check_sandbox_fusion(url: str | None = None, timeout: int = 3, max_attempts:
             return True
 
         except (socket.error, urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+            last_error = str(e)
             if attempt < max_attempts:
+                logger.warning(
+                    "Retrying SandboxFusion check (attempt %s/%s). Previous error: %s",
+                    attempt + 1,
+                    max_attempts,
+                    last_error,
+                )
                 continue
             return False
-        except Exception:
+        except Exception as e:
+            last_error = str(e)
             if attempt < max_attempts:
+                logger.warning(
+                    "Retrying SandboxFusion check (attempt %s/%s). Previous error: %s",
+                    attempt + 1,
+                    max_attempts,
+                    last_error,
+                )
                 continue
             return False
 
@@ -93,4 +119,3 @@ def validate_environment(use_sandbox_fusion: bool = True) -> tuple[bool, str]:
     # vLLM may not require API key
 
     return True, ""
-

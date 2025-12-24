@@ -512,7 +512,14 @@ class TaskPackage(BaseModel):
 
     def run_solution(self, tools: Dict[str, Any]) -> Any:
         env = self._build_exec_env(tools, allow_imports=False)
-        exec(self.solution, env, env)
+        try:
+            exec(self.solution, env, env)
+        except (SyntaxError, IndentationError):
+            normalized = self._normalize_solution_indentation(self.solution or "")
+            if normalized and normalized != self.solution:
+                exec(normalized, env, env)
+            else:
+                raise
         if "solve" not in env:
             raise RuntimeError("solution_code must define solve(tools)")
         return env["solve"](tools)
@@ -583,18 +590,40 @@ class TaskPackage(BaseModel):
                 verified = output[0]
             if len(output) > 1:
                 score = cls._coerce_score(output[1])
+                if score is None and isinstance(output[1], str):
+                    message = output[1]
             if len(output) > 2:
                 details = output[2]
+            if len(output) > 3 and message is None and isinstance(output[3], str):
+                message = output[3]
         elif isinstance(output, bool):
             verified = output
         else:
             details = output
 
-        if verified is None and output is not None:
-            # Fallback: treat truthiness as pass/fail to avoid hard failures on slightly off-format verifiers.
-            verified = bool(output)
-
         return verified, score, details, message
+
+    @staticmethod
+    def _normalize_solution_indentation(code: str) -> str:
+        """Best-effort fix for unindented solve() bodies."""
+        if not code or not isinstance(code, str):
+            return code
+        lines = code.splitlines()
+        try:
+            def_idx = next(i for i, line in enumerate(lines) if line.strip().startswith("def solve"))
+        except StopIteration:
+            return code
+        fixed = lines[: def_idx + 1]
+        for line in lines[def_idx + 1 :]:
+            if not line.strip():
+                fixed.append(line)
+                continue
+            leading = len(line) - len(line.lstrip(" "))
+            if leading < 4:
+                fixed.append("    " + line.lstrip())
+            else:
+                fixed.append(line)
+        return "\n".join(fixed) + ("\n" if code.endswith("\n") else "")
 
     def _build_exec_env(self, tools: Dict[str, Any], *, allow_imports: bool = False) -> Dict[str, Any]:
         """Build a safe execution environment for LLM-generated code.
