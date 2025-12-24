@@ -19,6 +19,8 @@ class LLMConfig:
     api_key: str | None
     timeout: float = 120.0
     max_retries: int = 3
+    log_io: bool = False
+    log_io_file: str | None = None
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
@@ -56,6 +58,8 @@ class LLMConfig:
 
         timeout = float(os.getenv("LLM_TIMEOUT", "120"))
         max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+        log_io = os.getenv("LLM_LOG_IO", "0") in {"1", "true", "True"}
+        log_io_file = os.getenv("LLM_LOG_IO_FILE") or None
         return cls(
             provider=provider,
             base_url=base_url,
@@ -63,6 +67,8 @@ class LLMConfig:
             api_key=api_key,
             timeout=timeout,
             max_retries=max_retries,
+            log_io=log_io,
+            log_io_file=log_io_file,
         )
 
 
@@ -182,7 +188,6 @@ class CodeAgentConfig:
                 'taskdb_root': 'batch_taskdb',
                 'difficulty': 2,
                 'max_tokens': 2000,
-                'temperature': 0.7,
                 'save_logs': True,
                 'auto_save': True,
             },
@@ -221,9 +226,6 @@ class CodeAgentConfig:
         if 'max_tokens' in task_gen:
             if task_gen['max_tokens'] <= 0:
                 raise ValueError("task_generation.max_tokens must be > 0")
-        if 'temperature' in task_gen:
-            if not 0 <= task_gen['temperature'] <= 2:
-                raise ValueError("task_generation.temperature must be between 0 and 2")
         
         # Validate batch_processing
         batch = self.config['batch_processing']
@@ -276,10 +278,6 @@ class CodeAgentConfig:
     @property
     def max_tokens(self) -> int:
         return self.config['task_generation'].get('max_tokens', 2000)
-    
-    @property
-    def temperature(self) -> float:
-        return self.config['task_generation'].get('temperature', 0.7)
     
     @property
     def save_logs(self) -> bool:

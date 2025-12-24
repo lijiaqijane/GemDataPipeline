@@ -511,44 +511,197 @@ class TaskPackage(BaseModel):
         }
 
     def run_solution(self, tools: Dict[str, Any]) -> Any:
-        if self.use_docker:
-            return self._run_in_docker(self.solution, tools, "solve")
-
-        env = self._build_exec_env(tools)
-        exec(self.solution, env, env)
+        env = self._build_exec_env(tools, allow_imports=False)
+        try:
+            exec(self.solution, env, env)
+        except (SyntaxError, IndentationError):
+            normalized = self._normalize_solution_indentation(self.solution or "")
+            if normalized and normalized != self.solution:
+                exec(normalized, env, env)
+            else:
+                raise
         if "solve" not in env:
             raise RuntimeError("solution_code must define solve(tools)")
         return env["solve"](tools)
 
     def verify(self, tools: Dict[str, Any], answer: Any) -> bool:
-        if self.use_docker:
-            result = self._run_in_docker(self.verification, tools, "verify", answer)
-            return bool(result)
+        verified, score, details, message = self.verify_with_meta(tools, answer)
+        if verified is None:
+            raise RuntimeError(message or "verification did not return a boolean-like result")
+        return bool(verified)
 
-        env = self._build_exec_env(tools)
-        exec(self.verification, env, env)
-        if "verify" not in env:
-            raise RuntimeError("verification_code must define verify(tools, answer)")
-        return bool(env["verify"](tools, answer))
+    def verify_with_meta(
+        self, tools: Dict[str, Any], answer: Any
+    ) -> tuple[bool | None, float | None, Any, str | None]:
+        """Run verification and return richer metadata (bool/score/details/message)."""
+        try:
+            env = self._build_exec_env(tools, allow_imports=True)
+            exec(self.verification, env, env)
+            if "verify" not in env:
+                raise RuntimeError("verification_code must define verify(tools, answer)")
+            raw_output = env["verify"](tools, answer)
+        except Exception as exc:
+            # Surface verifier execution failures without crashing the caller.
+            return None, None, None, f"verification execution failed: {exc}"
+
+        verified, score, details, message = self._normalize_verification_output(raw_output)
+
+        # If verify explicitly returned False/None, surface a clearer message for downstream logging.
+        if verified is False and message is None:
+            message = "verification returned False"
+        if verified is None and message is None:
+            message = f"verification returned unsupported type: {type(raw_output).__name__}"
+
+        return verified, score, details, message
 
     @staticmethod
-    def _build_exec_env(tools: Dict[str, Any]) -> Dict[str, Any]:
+    def _coerce_score(value: Any) -> float | None:
+        try:
+            return float(value)
+        except Exception:
+            return None
+
+    @classmethod
+    def _normalize_verification_output(
+        cls, output: Any
+    ) -> tuple[bool | None, float | None, Any, str | None]:
+        """Accept common verification return patterns and normalize them.
+
+        Supported patterns:
+        - bool
+        - dict with keys like passed/success/ok/result and optional score/details/message/error
+        - tuple/list like (bool, score, details)
+        """
+        verified: bool | None = None
+        score: float | None = None
+        details: Any = None
+        message: str | None = None
+
+        if isinstance(output, dict):
+            for key in ("passed", "success", "ok", "result"):
+                if key in output:
+                    verified = bool(output.get(key))
+                    break
+            score = cls._coerce_score(output.get("score"))
+            details = output.get("details") or output
+            message = output.get("message") or output.get("error")
+        elif isinstance(output, (list, tuple)) and output:
+            if isinstance(output[0], bool):
+                verified = output[0]
+            if len(output) > 1:
+                score = cls._coerce_score(output[1])
+                if score is None and isinstance(output[1], str):
+                    message = output[1]
+            if len(output) > 2:
+                details = output[2]
+            if len(output) > 3 and message is None and isinstance(output[3], str):
+                message = output[3]
+        elif isinstance(output, bool):
+            verified = output
+        else:
+            details = output
+
+        return verified, score, details, message
+
+    @staticmethod
+    def _normalize_solution_indentation(code: str) -> str:
+        """Best-effort fix for unindented solve() bodies."""
+        if not code or not isinstance(code, str):
+            return code
+        lines = code.splitlines()
+        try:
+            def_idx = next(i for i, line in enumerate(lines) if line.strip().startswith("def solve"))
+        except StopIteration:
+            return code
+        fixed = lines[: def_idx + 1]
+        for line in lines[def_idx + 1 :]:
+            if not line.strip():
+                fixed.append(line)
+                continue
+            leading = len(line) - len(line.lstrip(" "))
+            if leading < 4:
+                fixed.append("    " + line.lstrip())
+            else:
+                fixed.append(line)
+        return "\n".join(fixed) + ("\n" if code.endswith("\n") else "")
+
+    def _build_exec_env(self, tools: Dict[str, Any], *, allow_imports: bool = False) -> Dict[str, Any]:
+        """Build a safe execution environment for LLM-generated code.
+        
+        This environment restricts access to Python builtins to a safe subset
+        commonly used in data processing and validation tasks. The selection
+        includes basic type checks, iterations, and object introspection
+        functions that LLMs frequently generate. For verifiers we optionally
+        allow imports; for solutions we keep imports disabled to enforce
+        tool-only access.
+        """
         safe_builtins = {
-            "len": len,
-            "range": range,
-            "min": min,
-            "max": max,
-            "sum": sum,
-            "any": any,
-            "all": all,
-            "sorted": sorted,
-            "enumerate": enumerate,
+            # Basic types and conversions
             "bool": bool,
             "int": int,
             "float": float,
             "str": str,
             "list": list,
             "dict": dict,
+            "tuple": tuple,
+            "set": set,
+            "type": type,
+            
+            # Type checking
             "isinstance": isinstance,
+            "issubclass": issubclass,
+            
+            # Object introspection (commonly used by LLMs for validation)
+            "hasattr": hasattr,
+            "getattr": getattr,
+            "setattr": setattr,
+            "dir": dir,
+            "callable": callable,
+            "vars": vars,
+            
+            # Collections and iteration
+            "len": len,
+            "range": range,
+            "enumerate": enumerate,
+            "zip": zip,
+            "reversed": reversed,
+            "iter": iter,
+            "next": next,
+            "slice": slice,
+            
+            # Functional operations
+            "map": map,
+            "filter": filter,
+            "sorted": sorted,
+            "sum": sum,
+            "min": min,
+            "max": max,
+            "any": any,
+            "all": all,
+            
+            # Basic operations
+            "abs": abs,
+            "round": round,
+            "ord": ord,
+            "chr": chr,
+            "bin": bin,
+            "hex": hex,
+            "oct": oct,
         }
-        return {"__builtins__": safe_builtins, "tools": tools}
+        if allow_imports:
+            # Allow imports only when explicitly enabled (verifier path).
+            safe_builtins["__import__"] = __import__
+
+        # Pre-import a few safe standard modules commonly used in verifiers.
+        env = {
+            "__builtins__": safe_builtins,
+            "tools": tools,
+        }
+        if allow_imports:
+            try:
+                import json, re, math, statistics  # type: ignore
+
+                env.update({"json": json, "re": re, "math": math, "statistics": statistics})
+            except Exception:
+                pass
+        return env

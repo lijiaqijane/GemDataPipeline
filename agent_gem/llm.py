@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from openai import AsyncOpenAI, OpenAI
@@ -32,6 +34,8 @@ class LLMClient:
             timeout=config.timeout,
             max_retries=config.max_retries,
         )
+        self._log_io = config.log_io
+        self._log_path = Path(config.log_io_file) if config.log_io_file else None
         logger.debug(
             "LLM client initialized (provider=%s, model=%s, base_url=%s, timeout=%s, retries=%s)",
             config.provider,
@@ -56,6 +60,7 @@ class LLMClient:
             self.config.model,
             len(messages),
         )
+        self._log_io_payload("prompt", {"model": self.config.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens})
         response = self._client.chat.completions.create(
             model=self.config.model,
             messages=messages,
@@ -66,6 +71,7 @@ class LLMClient:
         if content is None:
             raise RuntimeError(f"Unexpected LLM response: {response}")
         logger.debug("LLM response preview: %s", _preview_text(content))
+        self._log_io_payload("response", {"model": self.config.model, "content": content})
         return content
 
     async def achat_completion(
@@ -79,6 +85,7 @@ class LLMClient:
             self.config.model,
             len(messages),
         )
+        self._log_io_payload("prompt_async", {"model": self.config.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens})
         response = await self._aclient.chat.completions.create(
             model=self.config.model,
             messages=messages,
@@ -89,6 +96,7 @@ class LLMClient:
         if content is None:
             raise RuntimeError(f"Unexpected LLM response: {response}")
         logger.debug("LLM async response preview: %s", _preview_text(content))
+        self._log_io_payload("response_async", {"model": self.config.model, "content": content})
         return content
 
     def simple_complete(self, prompt: str, **kwargs: Any) -> str:
@@ -115,9 +123,76 @@ class LLMClient:
     async def __aexit__(self, *_: Any) -> None:
         await self.aclose()
 
+    def _log_io_payload(self, kind: str, payload: dict[str, Any]) -> None:
+        """Optionally log full LLM I/O for debugging; controlled via env."""
+        if not self._log_io:
+            return
+        try:
+            # Log full input/output without truncation when enabled
+            text = json.dumps(payload, ensure_ascii=False)
+        except Exception:
+            try:
+                text = str(payload)
+            except Exception:
+                text = "<unserializable payload>"
+        if self._log_path:
+            try:
+                self._log_path.parent.mkdir(parents=True, exist_ok=True)
+                with self._log_path.open("a", encoding="utf-8") as f:
+                    f.write(f"[{kind}] {text}\n")
+            except Exception:
+                logger.debug("Failed to write LLM IO log", exc_info=True)
+
 
 def _preview_text(text: str, limit: int = 320) -> str:
     cleaned = " ".join(text.split())
     if len(cleaned) <= limit:
         return cleaned
     return f"{cleaned[:limit]}... (truncated)"
+
+def chat_with_agent(
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict[str, str]],
+        tool_call_map: Dict[str, str],  
+        temperature: float = 0.7,
+        max_tokens: int = 512,
+    ) -> str:
+        """Call chat completion with thinking and tools."""
+        searrch_content = []
+        sub_turn = 1
+        while True:
+            response = self.client.chat.completions.create(
+                model=self.config.model,
+                messages=messages,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                extra_body={
+                    "thinking": {
+                        "type": "enabled",
+                    }
+                },
+            )
+            messages.append(response.choices[0].message)
+            reasoning_content = response.choices[0].message.reasoning_content
+            content = response.choices[0].message.content
+            tool_calls = response.choices[0].message.tool_calls
+            # breakpoint()
+            print(f"Turn {sub_turn}\n{reasoning_content=}\n{content=}\n{tool_calls=}")
+
+            if tool_calls is None:
+                break
+            for tool in tool_calls:
+                tool_function = tool_call_map[tool.function.name]
+                tool_result = tool_function(**json.loads(tool.function.arguments))
+                # print(f"tool result for {tool.function.name}: {tool_result}\n")
+                searrch_content.append(tool_result)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "content": tool_result,
+                })
+            sub_turn += 1
+
+        return content, searrch_content

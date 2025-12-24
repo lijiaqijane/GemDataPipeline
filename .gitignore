@@ -43,6 +43,7 @@ venv/
 *~
 
 # Project specific
-sandbox/
 *.log
 docs/
+run.sh
+taskdb/

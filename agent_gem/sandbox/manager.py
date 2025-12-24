@@ -28,9 +28,7 @@ class SandboxManager:
         sandbox_url: Optional[str] = None,
         use_docker_runner: bool = True,
         silent: bool = False,
-        use_china_mirror: bool = True,
-        docker_image: Optional[str] = None,
-        docker_cmd: Optional[str] = None,
+        use_china_mirror: bool = True
     ) -> None:
         # Task persistence
         self.root = root or Path("taskdb")
@@ -41,8 +39,6 @@ class SandboxManager:
         self.use_docker_runner = use_docker_runner
         self.silent = silent
         self.use_china_mirror = use_china_mirror
-        self.docker_image = docker_image
-        self.docker_cmd = docker_cmd
         self._runner: Optional[DockerAPIRunner] = None
 
     def persist(self, packages: Iterable[TaskPackage]) -> List[TaskPackage]:
@@ -79,15 +75,13 @@ class SandboxManager:
                 self._runner = DockerAPIRunner(
                     use_china_mirror=self.use_china_mirror,
                     silent=self.silent,
-                    docker_image=self.docker_image,
-                    docker_cmd=self.docker_cmd,
                 )
                 if not self._runner.start():
                     raise RuntimeError("Failed to start SandboxFusion container")
                 self._runner.wait_ready()
                 base_url = f"http://localhost:{self._runner.port}"
 
-            executor = SandboxFusionExecutor(base_url=base_url, timeout_s=timeout_s)
+            executor = SandboxFusionExecutor(self.root, base_url=base_url, timeout_s=timeout_s)
             yield executor
         finally:
             if self._runner is not None:

@@ -9,13 +9,13 @@ set -euo pipefail
 
 # ---------- 沙盒配置 ----------
 # Docker 镜像名称
-export SANDBOX_IMAGE="${SANDBOX_IMAGE:-code_sandbox:server}"
+# export SANDBOX_IMAGE="${SANDBOX_IMAGE:-code_sandbox:server}"
 
 # Docker 启动命令
-export SANDBOX_CMD="${SANDBOX_CMD:-docker run -d --rm --privileged -p 8080:8080 ${SANDBOX_IMAGE} make run-online}"
+# export SANDBOX_CMD="${SANDBOX_CMD:-docker run -d --rm --privileged -p 8080:8080 ${SANDBOX_IMAGE} make run-online}"
 
 # 沙盒服务 URL
-export SANDBOX_FUSION_URL="${SANDBOX_FUSION_URL:-http://localhost:8080}"
+# export SANDBOX_FUSION_URL="${SANDBOX_FUSION_URL:-http://localhost:8080}"
 
 # ---------- 环境变量配置 ----------
 # 确保必要的环境变量已设置
@@ -30,7 +30,7 @@ export LLM_MAX_RETRIES="${LLM_MAX_RETRIES:-5}"
 
 # ---------- 脚本参数配置 ----------
 # 配置文件路径（所有参数都在配置文件中管理）
-CONFIG_FILE="${CONFIG_FILE:-config/code_agent.yaml}"
+CONFIG_FILE="${CONFIG_FILE:-examples/config/code_agent.yaml}"
 
 # 可选：指定特定的 (repo, file, function) 三元组
 # 如果不指定，将使用批量模式从 triples 生成任务
@@ -90,9 +90,9 @@ if [ "$VERBOSE" = "true" ]; then
   echo ""
 fi
 
-echo "正在执行: python -m agent_gem batch ${ARGS[@]}"
+echo "正在执行: python -m agent_gem code_synthesize ${ARGS[@]}"
 echo ""
 
 # 运行命令
-PYTHONUNBUFFERED=1 python -u -m agent_gem batch "${ARGS[@]}" "$@"
+PYTHONUNBUFFERED=1 python -u -m agent_gem code_synthesize "${ARGS[@]}" "$@"
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -28,6 +28,45 @@ class TaskWriter:
                 self.records = data.get("records", []) if isinstance(data, dict) else []
             except Exception:
                 self.records = []
+    
+    def merge_records(self, new_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Merge new records with existing records, deduplicating by title and URL."""
+        def _canon_url(value: str) -> str:
+            if not value:
+                return ""
+            try:
+                parsed = urlparse(value)
+            except Exception:
+                return value.strip()
+            scheme = (parsed.scheme or "https").lower()
+            netloc = parsed.netloc.lower()
+            path = parsed.path or ""
+            if path != "/" and path.endswith("/"):
+                path = path[:-1]
+            return f"{scheme}://{netloc}{path}"
+
+        existing_titles = {
+            r.get("title", "").lower().strip() for r in self.records if r.get("title")
+        }
+        existing_urls = {
+            _canon_url(r.get("url", ""))
+            for r in self.records
+            if r.get("url")
+        }
+        merged = list(self.records)
+        for record in new_records:
+            title = record.get("title", "").lower().strip()
+            url = _canon_url(record.get("url", ""))
+            if url and url in existing_urls:
+                continue
+            if title and title in existing_titles:
+                continue
+            merged.append(record)
+            if title:
+                existing_titles.add(title)
+            if url:
+                existing_urls.add(url)
+        return merged
 
     def persist(self, packages: Iterable[TaskPackage]) -> List[TaskPackage]:
         updated: List[TaskPackage] = []
@@ -47,71 +86,6 @@ class TaskWriter:
 
     def task_dir(self, task_id: str, agent_type: str) -> Path:
         return Path(self.root, agent_type, f"task-{task_id}")
-
-    def persist_code_training_data(
-        self,
-        task_id: str,
-        repo_metadata: Dict[str, Any],
-        bug_info: Dict[str, Any],
-        issue_pr_info: Dict[str, Any],
-        test_cases: List[Dict[str, Any]],
-        validation_results: List[Dict[str, Any]],
-        setup_info: Dict[str, Any],
-            git_diff: str = "",
-    ) -> Path:
-        """
-        Persist code agent training data in a structured format.
-        
-        Args:
-            task_id: Task identifier
-            repo_metadata: Repository analysis metadata
-            bug_info: Generated bug information
-            issue_pr_info: Issue and PR descriptions
-            test_cases: Generated test cases
-            validation_results: Test validation results
-            setup_info: Environment setup information
-                git_diff: Git diff between buggy and fixed versions
-            
-        Returns:
-            Path to the persisted training data directory
-        """
-        task_dir = Path(self.root, "code_agent", f"task-{task_id}")
-        task_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Create training data payload
-        training_data = {
-            "task_id": task_id,
-            "timestamp": datetime.now().isoformat(),
-            "repo_metadata": repo_metadata,
-            "bug_info": bug_info,
-            "issue_pr_info": issue_pr_info,
-            "test_cases": test_cases,
-            "validation_results": validation_results,
-            "setup_info": setup_info,
-                "git_diff": git_diff,
-            "metadata": {
-                "version": "1.0",
-                "format": "code_training_data",
-                "agent_type": "code_agent",
-                "valid_tests_count": sum(
-                    1 for r in validation_results if r.get("is_valid_test", False)
-                ),
-                    "has_git_diff": bool(git_diff),
-                    "git_diff_size": len(git_diff) if git_diff else 0,
-            },
-        }
-        
-        # Persist as JSON
-        training_data_path = task_dir / "training_data.json"
-        dump_json(training_data_path, training_data)
-        
-        logger.info(
-            "Code training data persisted: task=%s -> %s",
-            task_id,
-            task_dir,
-        )
-        
-        return task_dir
 
     def record_steps(
         self,
@@ -140,95 +114,3 @@ class TaskWriter:
                     + "\n"
                 )
         return path
-
-    def persist_quadruple_format(
-        self,
-        category: str,
-        records: List[Dict[str, Any]],
-        packages: Iterable[TaskPackage],
-        output_path: Optional[Path] = None,
-    ) -> Path:
-        """Persist tasks in quadruple format compatible with general_agent output.
-
-        Format: <environment, tools, task, verifier>
-        Output structure matches general_agent/synthesis/_persist format.
-
-        Args:
-            category: Task category name
-            records: Database records for the environment
-            packages: Task packages to persist
-            output_path: Optional path to write tasks.json (default: root/tasks.json)
-
-        Returns:
-            Path to the written tasks.json file
-        """
-        packages_list = list(packages)
-        if not packages_list:
-            logger.warning("No packages to persist in quadruple format")
-            return output_path or (self.root / "tasks.json")
-
-        # Collect all tools from all packages
-        all_tools = []
-        tool_names_seen = set()
-        for package in packages_list:
-            for tool_spec in package.task.tool_set:
-                if tool_spec.name not in tool_names_seen:
-                    all_tools.append({
-                        "name": tool_spec.name,
-                        "description": tool_spec.description,
-                    })
-                    tool_names_seen.add(tool_spec.name)
-
-        # Build tasks with task and verifier structure
-        tasks_with_verifiers = []
-        for package in packages_list:
-            task_entry = {
-                # Task part: task definition
-                "task": {
-                    "name": package.task.task_title,
-                    "description": package.task.task_content,
-                    "difficulty": package.task.difficulty_level,
-                    "solution_code": package.solution or "",
-                },
-                # Verifier part: verifier definition
-                "verifier": {
-                    "verification_code": package.verification or "",
-                },
-                # Retain complete information (backward compatible)
-                "name": package.task.task_title,
-                "description": package.task.task_content,
-                "difficulty": package.task.difficulty_level,
-                "solution_code": package.solution or "",
-                "verification_code": package.verification or "",
-            }
-            tasks_with_verifiers.append(task_entry)
-
-        # Build quadruple format payload
-        payload = {
-            # Standard quadruple format
-            "environment": {
-                "category": category,
-                "records": records,
-                "record_count": len(records),
-            },
-            "tools": all_tools,
-            "tasks": tasks_with_verifiers,
-            # Compatible fields (backward compatible)
-            "category": category,
-            "tooling": all_tools,  # Same as tools
-            "records": records,  # Same as environment.records
-            # Metadata
-            "metadata": {
-                "version": "1.0",
-                "format": "quadruple",  # <environment, tools, task, verifier>
-                "task_count": len(packages_list),
-                "tool_count": len(all_tools),
-                "generation_timestamp": datetime.now().isoformat(),
-            },
-        }
-
-        target = output_path or (self.root / "tasks.json")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        dump_json(target, payload)
-        logger.info("Quadruple format tasks saved to %s", target)
-        return target

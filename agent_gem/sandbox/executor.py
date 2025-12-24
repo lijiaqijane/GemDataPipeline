@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import inspect
 import json
 import logging
-import os
-import subprocess
 import threading
 import time
 import traceback
 import uuid
-from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 import requests
-from typing import Any, Callable, Dict, List, Optional
-
+import shutil
+import tarfile
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 from sandbox_fusion import set_endpoint, run_code, RunCodeRequest
@@ -43,19 +44,12 @@ logger = logging.getLogger(__name__)
 
 
 class DockerAPIRunner:
-    def __init__(self, use_china_mirror: bool = True, silent: bool = False, docker_image: Optional[str] = None, docker_cmd: Optional[str] = None) -> None:
-        # Support custom image and command from environment or parameters
-        self.image = docker_image or os.getenv("SANDBOX_IMAGE")
-        self.docker_cmd = docker_cmd or os.getenv("SANDBOX_CMD")
-        
-        # Fall back to default images if not specified
-        if not self.image:
-            self.image = (
-                _SANDBOX_FUSION_IMAGES["china"]
-                if use_china_mirror
-                else _SANDBOX_FUSION_IMAGES["global"]
-            )
-        
+    def __init__(self, use_china_mirror: bool = True, silent: bool = False) -> None:
+        self.image = (
+            _SANDBOX_FUSION_IMAGES["china"]
+            if use_china_mirror
+            else _SANDBOX_FUSION_IMAGES["global"]
+        )
         self.container = None
         self.silent = silent
         self.client = docker.from_env()
@@ -70,51 +64,24 @@ class DockerAPIRunner:
 
     def start(self) -> bool:
         try:
-            # If custom command is provided, use subprocess to run it
-            if self.docker_cmd:
-                if not self.silent:
-                    logger.info("Starting container with custom command: %s", self.docker_cmd)
-                
-                cmd = self.docker_cmd
-                if "{port}" in self.docker_cmd:
-                    # Replace placeholder with dynamically assigned port
-                    cmd = self.docker_cmd.replace("{port}", str(self.port))
-                else:
-                    # Try to extract port from command to ensure wait_ready works
-                    # Look for -p HOST_PORT:CONTAINER_PORT
-                    import re
-                    match = re.search(r"-p\s+(\d+):", cmd)
-                    if match:
-                        self.port = int(match.group(1))
-                        if not self.silent:
-                            logger.info(f"Detected port {self.port} from command")
-                
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                if result.returncode != 0:
-                    logger.error("Failed to start container: %s", result.stderr)
-                    return False
-                # For custom commands, we assume the first container matching our image is ours
-                containers = self.client.containers.list(filters={"ancestor": self.image})
-                if containers:
-                    self.container = containers[0]
-            else:
-                # Use Docker API to run the container
-                if not self.silent:
-                    logger.info("Pulling image: %s", self.image)
-                self.client.images.pull(self.image)
-                self.container = self.client.containers.run(
-                    self.image,
-                    ports={"8080/tcp": self.port},
-                    detach=True,
-                    remove=True,
-                )
-            
+            if not self.silent:
+                logger.info("Pulling image: %s", self.image)
+            self.client.images.pull(self.image)
+            self.container = self.client.containers.run(
+                self.image,
+                ports={"8080/tcp": self.port},
+                detach=True,
+                remove=True,
+                # privileged=True,
+                # command="make run-online"
+
+            )
             if not self.silent:
                 logger.info(
-                    "SandboxFusion container started: %s", self.container.short_id if self.container else "via custom command"
+                    "SandboxFusion container started: %s", self.container.short_id
                 )
             return True
-        except (DockerException, subprocess.CalledProcessError) as exc:
+        except DockerException as exc:
             if not self.silent:
                 logger.error("Error starting SandboxFusion container: %s", exc)
             return False
@@ -177,11 +144,14 @@ class TaskRunRecord(BaseModel):
     run_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     task_id: Optional[str] = None
     task_title: Optional[str] = None
+    run_group: str = "default"
     started_at: float
     ended_at: float
     duration_s: float
     answer: Any = None
     verified: Optional[bool] = None
+    verification_score: Optional[float] = None
+    verification_details: Any = None
     error: Optional[str] = None
     verification_error: Optional[str] = None
 
@@ -235,14 +205,40 @@ class SandboxExecutor:
             root / package.agent_type / f"task-{package.task.task_id}" / "_sandbox"
         )
 
-    def as_tools(self, extra: Optional[Dict[str, Any]] = None) -> ToolProxy:
+    def as_tools(
+        self,
+        extra: Optional[Dict[str, Any]] = None,
+        *,
+        cache_calls: bool = False,
+    ) -> ToolProxy:
         if extra:
             for name, value in extra.items():
                 self.register_tool(name, value)
 
         tools: Dict[str, Callable[..., Any]] = {}
+        cache: Dict[str, Any] = {}
+
+        def _cache_key(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
+            payload = {"args": args, "kwargs": kwargs}
+            try:
+                return json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+            except Exception:
+                return repr(payload)
+
         for name in sorted(self._tools):
-            tools[name] = self._make_tool_callable(name)
+            base = self._make_tool_callable(name)
+            if cache_calls:
+                def _call(*args: Any, _base=base, _name=name, **kwargs: Any) -> Any:
+                    cache_key = f"{_name}:{_cache_key(args, kwargs)}"
+                    if cache_key in cache:
+                        return cache[cache_key]
+                    result = _base(*args, **kwargs)
+                    cache[cache_key] = result
+                    return result
+
+                tools[name] = _call
+            else:
+                tools[name] = base
         return ToolProxy(**tools)
 
     def describe_tools(self) -> List[Dict[str, str]]:
@@ -439,42 +435,61 @@ class SandboxExecutor:
 
         return _call
 
-    def run_task(
-        self,
-        package: TaskPackage,
-        *,
-        tools: Optional[Dict[str, Callable[..., Any]]] = None,
-    ) -> TaskRunRecord:
-        started = time.time()
-        tool_proxy = self.as_tools(extra=tools)
+    def snapshot_fs(self, exclude_prefixes: Optional[List[str]] = None) -> Dict[str, str]:
+        """Return a deterministic file snapshot {relative_path: sha256} for the sandbox.
 
-        answer: Any = None
-        verified: Optional[bool] = None
-        error: Optional[str] = None
-        verification_error: Optional[str] = None
+        Directories are skipped; logs/runs are excluded by default to reduce noise.
+        """
+        exclude_prefixes = exclude_prefixes or ["logs/", "runs/"]
+        snapshot: Dict[str, str] = {}
+
+        for path in self.sandbox_dir.rglob("*"):
+            if path.is_dir():
+                continue
+            rel = path.relative_to(self.sandbox_dir).as_posix()
+            if any(rel.startswith(prefix) for prefix in exclude_prefixes):
+                continue
+            try:
+                data = path.read_bytes()
+                digest = hashlib.sha256(data).hexdigest()
+                snapshot[rel] = digest
+            except OSError:
+                continue
+        return snapshot
+
+    @staticmethod
+    def _run_group_dir_from(base: Path, run_group: str) -> Path:
+        text = (run_group or "").strip()
+        if not text:
+            return base / "default"
+        parts = []
+        for raw in text.split("/"):
+            raw = raw.strip()
+            if not raw or raw in {".", ".."}:
+                continue
+            parts.append(slugify(raw))
+        if not parts:
+            parts = ["default"]
+        return base.joinpath(*parts)
+
+    def _run_group_dir(self, run_group: str) -> Path:
+        return self._run_group_dir_from(self.runs_dir, run_group)
+
+    def _record_run_code(self, run_id: str, package: TaskPackage, *, group_dir: Path) -> None:
+        """Persist solution/verification code per run for debugging."""
         try:
-            answer = package.run_solution(tool_proxy)
-            verified = package.verify(tool_proxy, answer)
+            solutions_dir = group_dir / "solutions"
+            verifications_dir = group_dir / "verifications"
+            solutions_dir.mkdir(parents=True, exist_ok=True)
+            verifications_dir.mkdir(parents=True, exist_ok=True)
+            (solutions_dir / f"{run_id}.py").write_text(
+                package.solution or "", encoding="utf-8"
+            )
+            (verifications_dir / f"{run_id}.py").write_text(
+                package.verification or "", encoding="utf-8"
+            )
         except Exception:
-            error = traceback.format_exc()
-        else:
-            if verified is False:
-                verification_error = "verification returned False"
-
-        ended = time.time()
-        record = TaskRunRecord(
-            task_id=package.id,
-            task_title=package.task.task_title,
-            started_at=started,
-            ended_at=ended,
-            duration_s=ended - started,
-            answer=self._to_jsonable(answer),
-            verified=verified,
-            error=error,
-            verification_error=verification_error,
-        )
-        dump_json(self.runs_dir / f"{record.run_id}.json", record.model_dump())
-        return record
+            logger.debug("Failed to record run code", exc_info=True)
 
     def _append_tool_call(self, record: ToolCallRecord) -> None:
         line = json.dumps(record.model_dump(), ensure_ascii=False, default=str)
@@ -487,6 +502,23 @@ class SandboxExecutor:
                 self._on_tool_call(record)
             except Exception:
                 logger.debug("on_tool_call callback failed", exc_info=True)
+
+    def annotate_run_record(
+        self, *, run_group: str, run_id: str, updates: Dict[str, Any]
+    ) -> None:
+        if not updates:
+            return
+        path = self._run_group_dir(run_group) / f"{run_id}.json"
+        if not path.exists():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                return
+            data.update(updates)
+            dump_json(path, data)
+        except Exception:
+            pass
 
     @staticmethod
     def _to_jsonable(value: Any) -> Any:
@@ -505,61 +537,100 @@ class SandboxFusionExecutor(SandboxExecutor):
 
     def __init__(
         self,
+        sandbox_dir: Path | str,
         base_url: str = "http://localhost:8080",
         *,
         timeout_s: int = 20,
         default_language: str = "python",
     ) -> None:
+        super().__init__(sandbox_dir=sandbox_dir, timeout_s=timeout_s)
         self.sandbox_base_url = base_url
         set_endpoint(self.sandbox_base_url)
-        self.timeout_s = timeout_s
         self.default_language = default_language
+        self._archive_input_name = "_input.tar.gz"
+        self._archive_output_name = "_output.tar.gz"
+        # Register remote-backed bash/python tools
+        self.register_tool("bash", self.execute_bash, description="Remote bash via SandboxFusion")
+        self.register_tool("python_runner", self.execute_python, description="Remote python via SandboxFusion")
 
-        self._tools: Dict[str, BaseTool] = {}
-        self._tool_calls_lock = threading.Lock()
-        self._on_tool_call: Callable[[ToolCallRecord], None] | None = None
+    def _build_input_archive(self) -> str:
+        buffer = BytesIO()
+        with tarfile.open(mode="w:gz", fileobj=buffer) as tar:
+            for path in self.sandbox_dir.rglob("*"):
+                if path.is_dir():
+                    continue
+                rel = path.relative_to(self.sandbox_dir).as_posix()
+                if rel.startswith("logs/") or rel.startswith("runs/"):
+                    continue
+                tar.add(path, arcname=rel)
+        return base64.b64encode(buffer.getvalue()).decode("ascii")
 
-    def run_code(
-        self, code: str, language: str | None = None, timeout_s: Optional[int] = None
+    def _apply_output_archive(self, encoded: str) -> None:
+        if not encoded:
+            return
+        data = base64.b64decode(encoded)
+        buffer = BytesIO(data)
+        tmp_dir = self.sandbox_dir / "__remote_sync__"
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(mode="r:gz", fileobj=buffer) as tar:
+            tar.extractall(path=tmp_dir)
+
+        # Clear existing workspace except logs/runs
+        for path in self.sandbox_dir.iterdir():
+            if path.name in {"logs", "runs", "__remote_sync__"}:
+                continue
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+
+        # Move synced files back
+        for path in tmp_dir.rglob("*"):
+            rel = path.relative_to(tmp_dir)
+            target = self.sandbox_dir / rel
+            if path.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), str(target))
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        # Consolidate temp scripts from SandboxFusion runs
+        tmp_scripts_dir = self.logs_dir / "tmp_scripts"
+        tmp_scripts_dir.mkdir(parents=True, exist_ok=True)
+        for path in self.sandbox_dir.iterdir():
+            if path.is_file() and path.name.startswith("tmp") and path.suffix == ".sh":
+                shutil.move(str(path), str(tmp_scripts_dir / path.name))
+
+    def _run_remote(
+        self,
+        code: str,
+        *,
+        language: str,
+        timeout_s: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Execute code in SandboxFusion sandbox.
-
-        Args:
-            code: Code to execute
-            language: Programming language (default: python)
-
-        Returns:
-            Dict with execution results including:
-            - status: Execution status
-            - stdout: Standard output
-            - stderr: Standard error
-            - execution_time: Execution time in seconds
-            - return_code: Return code (if applicable)
-        """
+        archive_b64 = self._build_input_archive()
+        files = {self._archive_input_name: archive_b64}
+        request = RunCodeRequest(
+            code=code,
+            language=language,
+            files=files,
+            fetch_files=[self._archive_output_name],
+            run_timeout=float(timeout_s or self.timeout_s),
+        )
         try:
-            result_obj = run_code(
-                RunCodeRequest(code=code, language=language or self.default_language, run_timeout=timeout_s or self.timeout_s),
+            response = run_code(
+                request,
                 client_timeout=timeout_s or self.timeout_s,
             )
-            
-            # Handle both Pydantic v1 (.dict()) and v2 (.model_dump())
-            if hasattr(result_obj, 'model_dump'):
-                result = result_obj.model_dump()
-            elif hasattr(result_obj, 'dict'):
-                result = result_obj.dict()
+            if hasattr(response, "model_dump"):
+                result = response.model_dump()
+            elif hasattr(response, "dict"):
+                result = response.dict()
             else:
-                # Fallback: try to convert to dict
-                result = dict(result_obj)
-
-            # Normalize response format
-            return {
-                "status": result.get("status", "unknown"),
-                "stdout": result.get("stdout", ""),
-                "stderr": result.get("stderr", ""),
-                "execution_time": result.get("execution_time", 0),
-                "return_code": result.get("return_code", 0),
-                "raw": result,  # Keep raw response for debugging
-            }
+                result = response  # type: ignore[assignment]
         except requests.exceptions.RequestException as e:
             return {
                 "status": "error",
@@ -570,16 +641,49 @@ class SandboxFusionExecutor(SandboxExecutor):
                 "raw": {},
             }
 
+        files_out = result.get("files", {}) or {}
+        output_b64 = files_out.get(self._archive_output_name, "")
+        self._apply_output_archive(output_b64)
+
+        run_result = result.get("run_result") or {}
+        return {
+            "status": result.get("status", "unknown"),
+            "stdout": run_result.get("stdout", ""),
+            "stderr": run_result.get("stderr", ""),
+            "execution_time": run_result.get("execution_time", 0),
+            "return_code": run_result.get("return_code", 0),
+            "returncode": run_result.get("return_code", 0),
+            "raw": result,
+        }
+
     def execute_bash(
         self, command: str, timeout_s: Optional[int] = None
     ) -> Dict[str, Any]:
-        result = self.run_code(command, "bash", timeout_s=timeout_s)
+        wrapped = "\n".join(
+            [
+                "set -e",
+                f"if [ -f {self._archive_input_name} ]; then tar -xzf {self._archive_input_name}; fi",
+                command,
+                f"tar -czf {self._archive_output_name} --warning=no-file-changed --warning=no-file-removed --ignore-failed-read --exclude={self._archive_output_name} --exclude={self._archive_input_name} .",
+            ]
+        )
+        result = self._run_remote(wrapped, language="bash", timeout_s=timeout_s)
         return result  # type: ignore[return-value]
 
     def execute_python(
         self, code: str, timeout_s: Optional[int] = None
     ) -> Dict[str, Any]:
-        result = self.run_code(code, "python_runner", timeout_s=timeout_s)
+        wrapped = "\n".join(
+            [
+                "set -e",
+                f"if [ -f {self._archive_input_name} ]; then tar -xzf {self._archive_input_name}; fi",
+                "python - <<'PY'",
+                code,
+                "PY",
+                f"tar -czf {self._archive_output_name} --warning=no-file-changed --warning=no-file-removed --ignore-failed-read --exclude={self._archive_output_name} --exclude={self._archive_input_name} .",
+            ]
+        )
+        result = self._run_remote(wrapped, language="bash", timeout_s=timeout_s)
         return result  # type: ignore[return-value]
 
     def execute_search(self, query: str, max_results: int = 5) -> List[Dict[str, str]]:
@@ -595,10 +699,10 @@ class CodeExecutor:
 
     # ---------- low-level runners ----------
     def run_command(self, command: str, *, timeout_s: int = 30) -> Dict[str, Any]:
-        return self.executor.run_code(command, language="bash", timeout_s=timeout_s)
+        return self.executor._run_remote(command, language="bash", timeout_s=timeout_s)
 
     def run_code(self, code: str, *, language: str = "python", timeout_s: int = 30) -> Dict[str, Any]:
-        return self.executor.run_code(code, language=language, timeout_s=timeout_s)
+        return self.executor._run_remote(code, language=language, timeout_s=timeout_s)
 
     # ---------- helpers ----------
     @staticmethod

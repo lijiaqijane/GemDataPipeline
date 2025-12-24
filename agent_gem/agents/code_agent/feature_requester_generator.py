@@ -195,7 +195,6 @@ class FeatureRequestGenerator:
         source_code: str,
         file_path: str,
         max_tokens: int = 4000,
-        temperature: float = 0.7,
         code_executor=None,
         max_retries: int = 3,
         target_function_name: Optional[str] = None,
@@ -211,7 +210,6 @@ class FeatureRequestGenerator:
             source_code: Source code content
             file_path: Path to the file in the repository
             max_tokens: Max tokens for LLM
-            temperature: LLM temperature
             code_executor: Optional CodeExecutor for validation
             max_retries: Maximum number of retry attempts per stage
             
@@ -228,7 +226,7 @@ class FeatureRequestGenerator:
                 
                 # Generate feature request + issue
                 deletion, issue = self._generate_feature_request_and_issue(
-                    metadata, source_code, file_path, max_tokens, temperature, code_executor,
+                    metadata, source_code, file_path, max_tokens, code_executor,
                     target_function_name=target_function_name
                 )
                 
@@ -299,7 +297,7 @@ class FeatureRequestGenerator:
                 
                 # Generate tests based on function specification (with feedback from previous attempts)
                 test = self._generate_test_for_deleted_function(
-                    deletion, metadata, source_code, file_path, max_tokens, temperature,
+                    deletion, metadata, source_code, file_path, max_tokens,
                     feedback_history=feedback_history if feedback_history else None
                 )
                 
@@ -426,7 +424,6 @@ class FeatureRequestGenerator:
         source_code: str,
         file_path: str,
         max_tokens: int = 2000,
-        temperature: float = 0.7,
         code_executor=None,
         target_function_name: Optional[str] = None,
     ) -> tuple[Optional[FunctionDeletionInfo], Optional[IssueInfo]]:
@@ -484,7 +481,6 @@ Generate only valid JSON."""
         try:
             response = self.llm.chat_completion(
                 [{"role": "user", "content": prompt}],
-                temperature=temperature,
                 max_tokens=max_tokens,
             )
             
@@ -639,8 +635,7 @@ Generate JSON with:
 
             response = self.llm.chat_completion(
                 [{"role": "user", "content": hints_prompt}],
-                temperature=0.7,
-                max_tokens=2000,
+                max_tokens=2048,
             )
             
             response = extract_json_from_response(response)
@@ -787,7 +782,6 @@ Generate JSON with:
         source_code: str,
         file_path: str,
         max_tokens: int = 4000,
-        temperature: float = 0.7,
         feedback_history: Optional[List[dict]] = None,
     ) -> Optional[TestInfo]:
         """Generate test code for a deleted function (Stage 2)."""
@@ -876,7 +870,6 @@ Respond with JSON (properly escaped):
             try:
                 response = self.llm.chat_completion(
                     [{"role": "user", "content": prompt}],
-                    temperature=temperature,
                     max_tokens=max_tokens,
                 )
                 

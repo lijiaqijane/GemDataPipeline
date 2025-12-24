@@ -57,7 +57,6 @@ class CodeAgent(BaseAgent):
         # Extract configuration values
         self.taskdb_root = config.taskdb_root
         self.max_tokens = config.max_tokens
-        self.temperature = config.temperature
         self.auto_save = config.auto_save
         self.save_logs = config.save_logs
         
@@ -172,7 +171,6 @@ class CodeAgent(BaseAgent):
                 result = self.task_generator.generate_feature_request_with_issue_and_tests(
                     metadata, code, target_file_path,
                     max_tokens=self.max_tokens,
-                    temperature=self.temperature,
                     code_executor=self.code_executor,
                     max_retries=5,
                     target_function_name=target_function_name
@@ -435,10 +433,10 @@ Location: Lines {deletion.line_start}-{deletion.line_end}
         """Clone repository in sandbox with retry mechanism."""
         if not self.code_executor:
             return False
-        
         dest_path = "/workspace/repo"
         cmd = f"rm -rf {dest_path} && git clone --depth 1 {repo_url} {dest_path}"
         cloned = False
+        
         for _ in range(max_retries):
             clone_result = self.code_executor.run_command(cmd, timeout_s=300)
             if self.code_executor._is_success(clone_result):
