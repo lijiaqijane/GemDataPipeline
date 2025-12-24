@@ -295,8 +295,7 @@ def _handle_synthesize(args: argparse.Namespace) -> None:
 
 def _handle_batch(args: argparse.Namespace) -> None:
     """Handle batch command for generating tasks from triples or specific repo/file/function."""
-    from agent_gem.agents.code_agent import CodeAgent
-    from agent_gem.agents.triple_generator import TripleGenerator
+    from agent_gem.agents import CodeAgent, TripleGenerator
     from agent_gem.config import CodeAgentConfig
     
     print("\n" + "=" * 80)
