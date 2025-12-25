@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import List, Tuple
@@ -107,15 +108,15 @@ class VerifierMixin(PromptMixin):
                 is_correct=False,
                 verification_evidence=[],
             )
-
-        context = "\n\n".join(search_context)
+        # breakpoint()
+        context = json.dumps(search_context)
         prompt = self.VERIFICATION_PROMPT.format(question=question, answer=answer, context=context)
 
         try:
             messages = [
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant that verifies answers.",
+                    "content": self.SYSTEM_PROMPT,
                 },
                 {"role": "user", "content": prompt},
             ]

@@ -28,6 +28,7 @@ class GenerationRequest:
     seed_tools: Optional[List[ToolSpec]] = None
     max_tokens: int = 10000  # Maximum tokens for LLM generation
     domain: Optional[List[str]] = None
+    num_domains: int = 10
     num_entities_each_domain: int = 1
     num_tasks_each_entity: int = 1
     num_answer_agent: int = 1

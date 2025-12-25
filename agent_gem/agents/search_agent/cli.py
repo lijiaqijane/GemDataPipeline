@@ -27,8 +27,14 @@ def add_search_synthesize_subparser(
     search_parser.add_argument(
         "--domain",
         nargs="+",
-        required=True,
+        required=False,
         help="Domain(s) to search for entities (can specify multiple)",
+    )
+    search_parser.add_argument(
+        "--num_domains",
+        type=int,
+        default=10,
+        help="Number of domains to search for entities",
     )
     search_parser.add_argument(
         "--num_entities_each_domain",
@@ -47,18 +53,6 @@ def add_search_synthesize_subparser(
         type=int,
         default=1,
         help="Number of answer agents to use",
-    )
-    search_parser.add_argument(
-        "--search_depth",
-        type=int,
-        default=1,
-        help="Search depth for each entity",
-    )
-    search_parser.add_argument(
-        "--search_breadth",
-        type=int,
-        default=1,
-        help="Search breadth for each entity",
     )
     search_parser.add_argument(
         "--require_all_incorrect",
@@ -88,11 +82,10 @@ def handle_search_synthesize(args: argparse.Namespace) -> None:
         request = GenerationRequest(
             agent_type="search_agent",
             domain=args.domain,
+            num_domains=args.num_domains,
             num_entities_each_domain=args.num_entities_each_domain,
             num_tasks_each_entity=args.num_tasks_each_entity,
             num_answer_agent=args.num_answer_agent,
-            search_depth=args.search_depth,
-            search_breadth=args.search_breadth,
             require_all_incorrect=args.require_all_incorrect,
         )
 

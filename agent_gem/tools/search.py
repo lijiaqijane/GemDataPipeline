@@ -38,8 +38,8 @@ class SearchTool(BaseTool):
         self.bash_runner = bash_runner
         self._cache_lock = threading.Lock()
 
-    def execute(self, query: str, max_results: int = 5, page: int = 1) -> list[dict[str, str]]:
-        if page != 1:
+    def execute(self, query: str, max_results: int = 5, depth: int = 1) -> list[dict[str, str]]:
+        if depth != 1:
             is_cached = False
         else:
             is_cached = True
@@ -58,7 +58,7 @@ class SearchTool(BaseTool):
                 results = self._execute_in_sandbox(query, max_results)
             else:
                 url = "https://google.serper.dev/search"
-                payload = {"q": query, "page": page}
+                payload = {"q": query, "page": depth}
                 headers = {
                     "X-API-KEY": self.api_key,
                     "Content-Type": "application/json",

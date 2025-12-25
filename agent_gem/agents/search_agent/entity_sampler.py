@@ -64,10 +64,12 @@ class EntitySamplerMixin(PromptMixin):
 
         # Step 1: Initial sampling from each domain
         for domain in domains:
-            logger.debug(f"Sampling entities from domain: {domain}")
+            logger.debug(f"Sampling {num_entities_each_domain} entities from domain: {domain}")
             domain_entities = self._sample_domain_entities(
                 llm, tools, tool_call_map, domain, num_entities_each_domain
             )
+            if not domain_entities:
+                continue
             entities.extend(domain_entities)
             logger.info(f"Sampled {len(domain_entities)} entities from domain: {domain}")
 
@@ -105,19 +107,18 @@ class EntitySamplerMixin(PromptMixin):
         Returns:
             List of Entity objects from the specified domain
         """
-        prompt = self.ENTITY_SAMPLER_PROMPT.format(
-            num_entities_each_domain=num_entities_each_domain, domain=domain
-        )
         try:
             messages = [
                 {
                     "role": "system",
-                    "content": (
-                        "You are a helpful assistant that generates informative "
-                        "long-tail entities from diverse domains."
+                    "content": self.SYSTEM_PROMPT,
+                },
+                {
+                    "role": "user",
+                    "content": self.ENTITY_SAMPLER_PROMPT.format(
+                        num_entities_each_domain=num_entities_each_domain, domain=domain
                     ),
                 },
-                {"role": "user", "content": prompt},
             ]
 
             response, search_context = llm.chat_with_agent(
@@ -135,14 +136,7 @@ class EntitySamplerMixin(PromptMixin):
             logger.error(f"Error sampling entities from domain {domain}: {e}")
             # Fallback: generate simple placeholder entities
             logger.warning(f"Using fallback entities for domain: {domain}")
-            return [
-                Entity(
-                    name=f"{domain}_entity_{i}",
-                    domain=domain,
-                    description=f"Sample entity from {domain} domain",
-                )
-                for i in range(num_entities_each_domain)
-            ]
+            return None
 
     def _parse_entity_response(self, response: str, domain: str) -> List[Entity]:
         """Parse LLM response into Entity objects.
@@ -176,7 +170,7 @@ class EntitySamplerMixin(PromptMixin):
                         if name:
                             entities.append(
                                 Entity(
-                                    name=name[:100],  # Limit length to prevent issues
+                                    name=name,  # Limit length to prevent issues
                                     domain=domain,
                                     description=description or f"Entity from {domain}",
                                 )

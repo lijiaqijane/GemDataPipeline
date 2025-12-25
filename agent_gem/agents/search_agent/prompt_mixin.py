@@ -9,9 +9,45 @@ class PromptMixin:
     answer verification, and webpage summarization.
     """
 
+    SYSTEM_PROMPT = """You are DeepSeek, an AI assistant created by DeepSeek Company. Your purpose is to provide helpful, accurate, and engaging assistance to users.
+
+**Core Guidelines:**
+1. **Helpfulness**: Prioritize being genuinely useful. Provide thorough, thoughtful responses that address the user's actual needs.
+2. **Accuracy**: Be precise and factually correct. Acknowledge uncertainties and avoid speculation when lacking information.
+3. **Clarity**: Express ideas in clear, well-structured language. Adapt your communication style to match the user's needs.
+4. **Engagement**: Be warm, friendly, and approachable while maintaining professionalism.
+
+**Response Style:**
+- Use natural, conversational English
+- Break down complex topics into digestible parts
+- Include relevant examples when helpful
+- Maintain appropriate tone for the context (casual, professional, technical, etc.)
+
+**Knowledge & Capabilities:**
+- You have knowledge up to July 2024
+- You support file uploads (images, txt, pdf, ppt, word, excel) and can process text content from these files
+- You have web search capabilities when enabled by the user
+- You have a 128K context window for handling long conversations
+
+**Ethical Framework:**
+- Prioritize user safety and well-being
+- Respect privacy and confidentiality
+- Avoid harmful, unethical, or illegal content
+- Maintain neutrality on sensitive topics while providing factual information
+- Decline requests that violate ethical guidelines
+
+**When Users Need Specialized Help:**
+- Technical questions: Provide detailed, accurate explanations
+- Creative tasks: Offer imaginative but coherent suggestions
+- Analysis: Present balanced, evidence-based perspectives
+- Learning support: Explain concepts at appropriate difficulty levels
+
+Remember: Your goal is to be the most helpful AI assistant possible within ethical boundaries. Build rapport, understand context, and provide value in every interaction.
+"""
+
     SUMMARY_PROMPT = """Please process the following webpage content and user goal to extract relevant information:
 
-## **Webpage Content** 
+## **Webpage Content**
 {webpage_content}
 
 ## **User Goal**
@@ -22,57 +58,63 @@ class PromptMixin:
 2. **Key Extraction for Evidence**: Identify and extract the **most relevant information** from the content, you never miss any important information, output the **full original context** of the content as far as possible, it can be more than three paragraphs.
 3. **Summary Output for Summary**: Organize into a concise paragraph with logical flow, prioritizing clarity and judge the contribution of the information to the goal.
 
-**Final Output Format using JSON format has "rational", "evidence", "summary" feilds**
+**Final Output Format using JSON format has "rational", "evidence", "summary" fields**
 """
 
     QUESTION_CONSTRUCTOR_PROMPT = """# Goal
-Generate a question where the answer is {entity_name}, but the constraints used in the question are broad enough that no single constraint reveals the answer immediately. The answer must only be findable by intersecting all constraints.** You should use the fewest constraints as long as these constraints can determine the answer.**
+Generate a complex question where the answer is {entity_name}. The answer must be derived strictly from the provided text.
+The question must rely on intersecting constraints found ONLY within the source text. **External knowledge is strictly PROHIBITED.**
 
-The information you can only use is the entity_info and context, you can not use any other information.
 # Information Context
 {entity_info}
 
 {context}
 
+# Strict Context Adherence Rules (CRITICAL)
+1. **Source of Truth**: You must assume you have NO knowledge of the world outside of the provided information context.
+2. **Fact Verification**: Every constraint, attribute, date, or relationship you mention in the question must be **explicitly present** in the text.
+3. **No Hallucination**: If the text does not mention a specific year, role, or relationship, DO NOT invent it or retrieve it from your pre-training data. If the context is insufficient to form a complex question, use the available information to make the best possible question without adding external facts.
+
 # Question Design Principles
-1. **Attribute Substitution**: Instead of naming a related entity, describe its properties. (e.g., Instead of "Company X," use "The company founded in [Year] by a former [Role] at [Company Y]").
+1. **Context-Based Attribute Substitution**: Instead of naming a related entity, describe its properties **using only descriptions found in the text**. (e.g., If the text says "Apple released the iPhone", do not refer to Apple as "The company founded by Steve Jobs" unless "Steve Jobs" is mentioned in the text. Instead, use "The company that released the iPhone").
 2. **The "No-Shortcut" Rule**: A user should NOT be able to find the answer by searching for just one of the constraints.
-3. **Broad to Specific**: Use ranges (e.g., "between 2010 and 2015"), geographic regions, or general categories to keep the initial search broad.
-4. **Inter-Entity Relationships**: Link the Target Entity to other entities via non-obvious relationships (e.g., "The CEO of the vendor that supplied the hardware for [Project]").
-5. **Multi-constraint design**: Each question combines temporal, spatial, categorical, or descriptive conditions to ensure answer uniqueness; not all conditions are required, but at least two dimensions are typically combined.
+3. **Broad to Specific**: Use ranges or categories mentioned in the text to keep the search broad initially.
+4. **Inter-Entity Relationships**: Link the Target Entity to other entities via relationships **explicitly defined in the text**.
+5. **Multi-constraint design**: Combine temporal, spatial, or descriptive conditions found in the text to ensure answer uniqueness.
 
 # Output Format
 You must respond ONLY with a JSON object containing the following keys:
-- "question": The generated multi-hop question.
+- "question": The generated multi-hop question based strictly on the context.
 - "answer": The specific entity/title.
 - "constraints": A list of the specific constraints used.
-- "reasoning_chain": A brief explanation of why this requires cross-referencing.
+- "reasoning_chain": A step-by-step explanation citing exactly which sentences in the text support each constraint.
 
 Example structure:
 {{
 "question": "...",
 "answer": "...",
 "constraints": ["..."],
-"reasoning_chain": "Explain why this requires cross-referencing."
+"reasoning_chain": "Constraint A comes from sentence X; Constraint B comes from sentence Y. Intersection leads to Answer."
 }}
 """
 
-    EXAMINE_CONTEXT_RELEVANCE_PROMPT = """You should examine the context and determine if it is relevant to the entity.
+    EXAMINE_CONTEXT_RELEVANCE_PROMPT = """Identify {num_entities_each_domain} distinct, informative, and verifiable "long-tail" entities within the {domain} domain.
 
-## **Context**
-{context}
+Selection Criteria:
+1. **Obscurity**: The entity should not be general knowledge (avoid top-tier famous examples).
+2. **Searchability**: The entity must exist and have verifiable details available online (e.g., scientific papers, historical records, specific news events).
+3. **Complexity**: The entity should involve enough depth to warrant a search query (e.g., a specific algorithm, a rare historical event, a specialized biological species).
 
-## **Entity**
-{entity}
+Output Requirement:
+Return strictly a valid JSON array containing objects with "name" and "description". Do not include markdown formatting or explanations.
 
-## Output Format
-You must respond ONLY with a JSON object containing the following keys:
-- "is_relevant": True if the context is relevant to the entity, False otherwise.
-
-Example structure:
-{{
-"is_relevant": True or False
-}}
+Example format:
+[
+  {{
+    "name": "Pando (tree colony)",
+    "description": "A clonal colony of an individual male quaking aspen determined to be a single living organism by identical genetic markers and assumed to have one massive underground root system."
+  }}
+]
 """
 
     VERIFICATION_PROMPT = """Perform a comprehensive verification of the answer.
@@ -90,23 +132,67 @@ Format:
 Correct: [YES/NO]
 """
 
-    ENTITY_SAMPLER_PROMPT = """Generate a list of {num_entities_each_domain} informative long-tail entities from the {domain} domain.
-These should be specific, less commonly known entities that would benefit from search-based exploration.
-For each entity, provide:
-1. Entity name
-2. Brief description
+    ENTITY_SAMPLER_PROMPT = """Identify {num_entities_each_domain} distinct, informative, and verifiable "long-tail" entities within the {domain} domain.
 
-Format as JSON array with keys: name, description
+Selection Criteria:
+1. **Obscurity**: The entity should not be general knowledge (avoid top-tier famous examples).
+2. **Searchability**: The entity must exist and have verifiable details available online (e.g., scientific papers, historical records, specific news events).
+3. **Complexity**: The entity should involve enough depth to warrant a search query (e.g., a specific algorithm, a rare historical event, a specialized biological species).
 
-For example:
+Output Requirement:
+Return strictly a valid JSON array containing objects with "name" and "description". Do not include markdown formatting or explanations.
+
+Example format:
 [
-{{
+  {{
     "name": "Pando (tree colony)",
-    "description": "A quaking aspen colony in Utah believed to be one of the oldest and heaviest living organisms.",
-}},
-{{
-    "name": "Turritopsis dohrnii",
-    "description": "A species of jellyfish known as the 'immortal jellyfish' because it can revert to its juvenile form.",
-}}
+    "description": "A clonal colony of an individual male quaking aspen determined to be a single living organism by identical genetic markers and assumed to have one massive underground root system."
+  }}
 ]
+"""
+
+    RETRIEVE_CONTEXT_PROMPT = """# Role
+You are an Efficient Data Miner. Your goal is to identify **{entity_name}** and extract a "Composite Fingerprint" consisting of **4-5 distinct, obscure constraints** in a single workflow.
+
+# Efficiency Protocol (Single-Shot Strategy)
+To avoid multiple tool loops, you must find a **"High-Density Source"**.
+1.  **Search**: Do NOT search for generic summaries. Construct a single, complex query to find a document containing lists, tables, appendices, or technical logs.
+    * *Query Strategy*: `"{entity_name}" AND ("specifications" OR "appendix" OR "census data" OR "logistics" OR "chronology") -site:wikipedia.org`
+2.  **Visit**: Enter the most promising link.
+3.  **Extract**: Find **4 to 5** specific data points that act as "hard constraints" (unique identifiers).
+
+# Extraction Criteria (The 4-5 Constraints)
+You must find facts that belong to different categories (e.g., 1 Date, 1 Number, 1 ID Code, 1 Physical Attribute).
+* *Bad:* "It is very old." (Too vague)
+* *Good:* "Built in 1894; Soil pH 6.5; Census ID 40221; Located 4 miles north of the river." (Specific)
+
+# Final Output Format
+Return the result strictly in the following JSON format.
+**Crucial**: Consolidate all 4-5 facts into the single `obscure_info` string, separated by semicolons or numbered.
+
+```json
+{{
+  "entity_name": "{entity_name}",
+  "obscure_info": "1. [Type]: Specific Fact A; 2. [Type]: Specific Fact B; 3. [Type]: Specific Fact C; 4. [Type]: Specific Fact D; 5. [Type]: Specific Fact E",
+  "source_url": "The single URL where these facts were found",
+  "is_common_knowledge": false
+}}
+```
+"""
+
+    DOMAIN_SAMPLER_PROMPT = """Task: Generate a strictly numbered list of exactly {num_domains} distinct, specific domains.
+
+Constraints:
+1. QUANTITY: The output list must contain EXACTLY {num_domains} items. Do not stop early. Do not generate extra.
+2. SPECIFICITY: Use specific sub-fields.
+3. FORMAT: Return ONLY a valid JSON array of strings.
+
+Example Output (if num_domains=3):
+[
+    "Sub-field A",
+    "Sub-field B",
+    "Sub-field C"
+]
+
+Your Output (Quantity: {num_domains}):
 """

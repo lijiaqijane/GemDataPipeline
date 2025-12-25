@@ -166,6 +166,7 @@ class LLMClient:
         tool_call_map: Dict[str, str],
         temperature: float = 0.7,
         max_tokens: int = 512,
+        max_sub_turns: int = 20,
     ) -> str:
         """Call chat completion with thinking and tools."""
         search_content = []
@@ -190,7 +191,7 @@ class LLMClient:
 
             print(f"Turn {sub_turn}\n{reasoning_content=}\n{content=}\n{tool_calls=}")
 
-            if tool_calls is None or sub_turn >= 30:
+            if tool_calls is None or sub_turn >= max_sub_turns:
                 break
             for tool in tool_calls:
                 tool_function = tool_call_map[tool.function.name]
