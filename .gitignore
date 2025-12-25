@@ -22,6 +22,7 @@ dist/
 
 # Generated data
 taskdb/
+sandbox/
 
 # Python
 __pycache__/
@@ -47,5 +48,4 @@ venv/
 docs/
 run.sh
 task_category.json
-taskdb/
-sandbox/
+
