@@ -46,8 +46,6 @@ venv/
 *.log
 docs/
 run.sh
-<<<<<<< HEAD
 task_category.json
-=======
 taskdb/
->>>>>>> 5b419238ba64cb1c2d089ab499732f487be75410
+sandbox/

@@ -1,2 +1,2 @@
-access_status,error_code,error_message,platform,security_message,content_available
-blocked,403,Forbidden,medium.com,Verify you are human by completing the action below.,False
+error_code,security_message,platform,favicon_url
+403,medium.com needs to review the security of your connection before proceeding,medium.com,https://medium.com/favicon.ico

@@ -3,335 +3,281 @@ import sqlite3
 import csv
 import random
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-import re
-
-# Fallback shim if mcp is not available
-try:
-    import mcp
-except ImportError:
-    # Create a minimal identity decorator as fallback
-    class MockMCP:
-        @staticmethod
-        def tool(func):
-            return func
-    mcp = MockMCP()
+from typing import List, Dict, Any
+import mcp
 
 # Set seed for deterministic behavior
 random.seed(0)
 
-# Get absolute base directory
+# Base directory for absolute paths
 BASE_DIR = Path(__file__).parent
 
-@mcp.tool
-def search_debugging_articles(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-    """Search through debugging articles in records.json for relevant content."""
-    results = []
-    records_path = BASE_DIR / "records.json"
-    
-    if not records_path.exists():
-        return [{"error": f"records.json not found at {records_path}"}]
-    
-    try:
-        with open(records_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        if not isinstance(data, list):
-            return [{"error": "records.json does not contain a list"}]
-        
-        query_lower = query.lower()
-        
-        for item in data:
-            score = 0
-            matched_fields = []
-            
-            # Check title
-            if 'title' in item and item['title']:
-                title_lower = item['title'].lower()
-                if query_lower in title_lower:
-                    score += 3
-                    matched_fields.append('title')
-            
-            # Check summary
-            if 'summary' in item and item['summary']:
-                summary_lower = item['summary'].lower()
-                if query_lower in summary_lower:
-                    score += 2
-                    matched_fields.append('summary')
-            
-            # Check clean_content
-            if 'clean_content' in item and item['clean_content']:
-                content_lower = item['clean_content'].lower()
-                if query_lower in content_lower:
-                    score += 1
-                    matched_fields.append('clean_content')
-            
-            # Check real_data_samples for approach steps
-            if 'real_data_samples' in item and item['real_data_samples']:
-                for sample in item['real_data_samples']:
-                    if isinstance(sample, dict):
-                        for key, value in sample.items():
-                            if isinstance(value, str) and query_lower in value.lower():
-                                score += 1
-                                matched_fields.append(f'real_data_samples.{key}')
-            
-            if score > 0:
-                result = {
-                    'title': item.get('title', ''),
-                    'summary': item.get('summary', ''),
-                    'url': item.get('url', ''),
-                    'source': item.get('source', ''),
-                    'score': score,
-                    'matched_fields': list(set(matched_fields))
-                }
-                
-                # Add real_data_samples if available
-                if 'real_data_samples' in item and item['real_data_samples']:
-                    result['real_data_samples'] = item['real_data_samples'][:2]  # Limit samples
-                
-                results.append(result)
-        
-        # Sort by score descending
-        results.sort(key=lambda x: x['score'], reverse=True)
-        
-        # Limit results
-        return results[:max_results]
-        
-    except Exception as e:
-        return [{"error": f"Error reading records.json: {str(e)}"}]
+# Data source paths
+CSV_PATHS = {
+    "go_memory_leak": BASE_DIR / "data" / "deep-dive-into-go-memory-leak-debugging-.csv",
+    "debugging_strategies": BASE_DIR / "data" / "effective-strategies-for-debugging-compl.csv",
+    "backend_guide": BASE_DIR / "data" / "debugging-complex-backend-code-a-step-by.csv",
+    "codebases_guide": BASE_DIR / "data" / "debugging-complex-codebases-a-comprehens.csv",
+    "code_flows": BASE_DIR / "data" / "how-to-remember-the-code-flows-in-a-comp.csv"
+}
+
+JSON_PATHS = {
+    "records": BASE_DIR / "records.json",
+    "search_cache": BASE_DIR / "search_cache.json"
+}
+
+SQLITE_PATH = BASE_DIR / "data" / "datasets_metadata.db"
 
 @mcp.tool
-def query_debugging_datasets(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-    """Query the SQLite database for debugging datasets metadata."""
+def search_debugging_techniques(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    """Search CSV files for debugging techniques, symptoms, and fixes."""
     results = []
-    db_path = BASE_DIR / "data" / "datasets_metadata.db"
     
-    if not db_path.exists():
-        return [{"error": f"Database not found at {db_path}"}]
-    
-    try:
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        # Search in datasets table
-        query_lower = query.lower()
-        
-        cursor.execute("SELECT * FROM datasets")
-        rows = cursor.fetchall()
-        
-        for row in rows:
-            row_dict = dict(row)
-            score = 0
-            matched_fields = []
-            
-            # Check name field
-            if 'name' in row_dict and row_dict['name']:
-                name_lower = row_dict['name'].lower()
-                if query_lower in name_lower:
-                    score += 2
-                    matched_fields.append('name')
-            
-            # Check source_url field
-            if 'source_url' in row_dict and row_dict['source_url']:
-                url_lower = row_dict['source_url'].lower()
-                if query_lower in url_lower:
-                    score += 1
-                    matched_fields.append('source_url')
-            
-            if score > 0:
-                result = {
-                    'id': row_dict.get('id'),
-                    'name': row_dict.get('name', ''),
-                    'source_url': row_dict.get('source_url', ''),
-                    'has_real_data': bool(row_dict.get('has_real_data', 0)),
-                    'record_count': row_dict.get('record_count', 0),
-                    'created_at': row_dict.get('created_at', ''),
-                    'score': score,
-                    'matched_fields': matched_fields
-                }
-                results.append(result)
-        
-        conn.close()
-        
-        # Sort by score descending
-        results.sort(key=lambda x: x['score'], reverse=True)
-        
-        # Limit results
-        return results[:max_results]
-        
-    except Exception as e:
-        return [{"error": f"Error querying database: {str(e)}"}]
-
-@mcp.tool
-def search_csv_debugging_data(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-    """Search through CSV files for debugging-related data."""
-    results = []
-    query_lower = query.lower()
-    
-    # Define CSV files to search
-    csv_files = [
-        BASE_DIR / "data" / "debugging-complex-backend-code-a-step-by.csv",
-        BASE_DIR / "data" / "debugging-complex-issues-in-your-code-ca.csv",
-        BASE_DIR / "data" / "how-to-approach-debugging-a-huge-not-so-.csv",
-        BASE_DIR / "data" / "debugging-complex-codebases-a-comprehens.csv",
-        BASE_DIR / "data" / "what-approaches-work-best-for-debugging-.csv"
-    ]
-    
-    for csv_file in csv_files:
-        csv_path = BASE_DIR / csv_file
-        
-        if not csv_path.exists():
-            continue
-        
+    # Search go memory leak CSV
+    if CSV_PATHS["go_memory_leak"].exists():
         try:
-            with open(csv_path, 'r', encoding='utf-8') as f:
+            with open(CSV_PATHS["go_memory_leak"], 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
-                
-                for i, row in enumerate(reader):
-                    if i >= max_results * 2:  # Read slightly more than needed
-                        break
-                    
-                    score = 0
-                    matched_fields = []
-                    
-                    for key, value in row.items():
-                        if value and query_lower in value.lower():
-                            score += 1
-                            matched_fields.append(key)
-                    
-                    if score > 0:
-                        result = {
-                            'source_file': csv_file,
-                            'row_number': i + 1,
-                            'data': row,
-                            'score': score,
-                            'matched_fields': matched_fields
-                        }
-                        results.append(result)
-                        
-        except Exception as e:
-            results.append({
-                'error': f"Error reading {csv_file}: {str(e)}",
-                'source_file': csv_file
-            })
-    
-    # Sort by score descending
-    results.sort(key=lambda x: x.get('score', 0), reverse=True)
-    
-    # Limit results
-    return results[:max_results]
-
-@mcp.tool
-def get_debugging_approaches(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
-    """Extract structured debugging approaches from the data."""
-    results = []
-    query_lower = query.lower()
-    
-    # First, try to get approaches from records.json
-    records_path = BASE_DIR / "records.json"
-    
-    if records_path.exists():
-        try:
-            with open(records_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            for item in data:
-                # Look for items with real_data_samples containing approach steps
-                if 'real_data_samples' in item and item['real_data_samples']:
-                    for sample in item['real_data_samples']:
-                        if isinstance(sample, dict) and 'approach_step' in sample:
-                            step_text = sample.get('approach_step', '')
-                            description = sample.get('step_description', '')
-                            
-                            # Calculate relevance score
-                            score = 0
-                            if query_lower in step_text.lower():
-                                score += 2
-                            if query_lower in description.lower():
-                                score += 1
-                            
-                            if score > 0 or query == "":
-                                result = {
-                                    'approach_step': step_text,
-                                    'step_description': description,
-                                    'tools_mentioned': sample.get('tools_mentioned', []),
-                                    'sub_steps': sample.get('sub_steps', []),
-                                    'content_completeness': sample.get('content_completeness', ''),
-                                    'source_title': item.get('title', ''),
-                                    'score': score
-                                }
-                                results.append(result)
-                                
-        except Exception:
-            pass
-    
-    # Also check the specific CSV file for approach steps
-    csv_path = BASE_DIR / "data" / "debugging-complex-issues-in-your-code-ca.csv"
-    
-    if csv_path.exists():
-        try:
-            with open(csv_path, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                
                 for row in reader:
-                    step_text = row.get('approach_step', '')
-                    description = row.get('step_description', '')
-                    
-                    if step_text or description:
-                        score = 0
-                        if query_lower in step_text.lower():
-                            score += 2
-                        if query_lower in description.lower():
-                            score += 1
-                        
-                        if score > 0 or query == "":
-                            result = {
-                                'approach_step': step_text,
-                                'step_description': description,
-                                'tools_mentioned': eval(row.get('tools_mentioned', '[]')) if row.get('tools_mentioned') else [],
-                                'sub_steps': eval(row.get('sub_steps', '[]')) if row.get('sub_steps') else [],
-                                'content_completeness': row.get('content_completeness', ''),
-                                'source_file': BASE_DIR / 'debugging-complex-issues-in-your-code-ca.csv',
-                                'score': score
-                            }
-                            results.append(result)
-                            
-        except Exception:
+                    # Check if query matches any field
+                    matches = any(
+                        query.lower() in str(value).lower() 
+                        for value in row.values()
+                    )
+                    if matches:
+                        results.append({
+                            "source": "go_memory_leak_debugging",
+                            "symptom": row.get("symptom", ""),
+                            "possible_cause": row.get("possible_cause", ""),
+                            "quick_fix": row.get("quick_fix", ""),
+                            "data_type": "csv"
+                        })
+        except Exception as e:
             pass
     
-    # Sort by score descending
-    results.sort(key=lambda x: x['score'], reverse=True)
+    # Search debugging strategies CSV
+    if CSV_PATHS["debugging_strategies"].exists():
+        try:
+            with open(CSV_PATHS["debugging_strategies"], 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    matches = any(
+                        query.lower() in str(value).lower() 
+                        for value in row.values()
+                    )
+                    if matches:
+                        results.append({
+                            "source": "debugging_strategies",
+                            "title": row.get("title", ""),
+                            "published_time": row.get("published_time", ""),
+                            "tracking_image_count": row.get("tracking_image_count", ""),
+                            "sample_tracking_url": row.get("sample_tracking_url", ""),
+                            "parameters_present": row.get("parameters_present", ""),
+                            "data_type": "csv"
+                        })
+        except Exception as e:
+            pass
     
     # Limit results
     return results[:max_results]
 
 @mcp.tool
-def submit_result(result) -> Dict[str, Any]:
-    """Submit a result and persist it to submitted_result.json."""
+def query_articles_metadata(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    """Query the SQLite database for article metadata and search JSON records."""
+    results = []
+    
+    # Query SQLite database
+    if SQLITE_PATH.exists():
+        try:
+            conn = sqlite3.connect(str(SQLITE_PATH))
+            cursor = conn.cursor()
+            
+            # Search datasets table
+            cursor.execute("""
+                SELECT id, name, source_url, has_real_data, record_count, created_at 
+                FROM datasets 
+                WHERE name LIKE ? OR source_url LIKE ?
+                LIMIT ?
+            """, (f'%{query}%', f'%{query}%', max_results))
+            
+            for row in cursor.fetchall():
+                results.append({
+                    "id": row[0],
+                    "title": row[1],
+                    "url": row[2],
+                    "has_real_data": bool(row[3]),
+                    "record_count": row[4],
+                    "created_at": row[5],
+                    "data_type": "sqlite"
+                })
+            
+            conn.close()
+        except Exception as e:
+            pass
+    
+    # Search records.json
+    if JSON_PATHS["records"].exists():
+        try:
+            with open(JSON_PATHS["records"], 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        # Check if query matches title, summary, or URL
+                        title = item.get("title", "")
+                        summary = item.get("summary", "")
+                        url = item.get("url", "")
+                        
+                        if (query.lower() in title.lower() or 
+                            query.lower() in summary.lower() or 
+                            query.lower() in url.lower()):
+                            
+                            result_item = {
+                                "title": title,
+                                "summary": summary,
+                                "url": url,
+                                "source": item.get("source", ""),
+                                "data_type": "json_records"
+                            }
+                            
+                            # Add real_data_samples if available
+                            real_samples = item.get("real_data_samples")
+                            if real_samples and isinstance(real_samples, list) and len(real_samples) > 0:
+                                result_item["sample_data"] = real_samples[0]
+                            
+                            results.append(result_item)
+        except Exception as e:
+            pass
+    
+    # Search search_cache.json
+    if JSON_PATHS["search_cache"].exists():
+        try:
+            with open(JSON_PATHS["search_cache"], 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        title = item.get("title", "")
+                        summary = item.get("summary", "")
+                        url = item.get("url", "")
+                        
+                        if (query.lower() in title.lower() or 
+                            query.lower() in summary.lower() or 
+                            query.lower() in url.lower()):
+                            
+                            results.append({
+                                "title": title,
+                                "summary": summary,
+                                "url": url,
+                                "data_type": "json_search_cache"
+                            })
+        except Exception as e:
+            pass
+    
+    return results[:max_results]
+
+@mcp.tool
+def get_error_patterns(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    """Extract error patterns and security messages from CSV files."""
+    results = []
+    
+    # Search backend guide CSV
+    if CSV_PATHS["backend_guide"].exists():
+        try:
+            with open(CSV_PATHS["backend_guide"], 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    error_code = row.get("error_code", "")
+                    security_msg = row.get("security_message", "")
+                    
+                    matches = (query.lower() in error_code.lower() or 
+                              query.lower() in security_msg.lower() or
+                              query.lower() in row.get("platform", "").lower())
+                    
+                    if matches:
+                        results.append({
+                            "source": "backend_debugging_guide",
+                            "error_code": error_code,
+                            "security_message": security_msg,
+                            "platform": row.get("platform", ""),
+                            "favicon_url": row.get("favicon_url", ""),
+                            "data_type": "csv"
+                        })
+        except Exception as e:
+            pass
+    
+    # Search codebases guide CSV
+    if CSV_PATHS["codebases_guide"].exists():
+        try:
+            with open(CSV_PATHS["codebases_guide"], 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    error_code = row.get("error_code", "")
+                    security_msg = row.get("security_message", "")
+                    
+                    matches = (query.lower() in error_code.lower() or 
+                              query.lower() in security_msg.lower() or
+                              query.lower() in row.get("platform", "").lower())
+                    
+                    if matches:
+                        results.append({
+                            "source": "codebases_debugging_guide",
+                            "error_code": error_code,
+                            "security_message": security_msg,
+                            "platform": row.get("platform", ""),
+                            "favicon_url": row.get("favicon_url", ""),
+                            "data_type": "csv"
+                        })
+        except Exception as e:
+            pass
+    
+    # Search code flows CSV
+    if CSV_PATHS["code_flows"].exists():
+        try:
+            with open(CSV_PATHS["code_flows"], 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    error_type = row.get("error_type", "")
+                    required_action = row.get("required_action", "")
+                    
+                    matches = (query.lower() in error_type.lower() or 
+                              query.lower() in required_action.lower() or
+                              query.lower() in row.get("login_url", "").lower())
+                    
+                    if matches:
+                        results.append({
+                            "source": "code_flows_reddit",
+                            "error_type": error_type,
+                            "required_action": required_action,
+                            "login_url": row.get("login_url", ""),
+                            "support_ticket_url": row.get("support_ticket_url", ""),
+                            "data_type": "csv"
+                        })
+        except Exception as e:
+            pass
+    
+    return results[:max_results]
+
+@mcp.tool
+def submit_result(result: Any) -> Any:
+    """Submit and persist a result to submitted_result.json."""
     output_path = BASE_DIR / "submitted_result.json"
     
     try:
-        # Ensure the result is serializable
-        if isinstance(result, (str, int, float, bool, type(None))):
-            data_to_save = {"result": result}
-        elif isinstance(result, (dict, list)):
-            data_to_save = result
+        # Convert result to JSON-serializable format if needed
+        if hasattr(result, 'dict'):
+            data = result.dict()
+        elif isinstance(result, (dict, list, str, int, float, bool, type(None))):
+            data = result
         else:
-            data_to_save = {"result": str(result)}
+            data = str(result)
         
         # Write to file
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(data_to_save, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False)
         
-        return {
-            "status": "success",
-            "message": f"Result submitted and saved to {output_path}",
-            "saved_data": data_to_save
-        }
-        
+        return {"status": "success", "message": f"Result saved to {output_path}", "data": data}
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Failed to submit result: {str(e)}"
-        }
+        return {"status": "error", "message": str(e), "data": result}
