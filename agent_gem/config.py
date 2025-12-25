@@ -18,9 +18,14 @@ class LLMConfig:
     model: str
     api_key: str | None
     timeout: float = 120.0
-    max_retries: int = 3
+    max_retries: int = 5  # Increased default from 3 to 5
     log_io: bool = False
     log_io_file: str | None = None
+    # New retry configuration options
+    retry_base_delay: float = 1.0
+    retry_max_delay: float = 60.0
+    retry_backoff_factor: float = 2.0
+    retry_jitter: bool = True
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
@@ -57,9 +62,16 @@ class LLMConfig:
             api_key = os.getenv("VLLM_API_KEY")
 
         timeout = float(os.getenv("LLM_TIMEOUT", "120"))
-        max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+        max_retries = int(os.getenv("LLM_MAX_RETRIES", "5"))  # Updated default to 5
         log_io = os.getenv("LLM_LOG_IO", "0") in {"1", "true", "True"}
         log_io_file = os.getenv("LLM_LOG_IO_FILE") or None
+
+        # New retry configuration
+        retry_base_delay = float(os.getenv("LLM_RETRY_BASE_DELAY", "1.0"))
+        retry_max_delay = float(os.getenv("LLM_RETRY_MAX_DELAY", "60.0"))
+        retry_backoff_factor = float(os.getenv("LLM_RETRY_BACKOFF_FACTOR", "2.0"))
+        retry_jitter = os.getenv("LLM_RETRY_JITTER", "1") in {"1", "true", "True"}
+
         return cls(
             provider=provider,
             base_url=base_url,
@@ -69,6 +81,10 @@ class LLMConfig:
             max_retries=max_retries,
             log_io=log_io,
             log_io_file=log_io_file,
+            retry_base_delay=retry_base_delay,
+            retry_max_delay=retry_max_delay,
+            retry_backoff_factor=retry_backoff_factor,
+            retry_jitter=retry_jitter,
         )
 
 

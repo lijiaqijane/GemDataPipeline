@@ -43,6 +43,16 @@ def _should_use_submitted_result(answer: Any) -> bool:
                 "saved to submitted_result",
             )
         )
+    if isinstance(answer, dict):
+        # Check if this is a submit_result tool response
+        status = answer.get("status")
+        message = answer.get("message", "").lower()
+        file_path = answer.get("file_path", "").lower()
+        return (
+            status == "success" and
+            any(token in message for token in ("submitted", "saved")) and
+            "submitted_result.json" in file_path
+        )
     return False
 
 
@@ -93,7 +103,8 @@ class GeneralAgentSandboxExecutor(SandboxExecutor):
         group_dir = self._run_group_dir(run_group)
         self._record_run_code(run_id, package, group_dir=group_dir)
 
-        answer: Any = None
+        raw_answer: Any = None
+        processed_answer: Any = None
         verified: Optional[bool] = None
         verification_score: Optional[float] = None
         verification_details: Any = None
@@ -101,10 +112,10 @@ class GeneralAgentSandboxExecutor(SandboxExecutor):
         error: Optional[str] = None
         verification_error: Optional[str] = None
         try:
-            answer = package.run_solution(tool_proxy)
-            answer = self._process_solution_answer(answer)
+            raw_answer = package.run_solution(tool_proxy)
+            processed_answer = self._process_solution_answer(raw_answer)
             verified, verification_score, verification_details, verification_message = package.verify_with_meta(
-                tool_proxy, answer
+                tool_proxy, processed_answer
             )
         except Exception:
             error = traceback.format_exc()
@@ -123,7 +134,7 @@ class GeneralAgentSandboxExecutor(SandboxExecutor):
             started_at=started,
             ended_at=ended,
             duration_s=ended - started,
-            answer=self._to_jsonable(answer),
+            answer=self._to_jsonable(raw_answer),
             verified=verified,
             verification_score=verification_score,
             verification_details=self._to_jsonable(verification_details),

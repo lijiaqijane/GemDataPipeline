@@ -27,6 +27,7 @@ class GenerationRequest:
     fail_soft: bool = False
     seed_tools: Optional[List[ToolSpec]] = None
     max_tokens: int = 10000  # Maximum tokens for LLM generation
+    task_id_prefix: Optional[str] = None  # Optional prefix for task ID (e.g., "category-name-task-1")
     domain: Optional[List[str]] = None
     num_domains: int = 10
     num_entities_each_domain: int = 1

@@ -95,7 +95,6 @@ def persist_quadruple_format(
                 "description": package.task.task_content,
                 "difficulty": package.task.difficulty_level,
                 "solution_code": package.solution or "",
-                "reference_solution": package.solution or "",
                 "state_hash": {
                     "pre": package.metadata.get("pre_state_hash", ""),
                     "post": package.metadata.get("post_state_hash", ""),
@@ -103,7 +102,6 @@ def persist_quadruple_format(
             },
             "verifier": {
                 "verification_code": package.verification or "",
-                "reward_function": package.verification or "",
             },
             "metadata": package.metadata,
         }

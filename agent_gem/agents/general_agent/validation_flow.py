@@ -137,7 +137,6 @@ class ValidationMixin:
             metadata_profile = json.loads((package.metadata or {}).get("data_profile", "{}"))
         except Exception:
             metadata_profile = {}
-        allow_permissive = os.getenv("ALLOW_PERMISSIVE_VERIFIER", "0").strip().lower() in {"1", "true", "yes"}
 
         last_error: str | None = None
         augmented_once = False
@@ -318,8 +317,6 @@ class ValidationMixin:
                         run_group=group_prefix,
                         run_id=run.run_id,
                         updates={
-                            "result_persisted": False,
-                            "result_persist_reason": last_error,
                             "task_candidate": False,
                             "task_candidate_reason": last_error,
                         },
@@ -335,27 +332,6 @@ class ValidationMixin:
                     repair_target=target,
                 )
                 continue
-            if run.answer is not None:
-                fmt_ok, fmt_err = self._validate_answer_format(
-                    package.task.submit_result_format, run.answer
-                )
-                if not fmt_ok:
-                    last_error = f"answer_format_mismatch: {fmt_err}"
-                    try:
-                        sandbox.annotate_run_record(
-                            run_group=group_prefix,
-                            run_id=run.run_id,
-                            updates={
-                                "result_persisted": False,
-                                "result_persist_reason": last_error,
-                                "task_candidate": False,
-                                "task_candidate_reason": last_error,
-                            },
-                        )
-                    except Exception:
-                        pass
-                    package = self._repair_package(request, package, ctx, error=last_error, records=records)
-                    continue
             used_data_tools = {name for name in used_tools if name != submit_tool}
             if len(used_data_tools) < 2:
                 last_error = (
@@ -366,8 +342,6 @@ class ValidationMixin:
                         run_group=group_prefix,
                         run_id=run.run_id,
                         updates={
-                            "result_persisted": False,
-                            "result_persist_reason": last_error,
                             "task_candidate": False,
                             "task_candidate_reason": last_error,
                         },
@@ -376,28 +350,6 @@ class ValidationMixin:
                     pass
                 package = self._repair_package(request, package, ctx, error=last_error, records=records)
                 continue
-            if allow_permissive and run.answer is not None and run.verified is False:
-                meta = package.metadata or {}
-                if meta.get("permissive_verifier") != "true":
-                    package = package.copy(
-                        update={
-                            "verification": self._build_permissive_verifier(
-                                package.task.submit_result_format
-                            ),
-                            "metadata": {**meta, "permissive_verifier": "true"},
-                        }
-                    )
-                    # Fold permissive reruns into the same difficulty folder (user preference).
-                    run = sandbox.run_task(package, run_group=group_prefix)
-                    ctx.add_step(
-                        {
-                            "type": "verifier_relaxed",
-                            "verified": run.verified,
-                            "verification_error": run.verification_error,
-                        }
-                    )
-                    if run.verified is True:
-                        continue
             if (not run.answer or run.verified is False) and attempt < request.max_validation_rounds:
                 try:
                     data_profile = json.loads((package.metadata or {}).get("data_profile", "{}"))
@@ -484,6 +436,30 @@ class ValidationMixin:
                     package = self._repair_package(request, package, ctx, error=last_error, records=records)
                     continue
             if run.verified is True:
+                # Additional check: ensure answer contains meaningful content
+                answer_meaningful, meaningful_error = self._check_answer_has_meaningful_content(
+                    run.answer, package.task.submit_result_format
+                )
+                if not answer_meaningful:
+                    last_error = f"answer_is_empty_or_meaningless: {meaningful_error}"
+                    try:
+                        sandbox.annotate_run_record(
+                            run_group=group_prefix,
+                            run_id=run.run_id,
+                            updates={
+                                "result_persisted": False,
+                                "result_persist_reason": last_error,
+                                "task_candidate": False,
+                                "task_candidate_reason": last_error,
+                                "verification_error": meaningful_error,
+                                "verified": False,  # Override verified status
+                            },
+                        )
+                    except Exception:
+                        pass
+                    package = self._repair_package(request, package, ctx, error=last_error, records=records)
+                    continue
+                
                 meta = package.metadata or {}
                 cleaned_meta = {
                     k: v
@@ -536,8 +512,6 @@ class ValidationMixin:
                         run_group=group_prefix,
                         run_id=run.run_id,
                         updates={
-                            "result_persisted": True,
-                            "result_persist_reason": "verified",
                             "task_candidate": True,
                             "task_candidate_reason": "verified",
                         },
@@ -565,8 +539,6 @@ class ValidationMixin:
                         run_group=group_prefix,
                         run_id=run.run_id,
                         updates={
-                            "result_persisted": False,
-                            "result_persist_reason": last_error,
                             "task_candidate": False,
                             "task_candidate_reason": last_error,
                         },
@@ -598,8 +570,6 @@ class ValidationMixin:
                         run_group=group_prefix,
                         run_id=run.run_id,
                         updates={
-                            "result_persisted": False,
-                            "result_persist_reason": last_error,
                             "task_candidate": False,
                             "task_candidate_reason": last_error,
                         },
@@ -785,65 +755,173 @@ class ValidationMixin:
         )
 
     @staticmethod
-    def _validate_answer_format(fmt: Any, answer: Any) -> tuple[bool, str]:
-        """Best-effort validation of answer against submit_result_format."""
-        if fmt is None:
-            return True, ""
-        if isinstance(fmt, str):
-            try:
-                fmt = json.loads(fmt)
-            except Exception:
-                return True, ""
-        # JSON schema-like object
-        if isinstance(fmt, dict) and fmt.get("type") in {"object", "array"}:
-            if fmt.get("type") == "object":
-                if not isinstance(answer, dict):
-                    return False, "answer must be object"
-                required = fmt.get("required") or []
-                if isinstance(required, list):
-                    missing = [k for k in required if k not in answer]
-                    if missing:
-                        return False, f"missing keys: {missing}"
-                props = fmt.get("properties") if isinstance(fmt.get("properties"), dict) else {}
-                for key, spec in props.items():
-                    if key not in answer:
-                        continue
-                    val = answer.get(key)
-                    if isinstance(spec, dict) and "type" in spec:
-                        expected = spec.get("type")
-                        if expected == "array" and not isinstance(val, list):
-                            return False, f"key '{key}' must be list"
-                        if expected == "object" and not isinstance(val, dict):
-                            return False, f"key '{key}' must be object"
-                        if expected == "string" and not isinstance(val, str):
-                            return False, f"key '{key}' must be string"
-                return True, ""
-            if fmt.get("type") == "array":
-                return (isinstance(answer, list), "answer must be list")
-        # Example object format (keys act as contract)
-        if isinstance(fmt, dict):
-            if not isinstance(answer, dict):
-                return False, "answer must be object"
-            missing = [k for k in fmt.keys() if k not in answer]
-            if missing:
-                return False, f"missing keys: {missing}"
-            for key, tmpl in fmt.items():
-                val = answer.get(key)
-                if isinstance(tmpl, list) and not isinstance(val, list):
-                    return False, f"key '{key}' must be list"
-                if isinstance(tmpl, dict) and not isinstance(val, dict):
-                    return False, f"key '{key}' must be object"
-                if isinstance(tmpl, str) and not isinstance(val, str):
-                    return False, f"key '{key}' must be string"
-            return True, ""
-        # List format
-        if isinstance(fmt, list):
-            if not isinstance(answer, list):
-                return False, "answer must be list"
-            if fmt and isinstance(fmt[0], dict):
-                required_keys = set(fmt[0].keys())
-                for item in answer:
-                    if isinstance(item, dict) and required_keys - set(item.keys()):
-                        return False, f"list item missing keys: {sorted(required_keys)}"
-            return True, ""
+    def _check_answer_has_meaningful_content(answer: Any, submit_result_format: Any = None) -> tuple[bool, str]:
+        """Check if answer contains meaningful content (not just empty structures or default values).
+        
+        Returns:
+            tuple[bool, str]: (is_meaningful, error_message)
+            - is_meaningful: True if answer contains meaningful content, False otherwise
+            - error_message: Detailed error message if not meaningful, empty string otherwise
+        """
+        if answer is None:
+            return False, "Answer is None"
+        
+        # Extract expected keys from submit_result_format if provided
+        expected_keys = set()
+        if submit_result_format is not None:
+            if isinstance(submit_result_format, str):
+                try:
+                    submit_result_format = json.loads(submit_result_format)
+                except Exception:
+                    pass
+            if isinstance(submit_result_format, dict):
+                # For example format (keys are the contract)
+                if submit_result_format.get("type") != "object" or "properties" not in submit_result_format:
+                    expected_keys = set(submit_result_format.keys())
+                else:
+                    # For JSON schema format
+                    props = submit_result_format.get("properties", {})
+                    required = submit_result_format.get("required", [])
+                    expected_keys = set(required) if required else set(props.keys())
+        
+        # Unwrap submit_result wrapper if present
+        # Recursively find a dict that contains all expected keys (if we know them)
+        # or find a dict with non-empty meaningful content
+        def _find_data_dict(obj: Any, expected_keys: set[str], max_depth: int = 5) -> Any:
+            """Recursively find a dict that contains expected keys (if provided) or has meaningful content."""
+            if max_depth <= 0 or not isinstance(obj, dict):
+                return None
+            
+            # If we have expected keys, find dict containing all of them
+            if expected_keys:
+                if expected_keys.issubset(obj.keys()):
+                    return obj
+            else:
+                # No expected keys: check if current dict has meaningful content
+                has_content = any(
+                    (isinstance(v, list) and len(v) > 0) or
+                    (isinstance(v, str) and v.strip()) or
+                    (isinstance(v, (int, float)) and v != 0) or
+                    (isinstance(v, dict) and len(v) > 0)
+                    for v in obj.values()
+                )
+                if has_content:
+                    return obj
+            
+            # Recursively search nested dicts
+            for value in obj.values():
+                if isinstance(value, dict):
+                    found = _find_data_dict(value, expected_keys, max_depth - 1)
+                    if found is not None:
+                        return found
+                elif isinstance(value, list):
+                    for item in value[:3]:  # Check first few items
+                        if isinstance(item, dict):
+                            found = _find_data_dict(item, expected_keys, max_depth - 1)
+                            if found is not None:
+                                return found
+            
+            return None
+        
+        # Try to find the actual data object
+        data = answer
+        if isinstance(answer, dict):
+            found_data = _find_data_dict(answer, expected_keys, max_depth=5)
+            if found_data is not None:
+                data = found_data
+            # If recursive search fails, use answer as-is
+        
+        if not isinstance(data, dict):
+            return False, f"Answer data is not a dict (got {type(data).__name__})"
+        
+        def _is_meaningful_value(value: Any, path: str = "") -> bool:
+            """Recursively check if value contains meaningful content."""
+            if value is None:
+                return False
+            if isinstance(value, dict):
+                if not value:  # Empty dict
+                    return False
+                # Check if dict has at least one meaningful value
+                return any(_is_meaningful_value(v, f"{path}.{k}") for k, v in value.items())
+            if isinstance(value, list):
+                if not value:  # Empty list
+                    return False
+                # Check if list has at least one meaningful item
+                return any(_is_meaningful_value(item, f"{path}[{i}]") for i, item in enumerate(value))
+            if isinstance(value, str):
+                # Empty string or only whitespace is not meaningful
+                if not value.strip():
+                    return False
+                # Common non-meaningful values
+                if value.strip().lower() in ("", "none", "n/a", "null", "[]", "{}"):
+                    return False
+                # String "0" might be meaningful for some fields, but "0" as total_count is suspicious
+                # We'll be lenient here and allow it
+                return True
+            if isinstance(value, (int, float)):
+                # Zero might be meaningful in some contexts, but we'll flag it as potentially empty
+                # However, for counts/totals, zero usually means no data found
+                # We'll allow zero but it's a warning sign
+                return True
+            if isinstance(value, bool):
+                return True
+            return True
+        
+        # Check if the root object has meaningful content
+        if not data:
+            return False, "Answer is an empty dict"
+        
+        # Check if at least one field has meaningful content
+        has_meaningful = False
+        for key, value in data.items():
+            if _is_meaningful_value(value, key):
+                has_meaningful = True
+                break
+        
+        if not has_meaningful:
+            return False, "Answer contains no meaningful values (all fields are empty, None, or default values)"
+        
+        # Additional check: if answer contains common "empty result" patterns, reject it
+        # Pattern 1: All arrays are empty
+        all_arrays_empty = True
+        for key, value in data.items():
+            if isinstance(value, list):
+                if len(value) > 0:
+                    all_arrays_empty = False
+                    break
+            elif isinstance(value, dict):
+                # Check nested arrays
+                for nested_key, nested_value in value.items():
+                    if isinstance(nested_value, list) and len(nested_value) > 0:
+                        all_arrays_empty = False
+                        break
+                if not all_arrays_empty:
+                    break
+        
+        if all_arrays_empty and any(isinstance(v, (list, dict)) for v in data.values()):
+            # If we have array/dict fields but they're all empty, it's not meaningful
+            array_fields = [k for k, v in data.items() if isinstance(v, (list, dict))]
+            return False, f"All array/dict fields are empty: {array_fields}"
+        
+        # Pattern 2: All counts are zero (common pattern: total_count: "0", hotels: [])
+        count_fields = [k for k in data.keys() if "count" in k.lower() or "total" in k.lower() or "num" in k.lower()]
+        if count_fields:
+            all_counts_zero = True
+            for field in count_fields:
+                val = data.get(field)
+                if isinstance(val, (int, float)) and val != 0:
+                    all_counts_zero = False
+                    break
+                if isinstance(val, str):
+                    try:
+                        if int(val) != 0:
+                            all_counts_zero = False
+                            break
+                    except (ValueError, TypeError):
+                        pass
+            
+            if all_counts_zero and all(isinstance(data.get(k), (list, dict)) and len(data.get(k)) == 0 for k in data.keys() if k not in count_fields):
+                # All counts are zero and all data structures are empty
+                return False, f"All count fields are zero ({count_fields}) and all data structures are empty"
+        
         return True, ""

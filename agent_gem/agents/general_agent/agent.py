@@ -53,7 +53,11 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             if not request.topic:
                 request.topic = "general task"
 
-            task_id = str(uuid.uuid4())
+            # Generate task_id: use prefix if provided, otherwise use UUID
+            if request.task_id_prefix:
+                task_id = request.task_id_prefix
+            else:
+                task_id = str(uuid.uuid4())
             ctx = TaskContext(task_id=task_id, request=request)
 
             sandbox_dir = Path(self.writer.task_dir(task_id, self.agent_type), "_sandbox")
@@ -182,6 +186,13 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             task_tool_specs = list(package.task.tool_set)
             self.writer.record_steps(task_id, self.agent_type, ctx.history)
 
+            # Collect all validated packages (all difficulty levels)
+            validated_packages = []
+            meta = package.metadata or {}
+            # Only add if validation passed (no validation errors)
+            if not any(meta.get(key) for key in ("validation_error", "verification_error", "repair_failed")):
+                validated_packages.append(package)
+
             effective_refine_rounds = max(1, max(request.max_refine_rounds, int(request.difficulty)))
             for round_idx in range(2, effective_refine_rounds + 1):
                 target = min(int(request.difficulty), round_idx)
@@ -205,6 +216,10 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 )
                 task_tool_specs = list(package.task.tool_set)
                 self.writer.record_steps(task_id, self.agent_type, ctx.history)
+                # Only add if validation passed (no validation errors)
+                meta = package.metadata or {}
+                if not any(meta.get(key) for key in ("validation_error", "verification_error", "repair_failed")):
+                    validated_packages.append(package)
 
             if request.persist_result and self.writer is not None:
                 self.writer.record_steps(
@@ -223,7 +238,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                         self.writer,
                         category=request.topic or "general task",
                         records=records,
-                        packages=[package],
+                        packages=validated_packages,
                         merge=False,
                     )
                 except Exception:

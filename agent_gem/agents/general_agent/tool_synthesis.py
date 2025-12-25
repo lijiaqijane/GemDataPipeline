@@ -224,6 +224,9 @@ class ToolSynthesisMixin:
                 "- IMPORTANT: decorators execute at import-time. Since you MUST use @mcp.tool, you MUST also bind `mcp`.\n"
                 "  Add `import mcp` near the top (preferred). If unavailable, you may create a tiny fallback shim that defines\n"
                 "  `mcp.tool` as an identity decorator. Do NOT implement tool logic in the framework; all tool bodies must be yours.\n"
+                "- CRITICAL: File paths must be absolute. Use `Path(__file__).parent` to get the directory containing this tools.py file.\n"
+                "  Example: `from pathlib import Path; BASE_DIR = Path(__file__).parent; csv_path = BASE_DIR / \"data\" / \"file.csv\"`\n"
+                "  NEVER use relative paths like `\"data/file.csv\"` - they will fail if the working directory changes.\n"
                 "- NO network, NO external APIs. Only read the listed local files/SQLite.\n"
                 "- Deterministic: set random.seed(0) if randomness is used.\n"
                 "- Tools must accept (query: str, max_results: int = 5) and return list[dict].\n"
@@ -231,7 +234,7 @@ class ToolSynthesisMixin:
                 "- Read from the local files/SQLite shown in the data profile; do NOT hardcode sample records.\n"
                 "- You MUST define a tool named submit_result with signature submit_result(result) that returns `result`.\n"
                 "  submit_result MUST be implemented (no pass/raise) and MUST persist the payload to submitted_result.json\n"
-                "  in the current working directory for inspection.\n"
+                "  in the directory containing tools.py (use `Path(__file__).parent / \"submitted_result.json\"`).\n"
                 "- If fields are insufficient, add additional tools or extend returned dicts to cover likely needs.\n"
                 "- Prefer descriptive snake_case names; avoid 'bash'/'search'/'python_runner'.\n"
                 "Data sources (JSON, sampled schemas):\n"
@@ -439,6 +442,9 @@ class ToolSynthesisMixin:
         if not code:
             raise RuntimeError("tools.py generation failed: empty tools code")
 
+        # Fix file paths: convert relative paths to absolute paths based on __file__
+        code = self._fix_file_paths(code)
+
         # Validate: tool code must be data-driven (read local files) and avoid embedding datasets.
         code_ok, reasons = self._validate_tool_code(code)
         if not code_ok:
@@ -466,6 +472,120 @@ class ToolSynthesisMixin:
             raise RuntimeError(f"tools.py missing required tool defs: {missing}")
 
         return code + ("\n" if not code.endswith("\n") else "")
+    
+    @staticmethod
+    def _fix_file_paths(code: str) -> str:
+        """Convert relative file paths to absolute paths based on __file__.
+        
+        This ensures tools can find data files regardless of the current working directory.
+        Uses regex-based replacement for reliability.
+        """
+        import re
+        
+        lines = code.splitlines()
+        
+        # Step 1: Add Path import if missing
+        has_pathlib = any(
+            "from pathlib import Path" in line or 
+            ("import pathlib" in line and "Path" in line)
+            for line in lines
+        )
+        
+        if not has_pathlib:
+            # Find insertion point (after other imports)
+            insert_idx = 0
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                if stripped.startswith(("import ", "from ")):
+                    insert_idx = i + 1
+                elif stripped and not stripped.startswith("#") and insert_idx > 0:
+                    break
+            lines.insert(insert_idx, "from pathlib import Path")
+        
+        # Step 2: Add BASE_DIR definition if missing
+        has_base_dir = any("BASE_DIR" in line and "=" in line for line in lines)
+        
+        if not has_base_dir:
+            # Find insertion point (after imports, before first function/class)
+            insert_idx = 0
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                if stripped.startswith(("import ", "from ")):
+                    insert_idx = i + 1
+                elif stripped and not stripped.startswith("#") and insert_idx > 0:
+                    # Check if this is a function/class definition
+                    if not (stripped.startswith(("def ", "class ", "@"))):
+                        insert_idx = i
+                    break
+            lines.insert(insert_idx, "BASE_DIR = Path(__file__).parent")
+        
+        code = "\n".join(lines)
+        
+        # Step 3: Replace relative file paths with BASE_DIR / path
+        # Match patterns like: "data/file.csv", 'data/file.csv', "records.json"
+        # But avoid replacing if already using BASE_DIR or absolute paths
+        file_ext_pattern = r'\.(csv|json|sqlite|db|txt|parquet)'
+        
+        def replace_file_path(match):
+            full_match = match.group(0)
+            quote_char = match.group(1)
+            path = match.group(2)
+            
+            # Skip if already using BASE_DIR
+            if "BASE_DIR" in code[max(0, match.start()-50):match.end()+50]:
+                return full_match
+            
+            # Skip absolute paths
+            if path.startswith("/") or (len(path) > 1 and path[1] == ":"):
+                return full_match
+            
+            # Skip if it's part of a larger expression that already uses BASE_DIR
+            context_start = max(0, match.start() - 100)
+            context = code[context_start:match.end()+50]
+            if "BASE_DIR" in context:
+                return full_match
+            
+            # Replace the path
+            if "/" in path or "\\" in path:
+                # Multi-part path: BASE_DIR / "part1" / "part2" / "file.ext"
+                parts = [p for p in path.replace("\\", "/").split("/") if p]
+                path_expr = " / ".join([f'{quote_char}{part}{quote_char}' for part in parts])
+                return f'BASE_DIR / {path_expr}'
+            else:
+                # Single filename
+                return f'BASE_DIR / {quote_char}{path}{quote_char}'
+        
+        # Pattern: matches quoted strings that look like file paths
+        # Matches: "data/file.csv", 'data/file.csv', "records.json"
+        # Excludes: already absolute paths, paths in BASE_DIR expressions
+        pattern = rf'(["\'])((?:data/|\./)?[^"\']+{file_ext_pattern})(["\'])'
+        
+        # Replace in code
+        code = re.sub(pattern, replace_file_path, code)
+        
+        # Also handle os.path.exists("path") patterns
+        def replace_os_path(match):
+            prefix = match.group(1)  # "os.path.exists(" or similar
+            quote = match.group(2)
+            path = match.group(3)
+            suffix = match.group(4)  # closing quote and paren
+            
+            # Skip if already absolute or using BASE_DIR
+            if path.startswith("/") or (len(path) > 1 and path[1] == ":"):
+                return match.group(0)
+            
+            # Replace
+            if "/" in path or "\\" in path:
+                parts = [p for p in path.replace("\\", "/").split("/") if p]
+                path_expr = " / ".join([f'{quote}{p}{quote}' for p in parts])
+                return f'{prefix}BASE_DIR / {path_expr}{suffix}'
+            else:
+                return f'{prefix}BASE_DIR / {quote}{path}{quote}{suffix}'
+        
+        os_path_pattern = rf'(os\.path\.(?:exists|join|isfile|isdir)\()(["\'])((?:data/|\./)?[^"\']+{file_ext_pattern})(["\']\))'
+        code = re.sub(os_path_pattern, replace_os_path, code)
+        
+        return code
 
     def _self_test_tools(
         self,
@@ -808,11 +928,38 @@ class ToolSynthesisMixin:
             for code in code_blocks:
                 mcp_tools.extend(ToolSynthesisMixin._extract_mcp_tools_from_python(code))
         return mcp_tools
-        # Fallback: attempt to parse raw output as code.
-        cleaned = ToolSynthesisMixin._sanitize_llm_code(text)
-        if cleaned:
-            return ToolSynthesisMixin._extract_mcp_tools_from_python(cleaned)
-        return []
+
+    @staticmethod
+    def _sanitize_tool_block(function_string: str) -> str:
+        lines = function_string.splitlines()
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        if not lines:
+            return function_string
+        def_idx = None
+        for idx, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith("def ") or stripped.startswith("async def "):
+                def_idx = idx
+                break
+        if def_idx is None:
+            return function_string
+        decorators = [line for line in lines[:def_idx] if line.lstrip().startswith("@")]
+        trimmed = decorators + lines[def_idx:]
+        def_line = trimmed[len(decorators)]
+        def_indent = len(def_line) - len(def_line.lstrip(" "))
+        if def_indent <= 0:
+            return "\n".join(trimmed)
+        fixed: list[str] = []
+        for idx, line in enumerate(trimmed):
+            if idx < len(decorators):
+                fixed.append(line.lstrip())
+                continue
+            if not line.strip():
+                fixed.append("")
+                continue
+            fixed.append(line[def_indent:] if len(line) >= def_indent else line.lstrip())
+        return "\n".join(fixed)
 
     @staticmethod
     def _extract_mcp_tools_from_python(raw: str) -> list[ToolSpec]:
@@ -844,9 +991,24 @@ class ToolSynthesisMixin:
                 try:
                     tool = ToolSpec.from_function_string(function_string)
                     mcp_tools.append(tool)
-                except ValueError as e:
+                except (ValueError, SyntaxError, IndentationError) as e:
+                    repaired = ToolSynthesisMixin._sanitize_tool_block(function_string)
+                    if repaired != function_string:
+                        try:
+                            tool = ToolSpec.from_function_string(repaired)
+                            mcp_tools.append(tool)
+                            continue
+                        except (ValueError, SyntaxError, IndentationError) as exc:
+                            logger.error(
+                                "Error creating ToolSpec for function %s after repair: %s",
+                                node.name,
+                                exc,
+                            )
+                            continue
                     logger.error(
-                        f"Error creating ToolSpec for function {node.name}: {e}"
+                        "Error creating ToolSpec for function %s: %s",
+                        node.name,
+                        e,
                     )
             if mcp_tools:
                 return mcp_tools
@@ -862,8 +1024,23 @@ class ToolSynthesisMixin:
             try:
                 tool = ToolSpec.from_function_string(function_string)
                 mcp_tools.append(tool)
-            except ValueError as e:
+            except (ValueError, SyntaxError, IndentationError) as e:
+                repaired = ToolSynthesisMixin._sanitize_tool_block(function_string)
+                if repaired != function_string:
+                    try:
+                        tool = ToolSpec.from_function_string(repaired)
+                        mcp_tools.append(tool)
+                        continue
+                    except (ValueError, SyntaxError, IndentationError) as exc:
+                        logger.error(
+                            "Error creating ToolSpec for function %s after repair: %s",
+                            function_signature,
+                            exc,
+                        )
+                        continue
                 logger.error(
-                    f"Error creating ToolSpec for function {function_signature}: {e}"
+                    "Error creating ToolSpec for function %s: %s",
+                    function_signature,
+                    e,
                 )
         return mcp_tools
