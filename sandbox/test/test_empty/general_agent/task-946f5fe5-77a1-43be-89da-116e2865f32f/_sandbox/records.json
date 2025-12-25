@@ -1,0 +1,2063 @@
+{
+  "records": [
+    {
+      "title": "Travel details dataset.csv",
+      "summary": "Trip ID, Destination, Start date, End date, Duration (days), Traveler name, Traveler age, Traveler gender, Traveler nationality, Accommodation type ...",
+      "url": "https://github.com/mohansaidinesh/Travel-Recommendation-System/blob/main/Travel%20details%20dataset.csv",
+      "source": "downloaded_dataset",
+      "real_data_samples": [
+        {
+          "trip_id": "1",
+          "destination": "London, UK",
+          "start_date": "5/1/2023",
+          "end_date": "5/8/2023",
+          "duration_days": "7",
+          "traveler_name": "John Smith",
+          "traveler_age": "35",
+          "traveler_gender": "Male",
+          "traveler_nationality": "American",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1200",
+          "transportation_type": "Flight",
+          "transportation_cost": "600"
+        },
+        {
+          "trip_id": "2",
+          "destination": "Phuket, Thailand",
+          "start_date": "6/15/2023",
+          "end_date": "6/20/2023",
+          "duration_days": "5",
+          "traveler_name": "Jane Doe",
+          "traveler_age": "28",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Canadian",
+          "accommodation_type": "Resort",
+          "accommodation_cost": "800",
+          "transportation_type": "Flight",
+          "transportation_cost": "500"
+        },
+        {
+          "trip_id": "3",
+          "destination": "Bali, Indonesia",
+          "start_date": "7/1/2023",
+          "end_date": "7/8/2023",
+          "duration_days": "7",
+          "traveler_name": "David Lee",
+          "traveler_age": "45",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Korean",
+          "accommodation_type": "Villa",
+          "accommodation_cost": "1000",
+          "transportation_type": "Flight",
+          "transportation_cost": "700"
+        },
+        {
+          "trip_id": "4",
+          "destination": "New York, USA",
+          "start_date": "8/15/2023",
+          "end_date": "8/29/2023",
+          "duration_days": "14",
+          "traveler_name": "Sarah Johnson",
+          "traveler_age": "29",
+          "traveler_gender": "Female",
+          "traveler_nationality": "British",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "2000",
+          "transportation_type": "Flight",
+          "transportation_cost": "1000"
+        },
+        {
+          "trip_id": "5",
+          "destination": "Tokyo, Japan",
+          "start_date": "9/10/2023",
+          "end_date": "9/17/2023",
+          "duration_days": "7",
+          "traveler_name": "Kim Nguyen",
+          "traveler_age": "26",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Vietnamese",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "700",
+          "transportation_type": "Train",
+          "transportation_cost": "200"
+        },
+        {
+          "trip_id": "6",
+          "destination": "Paris, France",
+          "start_date": "10/5/2023",
+          "end_date": "10/10/2023",
+          "duration_days": "5",
+          "traveler_name": "Michael Brown",
+          "traveler_age": "42",
+          "traveler_gender": "Male",
+          "traveler_nationality": "American",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1500",
+          "transportation_type": "Flight",
+          "transportation_cost": "800"
+        },
+        {
+          "trip_id": "7",
+          "destination": "Sydney, Australia",
+          "start_date": "11/20/2023",
+          "end_date": "11/30/2023",
+          "duration_days": "10",
+          "traveler_name": "Emily Davis",
+          "traveler_age": "33",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Australian",
+          "accommodation_type": "Hostel",
+          "accommodation_cost": "500",
+          "transportation_type": "Flight",
+          "transportation_cost": "1200"
+        },
+        {
+          "trip_id": "8",
+          "destination": "Rio de Janeiro, Brazil",
+          "start_date": "1/5/2024",
+          "end_date": "1/12/2024",
+          "duration_days": "7",
+          "traveler_name": "Lucas Santos",
+          "traveler_age": "25",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Brazilian",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "900",
+          "transportation_type": "Flight",
+          "transportation_cost": "600"
+        },
+        {
+          "trip_id": "9",
+          "destination": "Amsterdam, Netherlands",
+          "start_date": "2/14/2024",
+          "end_date": "2/21/2024",
+          "duration_days": "7",
+          "traveler_name": "Laura Janssen",
+          "traveler_age": "31",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Dutch",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1200",
+          "transportation_type": "Train",
+          "transportation_cost": "200"
+        },
+        {
+          "trip_id": "10",
+          "destination": "Dubai, United Arab Emirates",
+          "start_date": "3/10/2024",
+          "end_date": "3/17/2024",
+          "duration_days": "7",
+          "traveler_name": "Mohammed Ali",
+          "traveler_age": "39",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Emirati",
+          "accommodation_type": "Resort",
+          "accommodation_cost": "2500",
+          "transportation_type": "Flight",
+          "transportation_cost": "800"
+        },
+        {
+          "trip_id": "11",
+          "destination": "Cancun, Mexico",
+          "start_date": "4/1/2024",
+          "end_date": "4/8/2024",
+          "duration_days": "7",
+          "traveler_name": "Ana Hernandez",
+          "traveler_age": "27",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Mexican",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1000",
+          "transportation_type": "Flight",
+          "transportation_cost": "500"
+        },
+        {
+          "trip_id": "12",
+          "destination": "Barcelona, Spain",
+          "start_date": "5/15/2024",
+          "end_date": "5/22/2024",
+          "duration_days": "7",
+          "traveler_name": "Carlos Garcia",
+          "traveler_age": "36",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Spanish",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "800",
+          "transportation_type": "Train",
+          "transportation_cost": "100"
+        },
+        {
+          "trip_id": "13",
+          "destination": "Honolulu, Hawaii",
+          "start_date": "6/10/2024",
+          "end_date": "6/18/2024",
+          "duration_days": "8",
+          "traveler_name": "Lily Wong",
+          "traveler_age": "29",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Chinese",
+          "accommodation_type": "Resort",
+          "accommodation_cost": "3000",
+          "transportation_type": "Flight",
+          "transportation_cost": "1200"
+        },
+        {
+          "trip_id": "14",
+          "destination": "Berlin, Germany",
+          "start_date": "7/1/2024",
+          "end_date": "7/10/2024",
+          "duration_days": "9",
+          "traveler_name": "Hans Mueller",
+          "traveler_age": "48",
+          "traveler_gender": "Male",
+          "traveler_nationality": "German",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1400",
+          "transportation_type": "Flight",
+          "transportation_cost": "700"
+        },
+        {
+          "trip_id": "15",
+          "destination": "Marrakech, Morocco",
+          "start_date": "8/20/2024",
+          "end_date": "8/27/2024",
+          "duration_days": "7",
+          "traveler_name": "Fatima Khouri",
+          "traveler_age": "26",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Moroccan",
+          "accommodation_type": "Riad",
+          "accommodation_cost": "600",
+          "transportation_type": "Flight",
+          "transportation_cost": "400"
+        },
+        {
+          "trip_id": "16",
+          "destination": "Edinburgh, Scotland",
+          "start_date": "9/5/2024",
+          "end_date": "9/12/2024",
+          "duration_days": "7",
+          "traveler_name": "James MacKenzie",
+          "traveler_age": "32",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Scottish",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "900",
+          "transportation_type": "Train",
+          "transportation_cost": "150"
+        },
+        {
+          "trip_id": "17",
+          "destination": "Paris",
+          "start_date": "9/1/2023",
+          "end_date": "9/10/2023",
+          "duration_days": "9",
+          "traveler_name": "Sarah Johnson",
+          "traveler_age": "30",
+          "traveler_gender": "Female",
+          "traveler_nationality": "American",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$900 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$400 "
+        },
+        {
+          "trip_id": "18",
+          "destination": "Bali",
+          "start_date": "8/15/2023",
+          "end_date": "8/25/2023",
+          "duration_days": "10",
+          "traveler_name": "Michael Chang",
+          "traveler_age": "28",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Chinese",
+          "accommodation_type": "Resort",
+          "accommodation_cost": "$1,500 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$700 "
+        },
+        {
+          "trip_id": "19",
+          "destination": "London",
+          "start_date": "7/22/2023",
+          "end_date": "7/28/2023",
+          "duration_days": "6",
+          "traveler_name": "Olivia Rodriguez",
+          "traveler_age": "35",
+          "traveler_gender": "Female",
+          "traveler_nationality": "British",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$1,200 ",
+          "transportation_type": "Train",
+          "transportation_cost": "$150 "
+        },
+        {
+          "trip_id": "20",
+          "destination": "Tokyo",
+          "start_date": "10/5/2023",
+          "end_date": "10/15/2023",
+          "duration_days": "10",
+          "traveler_name": "Kenji Nakamura",
+          "traveler_age": "45",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Japanese",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$1,200 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$800 "
+        },
+        {
+          "trip_id": "21",
+          "destination": "New York",
+          "start_date": "11/20/2023",
+          "end_date": "11/25/2023",
+          "duration_days": "5",
+          "traveler_name": "Emily Lee",
+          "traveler_age": "27",
+          "traveler_gender": "Female",
+          "traveler_nationality": "American",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "$600 ",
+          "transportation_type": "Bus",
+          "transportation_cost": "$100 "
+        },
+        {
+          "trip_id": "22",
+          "destination": "Sydney",
+          "start_date": "12/5/2023",
+          "end_date": "12/12/2023",
+          "duration_days": "7",
+          "traveler_name": "James Wilson",
+          "traveler_age": "32",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Australian",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$1,000 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$600 "
+        },
+        {
+          "trip_id": "23",
+          "destination": "Rome",
+          "start_date": "11/1/2023",
+          "end_date": "11/8/2023",
+          "duration_days": "7",
+          "traveler_name": "Sofia Russo",
+          "traveler_age": "29",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Italian",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "$700 ",
+          "transportation_type": "Train",
+          "transportation_cost": "$80 "
+        },
+        {
+          "trip_id": "24",
+          "destination": "Bangkok",
+          "start_date": "9/15/2023",
+          "end_date": "9/23/2023",
+          "duration_days": "8",
+          "traveler_name": "Raj Patel",
+          "traveler_age": "40",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Indian",
+          "accommodation_type": "Hostel",
+          "accommodation_cost": "$400 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$500 "
+        },
+        {
+          "trip_id": "25",
+          "destination": "Paris",
+          "start_date": "12/22/2023",
+          "end_date": "12/28/2023",
+          "duration_days": "6",
+          "traveler_name": "Lily Nguyen",
+          "traveler_age": "24",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Vietnamese",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$1,400 ",
+          "transportation_type": "Train",
+          "transportation_cost": "$100 "
+        },
+        {
+          "trip_id": "26",
+          "destination": "Hawaii",
+          "start_date": "8/1/2023",
+          "end_date": "8/10/2023",
+          "duration_days": "9",
+          "traveler_name": "David Kim",
+          "traveler_age": "34",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Korean",
+          "accommodation_type": "Resort",
+          "accommodation_cost": "$2,000 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$800 "
+        },
+        {
+          "trip_id": "27",
+          "destination": "Barcelona",
+          "start_date": "10/20/2023",
+          "end_date": "10/28/2023",
+          "duration_days": "8",
+          "traveler_name": "Maria Garcia",
+          "traveler_age": "31",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Spanish",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$1,100 ",
+          "transportation_type": "Train",
+          "transportation_cost": "$150 "
+        },
+        {
+          "trip_id": "28",
+          "destination": "Japan",
+          "start_date": "5/10/2022",
+          "end_date": "5/18/2022",
+          "duration_days": "8",
+          "traveler_name": "Alice Smith",
+          "traveler_age": "30",
+          "traveler_gender": "Female",
+          "traveler_nationality": "American",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$800 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$500 "
+        },
+        {
+          "trip_id": "29",
+          "destination": "Thailand",
+          "start_date": "6/15/2022",
+          "end_date": "6/22/2022",
+          "duration_days": "7",
+          "traveler_name": "Bob Johnson",
+          "traveler_age": "45",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Canadian",
+          "accommodation_type": "Hostel",
+          "accommodation_cost": "$200 ",
+          "transportation_type": "Train",
+          "transportation_cost": "$150 "
+        },
+        {
+          "trip_id": "30",
+          "destination": "France",
+          "start_date": "7/2/2022",
+          "end_date": "7/11/2022",
+          "duration_days": "9",
+          "traveler_name": "Charlie Lee",
+          "traveler_age": "25",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Korean",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "$600 ",
+          "transportation_type": "Car rental",
+          "transportation_cost": "$300 "
+        },
+        {
+          "trip_id": "31",
+          "destination": "Australia",
+          "start_date": "8/20/2022",
+          "end_date": "9/2/2022",
+          "duration_days": "13",
+          "traveler_name": "Emma Davis",
+          "traveler_age": "28",
+          "traveler_gender": "Female",
+          "traveler_nationality": "British",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$1,000 ",
+          "transportation_type": "Car rental",
+          "transportation_cost": "$500 "
+        },
+        {
+          "trip_id": "32",
+          "destination": "Brazil",
+          "start_date": "9/5/2022",
+          "end_date": "9/14/2022",
+          "duration_days": "9",
+          "traveler_name": "Olivia Martin",
+          "traveler_age": "33",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Australian",
+          "accommodation_type": "Hostel",
+          "accommodation_cost": "$150 ",
+          "transportation_type": "Bus",
+          "transportation_cost": "$50 "
+        },
+        {
+          "trip_id": "33",
+          "destination": "Greece",
+          "start_date": "10/12/2022",
+          "end_date": "10/20/2022",
+          "duration_days": "8",
+          "traveler_name": "Harry Wilson",
+          "traveler_age": "20",
+          "traveler_gender": "Male",
+          "traveler_nationality": "American",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "$400 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$600 "
+        },
+        {
+          "trip_id": "34",
+          "destination": "Egypt",
+          "start_date": "11/8/2022",
+          "end_date": "11/15/2022",
+          "duration_days": "7",
+          "traveler_name": "Sophia Lee",
+          "traveler_age": "37",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Canadian",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$700 ",
+          "transportation_type": "Train",
+          "transportation_cost": "$100 "
+        },
+        {
+          "trip_id": "35",
+          "destination": "Mexico",
+          "start_date": "1/5/2023",
+          "end_date": "1/15/2023",
+          "duration_days": "10",
+          "traveler_name": "James Brown",
+          "traveler_age": "42",
+          "traveler_gender": "Male",
+          "traveler_nationality": "British",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "$500 ",
+          "transportation_type": "Plane",
+          "transportation_cost": "$800 "
+        },
+        {
+          "trip_id": "36",
+          "destination": "Italy",
+          "start_date": "2/14/2023",
+          "end_date": "2/20/2023",
+          "duration_days": "6",
+          "traveler_name": "Mia Johnson",
+          "traveler_age": "31",
+          "traveler_gender": "Female",
+          "traveler_nationality": "American",
+          "accommodation_type": "Hostel",
+          "accommodation_cost": "$180 ",
+          "transportation_type": "Train",
+          "transportation_cost": "$120 "
+        },
+        {
+          "trip_id": "37",
+          "destination": "Spain",
+          "start_date": "3/23/2023",
+          "end_date": "3/31/2023",
+          "duration_days": "8",
+          "traveler_name": "William Davis",
+          "traveler_age": "27",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Korean",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$900 ",
+          "transportation_type": "Car rental",
+          "transportation_cost": "$400 "
+        },
+        {
+          "trip_id": "38",
+          "destination": "Canada",
+          "start_date": "4/19/2023",
+          "end_date": "4/26/2023",
+          "duration_days": "7",
+          "traveler_name": "Amelia Brown",
+          "traveler_age": "38",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Australian",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "$350 ",
+          "transportation_type": "Bus",
+          "transportation_cost": "$75 "
+        },
+        {
+          "trip_id": "39",
+          "destination": "Paris, France",
+          "start_date": "6/12/2022",
+          "end_date": "6/19/2022",
+          "duration_days": "7",
+          "traveler_name": "Mia Johnson",
+          "traveler_age": "25",
+          "traveler_gender": "Female",
+          "traveler_nationality": "American",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1400",
+          "transportation_type": "Plane",
+          "transportation_cost": "600"
+        },
+        {
+          "trip_id": "40",
+          "destination": "Sydney, Australia",
+          "start_date": "1/2/2023",
+          "end_date": "1/9/2023",
+          "duration_days": "7",
+          "traveler_name": "Adam Lee",
+          "traveler_age": "33",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Canadian",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "800",
+          "transportation_type": "Train",
+          "transportation_cost": "150"
+        },
+        {
+          "trip_id": "41",
+          "destination": "Tokyo, Japan",
+          "start_date": "12/10/2022",
+          "end_date": "12/18/2022",
+          "duration_days": "8",
+          "traveler_name": "Sarah Wong",
+          "traveler_age": "28",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Chinese",
+          "accommodation_type": "Hostel",
+          "accommodation_cost": "500",
+          "transportation_type": "Plane",
+          "transportation_cost": "900"
+        },
+        {
+          "trip_id": "42",
+          "destination": "Cancun, Mexico",
+          "start_date": "7/1/2023",
+          "end_date": "7/8/2023",
+          "duration_days": "7",
+          "traveler_name": "John Smith",
+          "traveler_age": "45",
+          "traveler_gender": "Male",
+          "traveler_nationality": "American",
+          "accommodation_type": "Resort",
+          "accommodation_cost": "2200",
+          "transportation_type": "Plane",
+          "transportation_cost": "800"
+        },
+        {
+          "trip_id": "43",
+          "destination": "Rio de Janeiro, Brazil",
+          "start_date": "11/20/2022",
+          "end_date": "11/27/2022",
+          "duration_days": "7",
+          "traveler_name": "Maria Silva",
+          "traveler_age": "30",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Brazilian",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1200",
+          "transportation_type": "Plane",
+          "transportation_cost": "700"
+        },
+        {
+          "trip_id": "44",
+          "destination": "London, UK",
+          "start_date": "3/5/2023",
+          "end_date": "3/12/2023",
+          "duration_days": "7",
+          "traveler_name": "Peter Brown",
+          "traveler_age": "55",
+          "traveler_gender": "Male",
+          "traveler_nationality": "British",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "900",
+          "transportation_type": "Train",
+          "transportation_cost": "100"
+        },
+        {
+          "trip_id": "45",
+          "destination": "Barcelona, Spain",
+          "start_date": "8/18/2023",
+          "end_date": "8/25/2023",
+          "duration_days": "7",
+          "traveler_name": "Emma Garcia",
+          "traveler_age": "27",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Spanish",
+          "accommodation_type": "Hostel",
+          "accommodation_cost": "600",
+          "transportation_type": "Plane",
+          "transportation_cost": "600"
+        },
+        {
+          "trip_id": "46",
+          "destination": "New York City, USA",
+          "start_date": "9/15/2022",
+          "end_date": "9/22/2022",
+          "duration_days": "7",
+          "traveler_name": "Michael Davis",
+          "traveler_age": "41",
+          "traveler_gender": "Male",
+          "traveler_nationality": "American",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1500",
+          "transportation_type": "Plane",
+          "transportation_cost": "500"
+        },
+        {
+          "trip_id": "47",
+          "destination": "Bangkok, Thailand",
+          "start_date": "5/1/2023",
+          "end_date": "5/7/2023",
+          "duration_days": "6",
+          "traveler_name": "Nina Patel",
+          "traveler_age": "29",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Indian",
+          "accommodation_type": "Airbnb",
+          "accommodation_cost": "500",
+          "transportation_type": "Bus",
+          "transportation_cost": "50"
+        },
+        {
+          "trip_id": "48",
+          "destination": "Vancouver, Canada",
+          "start_date": "7/10/2022",
+          "end_date": "7/17/2022",
+          "duration_days": "7",
+          "traveler_name": "Kevin Kim",
+          "traveler_age": "24",
+          "traveler_gender": "Male",
+          "traveler_nationality": "Korean",
+          "accommodation_type": "Hostel",
+          "accommodation_cost": "400",
+          "transportation_type": "Train",
+          "transportation_cost": "150"
+        },
+        {
+          "trip_id": "49",
+          "destination": "Amsterdam, Netherlands",
+          "start_date": "6/20/2023",
+          "end_date": "6/28/2023",
+          "duration_days": "8",
+          "traveler_name": "Laura van den Berg",
+          "traveler_age": "31",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Dutch",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "1100",
+          "transportation_type": "Plane",
+          "transportation_cost": "700"
+        },
+        {
+          "trip_id": "50",
+          "destination": "Paris, France",
+          "start_date": "8/15/2023",
+          "end_date": "8/22/2023",
+          "duration_days": "7",
+          "traveler_name": "Jennifer Nguyen",
+          "traveler_age": "31",
+          "traveler_gender": "Female",
+          "traveler_nationality": "Canadian",
+          "accommodation_type": "Hotel",
+          "accommodation_cost": "$1,200 ",
+          "transportation_type": "Train",
+          "transportation_cost": "$300 "
+        }
+      ],
+      "data_schema": {
+        "fields": {
+          "trip_id": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "destination": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "start_date": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "end_date": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "duration_days": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "traveler_name": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "traveler_age": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "traveler_gender": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "traveler_nationality": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "accommodation_type": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "accommodation_cost": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "transportation_type": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "transportation_cost": {
+            "type": "string",
+            "source": "sampled_data"
+          }
+        },
+        "source": "sampled_data"
+      },
+      "downloaded_files": [
+        "sandbox/run/general_agent/task-946f5fe5-77a1-43be-89da-116e2865f32f/_sandbox/data/raw/mohansaidinesh-travel-recommendation-system-main.csv"
+      ]
+    },
+    {
+      "title": "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue",
+      "summary": "Scrape London & Paris Hotel Seasonal Pricing to analyze trends, optimize room rates, monitor competitors, and maximize revenue efficiently.",
+      "url": "https://www.travelscrape.com/scrape-london-paris-hotel-seasonal-pricing-revenue.php",
+      "source": "search_with_real_content",
+      "real_content": "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue\nPOWERFULL AND SIMPLE ANALYTICS\nGlobal Flight Prices Datasets\nComprehensive datasets capturing flight pricing\ntrends worldwide, essential for analyzing costs\nand forecasting travel expenses.\nTravel Review Sentiment Datasets\nDatasets that analyze and extract sentiment from\ntravel reviews, providing valuable insights into\ncustomer satisfaction and experiences.\nHotel Guest Review Datasets\nComprehensive datasets containing reviews and\nratings from hotel guests to evaluate service\nquality and guest experiences.\nHotel Room Rates Datasets\nDetailed datasets containing hotel room rate\ninformation for different locations, aiding in\nprice comparisons and market analysis.\nFlight Schedule Datasets\nDetailed information on global flight schedules,\nincluding departure and arrival times, airline\ncarriers, and routes for travel planning.\nPopular Destinations Datasets\nData highlighting trending and popular travel\ndestinations, including visitor statistics and\nkey attractions for better trip planning.\nVacation Rental Listings Datasets\nExtensive data on vacation rental properties,\nincluding details on pricing, amenities, and\navailability for planning trips.\nCar Rental Pricing Datasets\nIn-depth datasets offering insights into car\nrental pricing models, rental locations, and\ncompetitive cost assessments.\nAirport Facilities Datasets\nDetailed datasets on airport facilities,\nincluding amenities, services, and available\nresources for travelers.\nHotel Availability Forecast Datasets\nPredictive datasets providing insights into hotel\nroom availability trends to help anticipate peak\nAirline Price Fluctuation Datasets\nDynamic datasets tracking price changes in\nairline fares, allowing for informed decisions\non optimal booking times.\nCar Rental Location Datasets\nInformation on car rental locations worldwide,\nincluding popular pick-up/drop-off points and\navailable vehicle types.\nGlobal Cruise Itineraries Datasets\nComprehensive datasets detailing cruise\nitineraries, including destinations, departure\ntimes, and duration for vacation planning.\nFerry Routes Datasets\nDetailed data on ferry routes, schedules, and\nticket pricing for travelers looking for\nwater-based transport options.\nComprehensive datasets on flights, hotels, rentals, and destinations offering insights for planning, pricing, and analysis.\nAccurate Travel Data\nComprehensive Travel Dataset\nAirline Data Scraping\nVacation Rental Data Scraping\nTour & Travel Packages Scraping\nReviews & Ratings Analysis\nSchedule Data Extraction\nAmenities Data Collection\nReviews & Rating Analysis\nRanking/Competition Analysis\nCar Rental Data Scraping\nAvailability & Sales\nTravel Industry Web Scraping\nTravel Mobile App Data Scraping\nMobile-Optimized Data Collection\nBooking Insights Services\nTravel Airline and Hotel Data\nAI‑Driven Data Collection\nDynamic Pricing & Trend Forecasting\nHigh‑Accuracy & Scalable Architecture\nUnlock smarter travel insights today!\nAirline Price Tracking\nCompetitor Fare Comparisons\nOnline Travel Agencies (OTAs)\nAggregating Data for Competitive Pricing\nFlight & Hotel Comparisons\nCar Rental Companies\nPricing & Availability Optimization\nLocation-Based Service Offerings\nHotels & Hospitality\nDynamic Pricing Optimization\nReview Sentiment Data\nMarket Analysis for Property Listings\nCompetitor Pricing Insights\nCustom Travel Itinerary Creation\nPackage Pricing Comparisons\nEmpowering Travel Data!\nInsights for Smarter Travel!\nFlight Price data intelligence\nFlight Price Monitoring\nPrice Trend Analysis\nCar Rental Data intelligence\nRental Price Tracking\nAvailability and Fleet Utilization Analysis\nLocation-Specific Pricing Insights\nPricing and Package Comparison\nCruise & Ferries Data intelligence\nTicket Pricing and Availability\nAmenities and Services\nTour & Travel Packages Data intelligence\nItineraries and Highlights\nOffers, and Flash Deals\nReviews, Ratings, and Feedback\nTravel data intelligence\nPricing, and Schedules\nAvailability, Pricing, and Amenities\nOptions and Policies\nDiscounts, and Promotions\nTravel Review Data intelligence\nRatings and Overall Scores\nService-Specific Feedback\nTripAdvisor Review Extraction\nExpedia Review Analysis\nSentiment Analysis of Travel Feedback\nHotel Data intelligence\nCustom Travel Data Solutions\nData Collection (API)\nBooking Trends Analysis\nDemand Forecasting Tools\nCompetitive Market Insights\nData Enrichment Services\nEnhanced Data Quality\nActionable Insights Generation\nAccurate Dataset Integration\nOptimize Travel Scraping\nComprehensive Travel Data Solutions\nScrape Airline Price Data\nExtracting Flight Schedule Data\nAirline Price Scraping from Travel Portals\nCrawling Data from Airbnb\nScraping Vacation Rental Sites\nScrape Hotel Reviews from Travel Portals\nHotel Price Data Extraction from Portals\nScrape Hotel Prices and Listings\nOnline Travel Agency (OTA)\nMass Scale Travel Feed Extraction\nPricing Data Feeds from Travel Portals\nPricing Data Feeds from Travel Portals\nReal-Time Data Monitoring\nFAQ General Questions\n",
+      "clean_content": "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue\nPOWERFULL AND SIMPLE ANALYTICS\nGlobal Flight Prices Datasets\nComprehensive datasets capturing flight pricing\ntrends worldwide, essential for analyzing costs\nand forecasting travel expenses.\nTravel Review Sentiment Datasets\nDatasets that analyze and extract sentiment from\ntravel reviews, providing valuable insights into\ncustomer satisfaction and experiences.\nHotel Guest Review Datasets\nComprehensive datasets containing reviews and\nratings from hotel guests to evaluate service\nquality and guest experiences.\nHotel Room Rates Datasets\nDetailed datasets containing hotel room rate\ninformation for different locations, aiding in\nprice comparisons and market analysis.\nFlight Schedule Datasets\nDetailed information on global flight schedules,\nincluding departure and arrival times, airline\ncarriers, and routes for travel planning.\nPopular Destinations Datasets\nData highlighting trending and popular travel\ndestinations, including visitor statistics and\nkey attractions for better trip planning.\nVacation Rental Listings Datasets\nExtensive data on vacation rental properties,\nincluding details on pricing, amenities, and\navailability for planning trips.\nCar Rental Pricing Datasets\nIn-depth datasets offering insights into car\nrental pricing models, rental locations, and\ncompetitive cost assessments.\nAirport Facilities Datasets\nDetailed datasets on airport facilities,\nincluding amenities, services, and available\nresources for travelers.\nHotel Availability Forecast Datasets\nPredictive datasets providing insights into hotel\nroom availability trends to help anticipate peak\nAirline Price Fluctuation Datasets\nDynamic datasets tracking price changes in\nairline fares, allowing for informed decisions\non optimal booking times.\nCar Rental Location Datasets\nInformation on car rental locations worldwide,\nincluding popular pick-up/drop-off points and\navailable vehicle types.\nGlobal Cruise Itineraries Datasets\nComprehensive datasets detailing cruise\nitineraries, including destinations, departure\ntimes, and duration for vacation planning.\nFerry Routes Datasets\nDetailed data on ferry routes, schedules, and\nticket pricing for travelers looking for\nwater-based transport options.\nComprehensive datasets on flights, hotels, rentals, and destinations offering insights for planning, pricing, and analysis.\nAccurate Travel Data\nComprehens",
+      "info_snippets": [
+        "Airline Price Fluctuation Datasets",
+        "Dynamic datasets tracking price changes in",
+        "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue",
+        "Comprehensive datasets capturing flight pricing",
+        "Travel Review Sentiment Datasets",
+        "Datasets that analyze and extract sentiment from",
+        "Comprehensive datasets containing reviews and",
+        "Detailed datasets containing hotel room rate"
+      ],
+      "real_tables": [
+        [
+          [
+            "Hotel Name",
+            "Room Type",
+            "Date",
+            "Rate ($)",
+            "Availability",
+            "Guest Rating",
+            "Special Offer"
+          ],
+          [
+            "Grand Paris Inn",
+            "Deluxe",
+            "15-Dec-25",
+            "220",
+            "Available",
+            "4.5",
+            "Winter Deal"
+          ],
+          [
+            "Louvre Suites",
+            "Standard",
+            "15-Dec-25",
+            "180",
+            "Limited",
+            "4.3",
+            "Holiday Promo"
+          ],
+          [
+            "Eiffel Tower Hotel",
+            "Executive",
+            "15-Dec-25",
+            "300",
+            "Available",
+            "4.7",
+            "Festive Offer"
+          ],
+          [
+            "Champs Elysee Stay",
+            "Deluxe",
+            "15-Dec-25",
+            "250",
+            "Sold Out",
+            "4.6",
+            "None"
+          ],
+          [
+            "Paris Central Inn",
+            "Standard",
+            "15-Dec-25",
+            "200",
+            "Available",
+            "4.2",
+            "Early Bird"
+          ]
+        ]
+      ],
+      "real_data_samples": [
+        {
+          "hotel_name": "Grand Paris Inn",
+          "room_type": "Deluxe",
+          "date": "15-Dec-25",
+          "rate": "220",
+          "availability": "Available",
+          "guest_rating": "4.5",
+          "special_offer": "Winter Deal"
+        },
+        {
+          "hotel_name": "Louvre Suites",
+          "room_type": "Standard",
+          "date": "15-Dec-25",
+          "rate": "180",
+          "availability": "Limited",
+          "guest_rating": "4.3",
+          "special_offer": "Holiday Promo"
+        },
+        {
+          "hotel_name": "Eiffel Tower Hotel",
+          "room_type": "Executive",
+          "date": "15-Dec-25",
+          "rate": "300",
+          "availability": "Available",
+          "guest_rating": "4.7",
+          "special_offer": "Festive Offer"
+        },
+        {
+          "hotel_name": "Champs Elysee Stay",
+          "room_type": "Deluxe",
+          "date": "15-Dec-25",
+          "rate": "250",
+          "availability": "Sold Out",
+          "guest_rating": "4.6",
+          "special_offer": "None"
+        },
+        {
+          "hotel_name": "Paris Central Inn",
+          "room_type": "Standard",
+          "date": "15-Dec-25",
+          "rate": "200",
+          "availability": "Available",
+          "guest_rating": "4.2",
+          "special_offer": "Early Bird"
+        }
+      ],
+      "data_schema": {
+        "fields": {
+          "hotel_name": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "room_type": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "date": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "rate": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "availability": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "guest_rating": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "special_offer": {
+            "type": "string",
+            "source": "html_table"
+          }
+        },
+        "source": "html_table"
+      }
+    },
+    {
+      "title": "Trivago Travel Reviews Dataset",
+      "summary": "The Trivago Travel Reviews Dataset offers extensive insights into traveler experiences across multiple destinations worldwide, including the USA, Italy, Germany ...",
+      "url": "https://www.travelscrape.com/trivago-travel-reviews-dataset.php",
+      "source": "search_with_real_content",
+      "real_content": "Trivago Travel Reviews Dataset - Scrape Trivago Review Data\nPOWERFULL AND SIMPLE ANALYTICS\nGlobal Flight Prices Datasets\nComprehensive datasets capturing flight pricing\ntrends worldwide, essential for analyzing costs\nand forecasting travel expenses.\nTravel Review Sentiment Datasets\nDatasets that analyze and extract sentiment from\ntravel reviews, providing valuable insights into\ncustomer satisfaction and experiences.\nHotel Guest Review Datasets\nComprehensive datasets containing reviews and\nratings from hotel guests to evaluate service\nquality and guest experiences.\nHotel Room Rates Datasets\nDetailed datasets containing hotel room rate\ninformation for different locations, aiding in\nprice comparisons and market analysis.\nFlight Schedule Datasets\nDetailed information on global flight schedules,\nincluding departure and arrival times, airline\ncarriers, and routes for travel planning.\nPopular Destinations Datasets\nData highlighting trending and popular travel\ndestinations, including visitor statistics and\nkey attractions for better trip planning.\nVacation Rental Listings Datasets\nExtensive data on vacation rental properties,\nincluding details on pricing, amenities, and\navailability for planning trips.\nCar Rental Pricing Datasets\nIn-depth datasets offering insights into car\nrental pricing models, rental locations, and\ncompetitive cost assessments.\nAirport Facilities Datasets\nDetailed datasets on airport facilities,\nincluding amenities, services, and available\nresources for travelers.\nHotel Availability Forecast Datasets\nPredictive datasets providing insights into hotel\nroom availability trends to help anticipate peak\nAirline Price Fluctuation Datasets\nDynamic datasets tracking price changes in\nairline fares, allowing for informed decisions\non optimal booking times.\nCar Rental Location Datasets\nInformation on car rental locations worldwide,\nincluding popular pick-up/drop-off points and\navailable vehicle types.\nGlobal Cruise Itineraries Datasets\nComprehensive datasets detailing cruise\nitineraries, including destinations, departure\ntimes, and duration for vacation planning.\nFerry Routes Datasets\nDetailed data on ferry routes, schedules, and\nticket pricing for travelers looking for\nwater-based transport options.\nComprehensive datasets on flights, hotels, rentals, and destinations offering insights for planning, pricing, and analysis.\nAccurate Travel Data\nComprehensive Travel Dataset\nAirline Data Scraping\nVacation Rental Data Scraping\nTour & Travel Packages Scraping\nReviews & Ratings Analysis\nSchedule Data Extraction\nAmenities Data Collection\nReviews & Rating Analysis\nRanking/Competition Analysis\nCar Rental Data Scraping\nAvailability & Sales\nTravel Industry Web Scraping\nTravel Mobile App Data Scraping\nMobile-Optimized Data Collection\nBooking Insights Services\nTravel Airline and Hotel Data\nAI‑Driven Data Collection\nDynamic Pricing & Trend Forecasting\nHigh‑Accuracy & Scalable Architecture\nUnlock smarter travel insights today!\nAirline Price Tracking\nCompetitor Fare Comparisons\nOnline Travel Agencies (OTAs)\nAggregating Data for Competitive Pricing\nFlight & Hotel Comparisons\nCar Rental Companies\nPricing & Availability Optimization\nLocation-Based Service Offerings\nHotels & Hospitality\nDynamic Pricing Optimization\nReview Sentiment Data\nMarket Analysis for Property Listings\nCompetitor Pricing Insights\nCustom Travel Itinerary Creation\nPackage Pricing Comparisons\nEmpowering Travel Data!\nInsights for Smarter Travel!\nFlight Price data intelligence\nFlight Price Monitoring\nPrice Trend Analysis\nCar Rental Data intelligence\nRental Price Tracking\nAvailability and Fleet Utilization Analysis\nLocation-Specific Pricing Insights\nPricing and Package Comparison\nCruise & Ferries Data intelligence\nTicket Pricing and Availability\nAmenities and Services\nTour & Travel Packages Data intelligence\nItineraries and Highlights\nOffers, and Flash Deals\nReviews, Ratings, and Feedback\nTravel data intelligence\nPricing, and Schedules\nAvailability, Pricing, and Amenities\nOptions and Policies\nDiscounts, and Promotions\nTravel Review Data intelligence\nRatings and Overall Scores\nService-Specific Feedback\nTripAdvisor Review Extraction\nExpedia Review Analysis\nSentiment Analysis of Travel Feedback\nHotel Data intelligence\nCustom Travel Data Solutions\nData Collection (API)\nBooking Trends Analysis\nDemand Forecasting Tools\nCompetitive Market Insights\nData Enrichment Services\nEnhanced Data Quality\nActionable Insights Generation\nAccurate Dataset Integration\nOptimize Travel Scraping\nComprehensive Travel Data Solutions\nScrape Airline Price Data\nExtracting Flight Schedule Data\nAirline Price Scraping from Travel Portals\nCrawling Data from Airbnb\nScraping Vacation Rental Sites\nScrape Hotel Reviews from Travel Portals\nHotel Price Data Extraction from Portals\nScrape Hotel Prices and Listings\nOnline Travel Agency (OTA)\nMass Scale Travel Feed Extraction\nPricing Data Feeds from Travel Portals\nPricing Data Feeds from Travel Portals\nReal-Time Data Monitoring\nFAQ General Questions\nServi",
+      "clean_content": "Trivago Travel Reviews Dataset - Scrape Trivago Review Data\nPOWERFULL AND SIMPLE ANALYTICS\nGlobal Flight Prices Datasets\nComprehensive datasets capturing flight pricing\ntrends worldwide, essential for analyzing costs\nand forecasting travel expenses.\nTravel Review Sentiment Datasets\nDatasets that analyze and extract sentiment from\ntravel reviews, providing valuable insights into\ncustomer satisfaction and experiences.\nHotel Guest Review Datasets\nComprehensive datasets containing reviews and\nratings from hotel guests to evaluate service\nquality and guest experiences.\nHotel Room Rates Datasets\nDetailed datasets containing hotel room rate\ninformation for different locations, aiding in\nprice comparisons and market analysis.\nFlight Schedule Datasets\nDetailed information on global flight schedules,\nincluding departure and arrival times, airline\ncarriers, and routes for travel planning.\nPopular Destinations Datasets\nData highlighting trending and popular travel\ndestinations, including visitor statistics and\nkey attractions for better trip planning.\nVacation Rental Listings Datasets\nExtensive data on vacation rental properties,\nincluding details on pricing, amenities, and\navailability for planning trips.\nCar Rental Pricing Datasets\nIn-depth datasets offering insights into car\nrental pricing models, rental locations, and\ncompetitive cost assessments.\nAirport Facilities Datasets\nDetailed datasets on airport facilities,\nincluding amenities, services, and available\nresources for travelers.\nHotel Availability Forecast Datasets\nPredictive datasets providing insights into hotel\nroom availability trends to help anticipate peak\nAirline Price Fluctuation Datasets\nDynamic datasets tracking price changes in\nairline fares, allowing for informed decisions\non optimal booking times.\nCar Rental Location Datasets\nInformation on car rental locations worldwide,\nincluding popular pick-up/drop-off points and\navailable vehicle types.\nGlobal Cruise Itineraries Datasets\nComprehensive datasets detailing cruise\nitineraries, including destinations, departure\ntimes, and duration for vacation planning.\nFerry Routes Datasets\nDetailed data on ferry routes, schedules, and\nticket pricing for travelers looking for\nwater-based transport options.\nComprehensive datasets on flights, hotels, rentals, and destinations offering insights for planning, pricing, and analysis.\nAccurate Travel Data\nComprehensive T",
+      "info_snippets": [
+        "Trivago Travel Reviews Dataset - Scrape Trivago Review Data",
+        "Airline Price Fluctuation Datasets",
+        "Dynamic datasets tracking price changes in",
+        "Comprehensive datasets capturing flight pricing",
+        "Travel Review Sentiment Datasets",
+        "Datasets that analyze and extract sentiment from",
+        "Comprehensive datasets containing reviews and",
+        "Detailed datasets containing hotel room rate"
+      ],
+      "real_tables": [
+        [
+          [
+            "entry_reference",
+            "review_date",
+            "review_title",
+            "review_text",
+            "rating",
+            "trip_type",
+            "service_type",
+            "provider_name",
+            "destination_location",
+            "price_paid_usd",
+            "booking_platform",
+            "language",
+            "word_count",
+            "provider_response",
+            "images_present",
+            "response_date",
+            "aspect_scores",
+            "review_source",
+            "price_currency",
+            "travel_date"
+          ],
+          [
+            "TRV001",
+            "1/10/2025",
+            "Excellent hotel",
+            "Rooms were clean, staff very helpful.",
+            "5",
+            "Leisure",
+            "Hotel",
+            "Marriott",
+            "Paris, France",
+            "250",
+            "Trivago",
+            "English",
+            "10",
+            "Yes",
+            "Add Image",
+            "1/11/2025",
+            "Service: Excellent, Cleanliness: Excellent, Comfort: Excellent, Value: Good",
+            "Trivago",
+            "EUR",
+            "1/9/2025"
+          ],
+          [
+            "TRV002",
+            "2/15/2025",
+            "Comfortable stay",
+            "Hotel in great location, friendly staff.",
+            "4",
+            "Leisure",
+            "Hotel",
+            "Hilton",
+            "London, UK",
+            "280",
+            "Trivago",
+            "English",
+            "9",
+            "No",
+            "No Image",
+            "-",
+            "Service: Good, Cleanliness: Good, Comfort: Good, Value: Good",
+            "Trivago",
+            "GBP",
+            "2/14/2025"
+          ],
+          [
+            "TRV003",
+            "3/18/2025",
+            "Disappointing hotel",
+            "Room was small and noisy.",
+            "2",
+            "Leisure",
+            "Hotel",
+            "Hyatt",
+            "Tokyo, Japan",
+            "350",
+            "Trivago",
+            "English",
+            "10",
+            "No",
+            "No Image",
+            "-",
+            "Service: Poor, Cleanliness: Poor, Comfort: Poor, Value: Average",
+            "Trivago",
+            "JPY",
+            "3/17/2025"
+          ]
+        ]
+      ],
+      "real_data_samples": [
+        {
+          "entry_reference": "TRV001",
+          "review_date": "1/10/2025",
+          "review_title": "Excellent hotel",
+          "review_text": "Rooms were clean, staff very helpful.",
+          "rating": "5",
+          "trip_type": "Leisure",
+          "service_type": "Hotel",
+          "provider_name": "Marriott",
+          "destination_location": "Paris, France",
+          "price_paid_usd": "250",
+          "booking_platform": "Trivago",
+          "language": "English",
+          "word_count": "10",
+          "provider_response": "Yes",
+          "images_present": "Add Image",
+          "response_date": "1/11/2025",
+          "aspect_scores": "Service: Excellent, Cleanliness: Excellent, Comfort: Excellent, Value: Good",
+          "review_source": "Trivago",
+          "price_currency": "EUR",
+          "travel_date": "1/9/2025"
+        },
+        {
+          "entry_reference": "TRV002",
+          "review_date": "2/15/2025",
+          "review_title": "Comfortable stay",
+          "review_text": "Hotel in great location, friendly staff.",
+          "rating": "4",
+          "trip_type": "Leisure",
+          "service_type": "Hotel",
+          "provider_name": "Hilton",
+          "destination_location": "London, UK",
+          "price_paid_usd": "280",
+          "booking_platform": "Trivago",
+          "language": "English",
+          "word_count": "9",
+          "provider_response": "No",
+          "images_present": "No Image",
+          "response_date": "-",
+          "aspect_scores": "Service: Good, Cleanliness: Good, Comfort: Good, Value: Good",
+          "review_source": "Trivago",
+          "price_currency": "GBP",
+          "travel_date": "2/14/2025"
+        },
+        {
+          "entry_reference": "TRV003",
+          "review_date": "3/18/2025",
+          "review_title": "Disappointing hotel",
+          "review_text": "Room was small and noisy.",
+          "rating": "2",
+          "trip_type": "Leisure",
+          "service_type": "Hotel",
+          "provider_name": "Hyatt",
+          "destination_location": "Tokyo, Japan",
+          "price_paid_usd": "350",
+          "booking_platform": "Trivago",
+          "language": "English",
+          "word_count": "10",
+          "provider_response": "No",
+          "images_present": "No Image",
+          "response_date": "-",
+          "aspect_scores": "Service: Poor, Cleanliness: Poor, Comfort: Poor, Value: Average",
+          "review_source": "Trivago",
+          "price_currency": "JPY",
+          "travel_date": "3/17/2025"
+        }
+      ],
+      "data_schema": {
+        "fields": {
+          "entry_reference": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "review_date": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "review_title": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "review_text": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "rating": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "trip_type": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "service_type": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "provider_name": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "destination_location": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "price_paid_usd": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "booking_platform": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "language": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "word_count": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "provider_response": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "images_present": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "response_date": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "aspect_scores": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "review_source": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "price_currency": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "travel_date": {
+            "type": "string",
+            "source": "html_table"
+          }
+        },
+        "source": "html_table"
+      }
+    },
+    {
+      "title": "hotels.csv - bixbydevelopers/sample-template-import-data",
+      "summary": "Open symbols panel. Edit and raw actions. Name,*Amenities*,Stars,City,Country,Photo,Price,WebSite The Peninsula,\"pool, jacuzzi\",4,Paris,France ...",
+      "url": "https://github.com/bixbydevelopers/sample-template-import-data/blob/master/hotels/hotels.csv",
+      "source": "downloaded_dataset",
+      "real_data_samples": [
+        {
+          "name": "The Peninsula",
+          "amenities": "pool, jacuzzi",
+          "stars": "4",
+          "city": "Paris",
+          "country": "France",
+          "photo": "https://assets.hotelaparis.com/uploads/pictures/000/028/007/rect690_room.jpg",
+          "price": "400",
+          "website": "https://www.peninsula.com/"
+        },
+        {
+          "name": "Regent Berlin",
+          "amenities": "wifi, pets",
+          "stars": "5",
+          "city": "Berlin",
+          "country": "Germany",
+          "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/germany/berlin/hotel-de-rome-berlin-germany-2-p-xlarge.jpg",
+          "price": "900",
+          "website": "https://www.ihg.com/"
+        },
+        {
+          "name": "Grand Hotel Du Palais Royal",
+          "amenities": "wifi",
+          "stars": "5",
+          "city": "Paris",
+          "country": "France",
+          "photo": "https://media.timeout.com/images/103729245/1372/772/image.jpg",
+          "price": "850",
+          "website": "https://www.roccofortehotels.com/hotels-and-resorts/browns-hotel/"
+        },
+        {
+          "name": "The Savoy",
+          "amenities": "wifi",
+          "stars": "5",
+          "city": "London",
+          "country": "UK",
+          "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/united-kingdom/Hotels%20-%20England/london/the-dorchester-p-large.jpg",
+          "price": "1050",
+          "website": "https://www.fairmont.com/savoy-london/"
+        },
+        {
+          "name": "George V",
+          "amenities": "pool, jacuzzi, wifi",
+          "stars": "5",
+          "city": "Paris",
+          "country": "France",
+          "photo": "https://assets.hotelaparis.com/uploads/pictures/000/011/834/rect690_1_chambre_hotel_george_v-2.jpg",
+          "price": "1000",
+          "website": "https://www.fourseasons.com/paris/"
+        },
+        {
+          "name": "The Ritz London",
+          "amenities": "pool, wifi",
+          "stars": "5",
+          "city": "London",
+          "country": "UK",
+          "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/united-kingdom/Hotels%20-%20England/london/the-langham-london-room-p-xlarge.jpg",
+          "price": "850",
+          "website": "https://www.theritzlondon.com/"
+        },
+        {
+          "name": "Le Royal Monceau",
+          "amenities": "wifi",
+          "stars": "5",
+          "city": "Paris",
+          "country": "France",
+          "photo": "https://media.timeout.com/images/103698374/1372/772/image.jpg",
+          "price": "900",
+          "website": "https://www.raffles.com/paris/"
+        },
+        {
+          "name": "Grand Hyatt",
+          "amenities": "pets",
+          "stars": "2",
+          "city": "Berlin",
+          "country": "Germany",
+          "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/germany/berlin/waldorf-astoria-berlin-p-large.jpg",
+          "price": "156",
+          "website": "https://www.hyatt.com/en-US/hotel/germany/grand-hyatt-berlin/bergh?src=corp_lclb_gmb_seo_eame_bergh"
+        },
+        {
+          "name": "The Langham",
+          "amenities": "jacuzzi, wifi",
+          "stars": "2",
+          "city": "London",
+          "country": "UK",
+          "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/united-kingdom/Hotels%20-%20England/london/the-connaught-p-large.jpg",
+          "price": "170",
+          "website": "http://www.langhamhotels.com/en/the-langham/london"
+        },
+        {
+          "name": "The Ritz-Carlton",
+          "amenities": "pets",
+          "stars": "5",
+          "city": "Berlin",
+          "country": "Germany",
+          "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/germany/berlin/ritz-carlton-berlin-p-large.jpg",
+          "price": "900",
+          "website": "http://www.ritzparis.com/en-GB/luxury-hotel-paris"
+        },
+        {
+          "name": "Ritz Paris",
+          "amenities": "pool, wifi",
+          "stars": "4",
+          "city": "Paris",
+          "country": "France",
+          "photo": "https://assets.hotelaparis.com/uploads/pictures/000/037/294/rect690_ritz-paris-hotel-suite-coco-chanel.jpg",
+          "price": "600",
+          "website": "http://www.ritzparis.com/en-GB"
+        },
+        {
+          "name": "Hotel de Rome",
+          "amenities": "pool, jacuzzi",
+          "stars": "5",
+          "city": "Berlin",
+          "country": "Germany",
+          "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/germany/berlin/hotel-zoo-berlin-p-large.jpg",
+          "price": "800",
+          "website": "https://www.roccofortehotels.com/hotels-and-resorts/hotel-de-rome/"
+        }
+      ],
+      "data_schema": {
+        "fields": {
+          "name": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "amenities": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "stars": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "city": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "country": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "photo": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "price": {
+            "type": "string",
+            "source": "sampled_data"
+          },
+          "website": {
+            "type": "string",
+            "source": "sampled_data"
+          }
+        },
+        "source": "sampled_data"
+      },
+      "downloaded_files": [
+        "sandbox/run/general_agent/task-946f5fe5-77a1-43be-89da-116e2865f32f/_sandbox/data/raw/bixbydevelopers-sample-template-import-data-mast.csv"
+      ]
+    },
+    {
+      "title": "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data",
+      "summary": "TripAdvisor travel datasets obtained through web scraping include hotel and flight data such as prices, reviews, ratings, locations, and availability.",
+      "url": "https://www.actowizsolutions.com/web-scraping-tripadvisor-hotel-flight-dataset.php",
+      "source": "search_with_real_content",
+      "real_content": "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data\nThis Christmas, unlock smarter data with\n15th – 25th December\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nCore Scraping Services\nEnterprise Web Crawling\nWeb Scraping Services\nMobile App Scraping Services\nWeb Scraping API Services\nDeep and Dark Web Scraping\nWeb Data Mining Services\nWeb Scraping with AI\nSearch Engine Data Scraping\nMobile & App Scraping\nApp Store & Play Store\nAndroid App Scraping\nRetail, E-commerce & FMCG\nEcommerce Data Scraping\nLuxury Data Scraping\nGrocery Fmcg Pricing\nCompetitive Promotional\nPricing Intelligence\nTravel & Hospitality\nTravel Data Scraping\nCommodities Scraping\nSports & Fantasy Data\nWine & Alcohol / Liquor\nWine and Alcohol Price\nHR & Recruitment Data\nCoupon and Deals Data\nQSR Fast Food Pricing\nFinancial Data Scraping\nInsurance Data Scraping\nLawyer Data Scraping\nMedia & Entertainment\nAutomotive & Mobility\nEV & Auto Marketplaces\nRide-Hailing & Delivery\nTire Pricing Data Web\nDoctors and Physicians\nReal Estate Property\nBusiness Directory Data\nTransform your data into\nactionable insights with our customizable dashboard, offering\ncomprehensive visualizations across platforms to drive informed\ndecisions and business growth.\nWhat is the Digital Shelf?\nGet all your digital shelf related\nquestions answered in this ultimate digital shelf optimization guide\nspecially curated for global brands and retailers.\nTransform your data into actionable insights with customizable\ndashboards across platforms.\nWhat is the Digital Shelf?\nGet all your digital shelf questions answered in this guide\ncurated for brands and retailers.\nPricing & Promotions\nGeo & Omnichannel Price\nAssortment & Availability\nProduct Availability\nReplenishment Alerts\nAssortment Gap Analysis\nRate of Sale Forecast\nDigital Shelf & Search\nSponsored vs Organic\nBrand Protection & Governance\nCounterfeit Detection\nPrice Intelligence AI\nRetailer Intelligence\nE‑commerce Intelligence\nPricing Intelligence\nAssortment Analytics\nOffline Price & Flyer\nCore Scraping Services\nMobile & App Scraping\nNeed Area-Specific Store Data?\nChoose your region, and we’ll deliver clean, accurate store location datasets.\nDownload Store Location Data\nGrocery & Supermarket Datasets\nFood Delivery Datasets\nTravel & Hospitality Datasets\nBooking.com Datasets\nTripadvisor Datasets\nReal Estate Datasets\nOTT & Media Datasets\nPrime Video Datasets\nJobs & Company Datasets\nLinkedIn Jobs Datasets\nLocal & POI Datasets\nGoogle Maps Datasets\nStore Locator Datasets\nCoupons, Deals & Reviews\nNiche & Emerging Datasets\nDelivery & Compliance\nReady-made Web Scrapers & APIs\nCore Scraping Services\nReady-Made Web Scrapers\nLaunch instantly with ready-made scrapers tailored for popular\nplatforms. Extract clean, structured data without building from\nMobile & App Scraping\nAccess real-time, structured data through scalable REST APIs.\nIntegrate seamlessly into your workflows for faster insights and\nReady Made Data APIs\nGeneral Web Extract API\nSERP API (Google/Bing)\nStreaming, Schedules & Delivery\nWebhook/Queue Delivery\nGovernance, Compliance & Security\nRobots & Terms Aware\nRate Limits & Backoff\nCore Scraping Services\nDownload Sample Datasets\nDownload sample datasets with product titles, price, stock, and\nreviews data. Explore Q4-ready insights to test, analyze, and\npower smarter business strategies.\nMobile & App Scraping\nPlaybook to win the digital shelf. Learn how brands & retailers\ncan track prices, monitor stock, boost visibility, and drive\nconversions with actionable data insights.\nDigital Shelf Playbook\nAssortment Analytics\nMAP Compliance Guide\nPricing Intelligence\nRetail Media Handbook\nAPI Postman Collection\nData Protection & Privacy Policy\nWe deliver innovative solutions, empowering businesses to\ngrow, adapt, and succeed globally.\nCollaborating with industry leaders to provide reliable,\nscalable, and cutting-edge solutions.\nFind clear",
+      "clean_content": "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data\nThis Christmas, unlock smarter data with\n15th – 25th December\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nCore Scraping Services\nEnterprise Web Crawling\nWeb Scraping Services\nMobile App Scraping Services\nWeb Scraping API Services\nDeep and Dark Web Scraping\nWeb Data Mining Services\nWeb Scraping with AI\nSearch Engine Data Scraping\nMobile & App Scraping\nApp Store & Play Store\nAndroid App Scraping\nRetail, E-commerce & FMCG\nEcommerce Data Scraping\nLuxury Data Scraping\nGrocery Fmcg Pricing\nCompetitive Promotional\nPricing Intelligence\nTravel & Hospitality\nTravel Data Scraping\nCommodities Scraping\nSports & Fantasy Data\nWine & Alcohol / Liquor\nWine and Alcohol Price\nHR & Recruitment Data\nCoupon and Deals Data\nQSR Fast Food Pricing\nFinancial Data Scraping\nInsurance Data Scraping\nLawyer Data Scraping\nMedia & Entertainment\nAutomotive & Mobility\nEV & Auto Marketplaces\nRide-Hailing & Delivery\nTire Pricing Data Web\nDoctors and Physicians\nReal Estate Property\nBusiness Directory Data\nTransform your data into\nactionable insights with our customizable dashboard, offering\ncomprehensive visualizations across platforms to drive informed\ndecisions and business growth.\nWhat is the Digital Shelf?\nGet all your digital shelf r",
+      "info_snippets": [
+        "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data",
+        "This Christmas, unlock smarter data with",
+        "Actowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!",
+        "Actowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company",
+        "actionable insights with our customizable dashboard, offering",
+        "comprehensive visualizations across platforms to drive informed"
+      ],
+      "real_tables": [
+        [
+          [
+            "﻿Id",
+            "Platform_Name",
+            "Platform_URL",
+            "Item_id",
+            "Category",
+            "Sub_Category",
+            "Description",
+            "Location",
+            "Major_Region",
+            "Country",
+            "Rating",
+            "Number_of_Reviews",
+            "Entry_Fee",
+            "URL"
+          ],
+          [
+            "1",
+            "TripAdvisor",
+            "https://www.tripadvisor.com",
+            "AUS001",
+            "Attraction",
+            "Statue of Liberty",
+            "Iconic symbol of freedom in NYC; ferry access",
+            "NYC",
+            "New York",
+            "USA",
+            "4.5",
+            "43,298",
+            "~$24.50",
+            "https://www.tripadvisor.com/Attraction_Review-g60763-d103887-Reviews-Statue_of_Liberty-New_York_City_New_York.html"
+          ],
+          [
+            "2",
+            "TripAdvisor",
+            "…",
+            "AUS002",
+            "Attraction",
+            "Grand Canyon National Park",
+            "Natural wonder with deep canyon views",
+            "Arizona",
+            "Southwest",
+            "USA",
+            "5",
+            "25,849",
+            "$35 (per car)",
+            "https://www.tripadvisor.com/Attraction_Review-g143028-d104847-Reviews-Grand_Canyon_National_Park-Arizona.html"
+          ]
+        ]
+      ],
+      "real_data_samples": [
+        {
+          "id": "1",
+          "platform_name": "TripAdvisor",
+          "platform_url": "https://www.tripadvisor.com",
+          "item_id": "AUS001",
+          "category": "Attraction",
+          "sub_category": "Statue of Liberty",
+          "description": "Iconic symbol of freedom in NYC; ferry access",
+          "location": "NYC",
+          "major_region": "New York",
+          "country": "USA",
+          "rating": "4.5",
+          "number_of_reviews": "43,298",
+          "entry_fee": "~$24.50",
+          "url": "https://www.tripadvisor.com/Attraction_Review-g60763-d103887-Reviews-Statue_of_Liberty-New_York_City_New_York.html"
+        },
+        {
+          "id": "2",
+          "platform_name": "TripAdvisor",
+          "platform_url": "…",
+          "item_id": "AUS002",
+          "category": "Attraction",
+          "sub_category": "Grand Canyon National Park",
+          "description": "Natural wonder with deep canyon views",
+          "location": "Arizona",
+          "major_region": "Southwest",
+          "country": "USA",
+          "rating": "5",
+          "number_of_reviews": "25,849",
+          "entry_fee": "$35 (per car)",
+          "url": "https://www.tripadvisor.com/Attraction_Review-g143028-d104847-Reviews-Grand_Canyon_National_Park-Arizona.html"
+        }
+      ],
+      "data_schema": {
+        "fields": {
+          "id": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "platform_name": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "platform_url": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "item_id": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "category": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "sub_category": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "description": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "location": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "major_region": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "country": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "rating": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "number_of_reviews": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "entry_fee": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "url": {
+            "type": "string",
+            "source": "html_table"
+          }
+        },
+        "source": "html_table"
+      }
+    },
+    {
+      "title": "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data",
+      "summary": "Airbnb travel datasets obtained through web scraping include hotel and flight data such as prices, reviews, ratings, locations, and availability.",
+      "url": "https://www.actowizsolutions.com/web-scraping-airbnb-hotel-flight-dataset.php",
+      "source": "search_with_real_content",
+      "real_content": "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data Travel Datasets: Web Scraping Hotel, Flight Data\nThis Christmas, unlock smarter data with\n15th – 25th December\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nCore Scraping Services\nEnterprise Web Crawling\nWeb Scraping Services\nMobile App Scraping Services\nWeb Scraping API Services\nDeep and Dark Web Scraping\nWeb Data Mining Services\nWeb Scraping with AI\nSearch Engine Data Scraping\nMobile & App Scraping\nApp Store & Play Store\nAndroid App Scraping\nRetail, E-commerce & FMCG\nEcommerce Data Scraping\nLuxury Data Scraping\nGrocery Fmcg Pricing\nCompetitive Promotional\nPricing Intelligence\nTravel & Hospitality\nTravel Data Scraping\nCommodities Scraping\nSports & Fantasy Data\nWine & Alcohol / Liquor\nWine and Alcohol Price\nHR & Recruitment Data\nCoupon and Deals Data\nQSR Fast Food Pricing\nFinancial Data Scraping\nInsurance Data Scraping\nLawyer Data Scraping\nMedia & Entertainment\nAutomotive & Mobility\nEV & Auto Marketplaces\nRide-Hailing & Delivery\nTire Pricing Data Web\nDoctors and Physicians\nReal Estate Property\nBusiness Directory Data\nTransform your data into\nactionable insights with our customizable dashboard, offering\ncomprehensive visualizations across platforms to drive informed\ndecisions and business growth.\nWhat is the Digital Shelf?\nGet all your digital shelf related\nquestions answered in this ultimate digital shelf optimization guide\nspecially curated for global brands and retailers.\nTransform your data into actionable insights with customizable\ndashboards across platforms.\nWhat is the Digital Shelf?\nGet all your digital shelf questions answered in this guide\ncurated for brands and retailers.\nPricing & Promotions\nGeo & Omnichannel Price\nAssortment & Availability\nProduct Availability\nReplenishment Alerts\nAssortment Gap Analysis\nRate of Sale Forecast\nDigital Shelf & Search\nSponsored vs Organic\nBrand Protection & Governance\nCounterfeit Detection\nPrice Intelligence AI\nRetailer Intelligence\nE‑commerce Intelligence\nPricing Intelligence\nAssortment Analytics\nOffline Price & Flyer\nCore Scraping Services\nMobile & App Scraping\nNeed Area-Specific Store Data?\nChoose your region, and we’ll deliver clean, accurate store location datasets.\nDownload Store Location Data\nGrocery & Supermarket Datasets\nFood Delivery Datasets\nTravel & Hospitality Datasets\nBooking.com Datasets\nTripadvisor Datasets\nReal Estate Datasets\nOTT & Media Datasets\nPrime Video Datasets\nJobs & Company Datasets\nLinkedIn Jobs Datasets\nLocal & POI Datasets\nGoogle Maps Datasets\nStore Locator Datasets\nCoupons, Deals & Reviews\nNiche & Emerging Datasets\nDelivery & Compliance\nReady-made Web Scrapers & APIs\nCore Scraping Services\nReady-Made Web Scrapers\nLaunch instantly with ready-made scrapers tailored for popular\nplatforms. Extract clean, structured data without building from\nMobile & App Scraping\nAccess real-time, structured data through scalable REST APIs.\nIntegrate seamlessly into your workflows for faster insights and\nReady Made Data APIs\nGeneral Web Extract API\nSERP API (Google/Bing)\nStreaming, Schedules & Delivery\nWebhook/Queue Delivery\nGovernance, Compliance & Security\nRobots & Terms Aware\nRate Limits & Backoff\nCore Scraping Services\nDownload Sample Datasets\nDownload sample datasets with product titles, price, stock, and\nreviews data. Explore Q4-ready insights to test, analyze, and\npower smarter business strategies.\nMobile & App Scraping\nPlaybook to win the digital shelf. Learn how brands & retailers\ncan track prices, monitor stock, boost visibility, and drive\nconversions with actionable data insights.\nDigital Shelf Playbook\nAssortment Analytics\nMAP Compliance Guide\nPricing Intelligence\nRetail Media Handbook\nAPI Postman Collection\nData Protection & Privacy Policy\nWe deliver innovative solutions, empowering businesses to\ngrow, adapt, and succeed globally.\nCollaborating with industry leaders to provide reliable,\nscal",
+      "clean_content": "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data Travel Datasets: Web Scraping Hotel, Flight Data\nThis Christmas, unlock smarter data with\n15th – 25th December\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nCore Scraping Services\nEnterprise Web Crawling\nWeb Scraping Services\nMobile App Scraping Services\nWeb Scraping API Services\nDeep and Dark Web Scraping\nWeb Data Mining Services\nWeb Scraping with AI\nSearch Engine Data Scraping\nMobile & App Scraping\nApp Store & Play Store\nAndroid App Scraping\nRetail, E-commerce & FMCG\nEcommerce Data Scraping\nLuxury Data Scraping\nGrocery Fmcg Pricing\nCompetitive Promotional\nPricing Intelligence\nTravel & Hospitality\nTravel Data Scraping\nCommodities Scraping\nSports & Fantasy Data\nWine & Alcohol / Liquor\nWine and Alcohol Price\nHR & Recruitment Data\nCoupon and Deals Data\nQSR Fast Food Pricing\nFinancial Data Scraping\nInsurance Data Scraping\nLawyer Data Scraping\nMedia & Entertainment\nAutomotive & Mobility\nEV & Auto Marketplaces\nRide-Hailing & Delivery\nTire Pricing Data Web\nDoctors and Physicians\nReal Estate Property\nBusiness Directory Data\nTransform your data into\nactionable insights with our customizable dashboard, offering\ncomprehensive visualizations across platforms to drive informed\ndecisions and business growth.\nWhat is the",
+      "info_snippets": [
+        "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data Travel Datasets: Web Scraping Hotel, Flight Data",
+        "This Christmas, unlock smarter data with",
+        "Actowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!",
+        "Actowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company",
+        "actionable insights with our customizable dashboard, offering",
+        "comprehensive visualizations across platforms to drive informed"
+      ],
+      "real_tables": [
+        [
+          [
+            "﻿product_id",
+            "experience_title",
+            "location",
+            "country",
+            "category",
+            "price",
+            "duration",
+            "highlights",
+            "rating",
+            "review_count",
+            "availability",
+            "product_url",
+            "scraped_date",
+            "language_supported",
+            "cancellation_policy",
+            "pickup_available",
+            "host_name",
+            "product_type",
+            "experience_type",
+            "group_size",
+            "min_age_requirement",
+            "meeting_point",
+            "included_items",
+            "not_included",
+            "host_rating",
+            "host_languages",
+            "availability_days",
+            "booking_type"
+          ],
+          [
+            "1",
+            "Learn to Cook Thai Food in a Garden",
+            "Chiang Mai",
+            "Thailand",
+            "Cooking Class",
+            "35 USD",
+            "3.5 hours",
+            "Farm visit, 3 dishes",
+            "4.9",
+            "1600",
+            "Available",
+            "https://www.airbnb.com/experiences/4001",
+            "10-07-2025",
+            "English, Thai",
+            "Free cancellation",
+            "Yes",
+            "Chef Pan",
+            "In-person",
+            "In-person",
+            "10",
+            "12",
+            "Garden Kitchen, Chiang Mai",
+            "Ingredients, recipes, lunch",
+            "Alcoholic drinks",
+            "4.9",
+            "English, Thai",
+            "Mon–Sun",
+            "Instant Book"
+          ],
+          [
+            "2",
+            "Eiffel Tower Photoshoot",
+            "Paris",
+            "France",
+            "Photography",
+            "80 USD",
+            "1 hour",
+            "Landmark shots",
+            "4.8",
+            "2300",
+            "Available",
+            "https://www.airbnb.com/experiences/4002",
+            "10-07-2025",
+            "English, French",
+            "Free cancellation",
+            "No",
+            "Emilie Clicks",
+            "Experience",
+            "In-person",
+            "6",
+            "5",
+            "Carousel de Paris",
+            "Digital photos",
+            "Printed copies",
+            "4.8",
+            "English, French",
+            "Tue–Sun",
+            "Instant Book"
+          ]
+        ]
+      ],
+      "real_data_samples": [
+        {
+          "product_id": "1",
+          "experience_title": "Learn to Cook Thai Food in a Garden",
+          "location": "Chiang Mai",
+          "country": "Thailand",
+          "category": "Cooking Class",
+          "price": "35 USD",
+          "duration": "3.5 hours",
+          "highlights": "Farm visit, 3 dishes",
+          "rating": "4.9",
+          "review_count": "1600",
+          "availability": "Available",
+          "product_url": "https://www.airbnb.com/experiences/4001",
+          "scraped_date": "10-07-2025",
+          "language_supported": "English, Thai",
+          "cancellation_policy": "Free cancellation",
+          "pickup_available": "Yes",
+          "host_name": "Chef Pan",
+          "product_type": "In-person",
+          "experience_type": "In-person",
+          "group_size": "10",
+          "min_age_requirement": "12",
+          "meeting_point": "Garden Kitchen, Chiang Mai",
+          "included_items": "Ingredients, recipes, lunch",
+          "not_included": "Alcoholic drinks",
+          "host_rating": "4.9",
+          "host_languages": "English, Thai",
+          "availability_days": "Mon–Sun",
+          "booking_type": "Instant Book"
+        },
+        {
+          "product_id": "2",
+          "experience_title": "Eiffel Tower Photoshoot",
+          "location": "Paris",
+          "country": "France",
+          "category": "Photography",
+          "price": "80 USD",
+          "duration": "1 hour",
+          "highlights": "Landmark shots",
+          "rating": "4.8",
+          "review_count": "2300",
+          "availability": "Available",
+          "product_url": "https://www.airbnb.com/experiences/4002",
+          "scraped_date": "10-07-2025",
+          "language_supported": "English, French",
+          "cancellation_policy": "Free cancellation",
+          "pickup_available": "No",
+          "host_name": "Emilie Clicks",
+          "product_type": "Experience",
+          "experience_type": "In-person",
+          "group_size": "6",
+          "min_age_requirement": "5",
+          "meeting_point": "Carousel de Paris",
+          "included_items": "Digital photos",
+          "not_included": "Printed copies",
+          "host_rating": "4.8",
+          "host_languages": "English, French",
+          "availability_days": "Tue–Sun",
+          "booking_type": "Instant Book"
+        }
+      ],
+      "data_schema": {
+        "fields": {
+          "product_id": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "experience_title": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "location": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "country": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "category": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "price": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "duration": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "highlights": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "rating": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "review_count": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "availability": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "product_url": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "scraped_date": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "language_supported": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "cancellation_policy": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "pickup_available": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "host_name": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "product_type": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "experience_type": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "group_size": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "min_age_requirement": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "meeting_point": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "included_items": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "not_included": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "host_rating": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "host_languages": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "availability_days": {
+            "type": "string",
+            "source": "html_table"
+          },
+          "booking_type": {
+            "type": "string",
+            "source": "html_table"
+          }
+        },
+        "source": "html_table"
+      }
+    }
+  ],
+  "search_hits": [
+    {
+      "title": "Travel details dataset.csv",
+      "url": "https://github.com/mohansaidinesh/Travel-Recommendation-System/blob/main/Travel%20details%20dataset.csv",
+      "summary": "Trip ID, Destination, Start date, End date, Duration (days), Traveler name, Traveler age, Traveler gender, Traveler nationality, Accommodation type ..."
+    },
+    {
+      "title": "TOP 10 Hotels in Paris from $54 - Competitive Prices - Expedia",
+      "url": "https://www.expedia.com/Paris-Hotels.d179898.Travel-Guide-Hotels",
+      "summary": "Find 26634 of the best hotels in Paris in 2025. Compare room rates, hotel reviews and availability. Most hotels are fully refundable."
+    },
+    {
+      "title": "THE 10 BEST Hotels in Paris, France 2025 (from $89) - Tripadvisor",
+      "url": "https://www.tripadvisor.com/Hotels-g187147-Paris_Ile_de_France-Hotels.html",
+      "summary": "View deals from $89 per night, see photos and read reviews for the best Paris hotels from travelers like you - then compare today's prices ..."
+    },
+    {
+      "title": "Paris Hotel Star Ratings Explained - Paris Discovery Guide",
+      "url": "https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html",
+      "summary": "Star ratings used by Paris, France hotels tell you a lot about what you'll get for your travel money. We explain what each star means so you can make a good ..."
+    },
+    {
+      "title": "Synthetic travel demand for Paris and Île-de-France",
+      "url": "https://data.mendeley.com/datasets/p3v8zmps2w/1",
+      "summary": "Description. The data set contains a synthetic representation of the travel demand in the Île-de-France region around Paris."
+    },
+    {
+      "title": "Paris, France Vacation Packages | Costco Travel",
+      "url": "https://www.costcotravel.com/Vacation-Packages/Europe/France/Paris",
+      "summary": "Paris Hotels ; Castille Paris · (345 Reviews) ; Crowne Plaza Paris Republique · (107 Reviews) ; Hotel Indigo Paris Opéra · (5 Reviews) ; Hotel L'Echiquier Opera Paris."
+    },
+    {
+      "title": "hotels.csv - bixbydevelopers/sample-template-import-data",
+      "url": "https://github.com/bixbydevelopers/sample-template-import-data/blob/master/hotels/hotels.csv",
+      "summary": "Open symbols panel. Edit and raw actions. Name,*Amenities*,Stars,City,Country,Photo,Price,WebSite The Peninsula,\"pool, jacuzzi\",4,Paris,France ..."
+    },
+    {
+      "title": "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data",
+      "url": "https://www.actowizsolutions.com/web-scraping-tripadvisor-hotel-flight-dataset.php",
+      "summary": "TripAdvisor travel datasets obtained through web scraping include hotel and flight data such as prices, reviews, ratings, locations, and availability."
+    },
+    {
+      "title": "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data",
+      "url": "https://www.actowizsolutions.com/web-scraping-airbnb-hotel-flight-dataset.php",
+      "summary": "Airbnb travel datasets obtained through web scraping include hotel and flight data such as prices, reviews, ratings, locations, and availability."
+    },
+    {
+      "title": "airbnb-paris-dataset",
+      "url": "https://www.kaggle.com/datasets/abaghyangor/airbnb-paris",
+      "summary": "This project analyzes Airbnb listings in Paris to determine the impact of recent regulations on pricing, availability, and the number of hosts over time. The ..."
+    },
+    {
+      "title": "Traveler Trip Dataset",
+      "url": "https://www.kaggle.com/datasets/rkiattisak/traveler-trip-data",
+      "summary": "The travel dataset provides detailed information on various trips taken by travelers, including their destination, travel dates, duration of the trip in ..."
+    },
+    {
+      "title": "Paris Travel Guide by Rick Steves",
+      "url": "https://www.ricksteves.com/europe/france/paris",
+      "summary": "Champs-Élysées Walk · Historic Paris Walk · Louvre Museum Tour · Orsay Museum Tour · Père Lachaise Cemetery · Rue Cler Walk · Versailles Palace Tour"
+    },
+    {
+      "title": "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue",
+      "url": "https://www.travelscrape.com/scrape-london-paris-hotel-seasonal-pricing-revenue.php",
+      "summary": "Scrape London & Paris Hotel Seasonal Pricing to analyze trends, optimize room rates, monitor competitors, and maximize revenue efficiently."
+    },
+    {
+      "title": "✨Four Seasons Paris: 1000 Tripadvisor reviews🏨",
+      "url": "https://www.kaggle.com/datasets/kanchana1990/four-seasons-paris-1000-tripadvisor-reviews",
+      "summary": "Overview: This dataset comprises 1,000 guest reviews from the TripAdvisor webpage dedicated to the Four Seasons Hotel George V, Paris, a symbol of luxury within ..."
+    },
+    {
+      "title": "Trivago Travel Reviews Dataset",
+      "url": "https://www.travelscrape.com/trivago-travel-reviews-dataset.php",
+      "summary": "The Trivago Travel Reviews Dataset offers extensive insights into traveler experiences across multiple destinations worldwide, including the USA, Italy, Germany ..."
+    },
+    {
+      "title": "Paris Tourists Movement POIs Enriched - Kaggle",
+      "url": "https://www.kaggle.com/code/eddyzalazil/paris-tourists-movement-pois-enriched",
+      "summary": "This analysis aims to explore points of interest (POIs) in Paris. · The main goals are:¶ · Visualize the location of different POIs, including hotels, bars, ..."
+    },
+    {
+      "title": "Build an AI Travel Planner with CopilotKit, LangGraph & Google ...",
+      "url": "https://dev.to/copilotkit/build-an-ai-travel-planner-with-copilotkit-langgraph-google-maps-api-32fm",
+      "summary": "In this easy-to-follow tutorial, we'll take a simple travel planner application and enhance it with AI using CopilotKit."
+    },
+    {
+      "title": "Paris Metro Map and Routes - App Store - Apple",
+      "url": "https://apps.apple.com/gb/app/paris-metro-map-and-routes/id527534137",
+      "summary": "Paris Metro is the best navigation tool for travelling around the French capital with offline routing, train times and lots of essential journey information."
+    },
+    {
+      "title": "Enriched Tourism Dataset Paris (POIs)",
+      "url": "https://data.mendeley.com/datasets/vh4g4g2322",
+      "summary": "This dataset contains the Paris subset of the Tourpedia dataset, specifically focusing on points of interest (POIs) categorized as attractions."
+    },
+    {
+      "title": "10 Budget Friendly Hotels in Paris - Everyday Parisian",
+      "url": "https://everydayparisian.com/10-budget-friendly-hotels-in-paris/",
+      "summary": "Rooms start as low as $100 – $200 (there is a triple room available for families for $180) Cooking classes are provided once a week on-site. Hotel Monge."
+    },
+    {
+      "title": "Where To Stay In Paris: A Complete Guide For First Timers",
+      "url": "https://wheatlesswanderlust.com/where-to-stay-in-paris/",
+      "summary": "Wondering where to stay in Paris? In this detailed guide, we'll go through the 5 best areas to stay, with pros and cons for each and the ..."
+    },
+    {
+      "title": "Our Standout Paris Experiences (After More Than 10 Trips)",
+      "url": "https://wherearethosemorgans.com/things-to-do-first-time-paris/",
+      "summary": "Along with the Eiffel Tower, the Louvre Museum was the other experience we absolutely couldn't wait to try the first time we went to Paris in ..."
+    },
+    {
+      "title": "Best Paris Bucket List for First-Time Visitors (2026)",
+      "url": "https://www.mywanderlustylife.com/best-paris-bucket-list/",
+      "summary": "I've included several categories of options like museums, famous restaurants, iconic foods, and the most popular (and still worthwhile) attractions, and more."
+    },
+    {
+      "title": "Paris Metro Map and Routes",
+      "url": "https://www.mapway.com/apps/paris-metro-map/",
+      "summary": "The Paris Metro map at your fingertips with a free app that includes the official RATP map and a handy route planner to get from A to B."
+    },
+    {
+      "title": "Paris Metro – Map and Routes - Apps on Google Play",
+      "url": "https://play.google.com/store/apps/details?id=uk.co.mxdata.parismetro&hl=en_US",
+      "summary": "Paris Metro is the best navigation tool for travelling around the French capital with offline routing, train times and lots of essential journey information."
+    },
+    {
+      "title": "Open Data",
+      "url": "https://pro.visitparisregion.com/en/view/content/5009/full/1/40253",
+      "summary": "Paris Region Tourist Board participates on Open Data regional network providing Open Data Paris Region Tourist offices list.You can download this list on CSV"
+    },
+    {
+      "title": "Metro map of Paris and the île-de-France region",
+      "url": "https://www.ratp.fr/en/plan-metro",
+      "summary": "Our interactive Paris metro map is designed to make your journeys easier; it is available online and downloadable in PDF format."
+    },
+    {
+      "title": "Retrieve rates for hotels - Overview",
+      "url": "https://docs.liteapi.travel/reference/post_hotels-rates",
+      "summary": "Overview. Search for hotel rates and availability across multiple hotels. This is your primary endpoint for finding bookable hotel rooms with real-time pricing."
+    },
+    {
+      "title": "The absolute must-do things in Paris - and what to avoid",
+      "url": "https://www.bloggeratlarge.com/the-best-things-to-do-in-paris/",
+      "summary": "Take an Emily in Paris walking tour: Stand on the top of the Arc de Triomphe: Musée de la Vie Romantique: Take a Da Vinci Tour: Visit Picasso ..."
+    },
+    {
+      "title": "16 Best Non-Touristy Things To Do in Paris - Rachel IRL",
+      "url": "https://rachelirl.com/things-to-do-in-paris/",
+      "summary": "The best things to do in Paris: 1. Relax in beautiful gardens · 2. Picnic · 3. Art Nouveau architecture · 4. Père Lachaise · 5. Les boquinistes... & more!"
+    },
+    {
+      "title": "Paris city subway trip planner - Itinéraire en métro - Paris",
+      "url": "https://www.itineraire-metro.fr/trip-planner.php",
+      "summary": "Search for a route by subway in Paris: Quick calculation of the best route between two stations of subway or RER in Paris. The route found is displayed on a map"
+    },
+    {
+      "title": "Country & City wise Hotel Listing",
+      "url": "https://www.kaggle.com/datasets/jayitabhattacharyya/hotels-details",
+      "summary": "Use Cases: Travel Planning: Travelers can use this dataset to search for hotels based on their preferred destination, budget, and amenities."
+    },
+    {
+      "title": "reviews.csv",
+      "url": "https://sites.socsci.uci.edu/~rfutrell/teaching/lsci109-w2021/data/reviews.csv",
+      "summary": "... Hotel will go down in history as one of my worst experiences staying in hotels. I was excited for a weekend getaway with a few friends. After receiving a ..."
+    },
+    {
+      "title": "Top 10 Things to Do in Paris",
+      "url": "https://www.travelcaffeine.com/best-attractions-paris-france/",
+      "summary": "10. Notre Dame Cathedral · 9. Musee de l'Orangerie · 8. Shop 'til You Drop · 7. Sacré-Cœur Basilica · 6. Cafe Society · 5. The Louvre · 4. Musee d' ..."
+    },
+    {
+      "title": "Hotel Dataset: Rates, Reviews & Amenities(6k+)",
+      "url": "https://www.kaggle.com/datasets/joyshil0599/hotel-dataset-rates-reviews-and-amenities5k",
+      "summary": "This Hotel Dataset: Rates, Reviews & Amenities(6k+) dataset includes hotel rates, guest reviews, and available amenities from two popular travel websites, ..."
+    },
+    {
+      "title": "README: hotels-europe dataset",
+      "url": "https://gabors-data-analysis.com/datasets/hotels-europe/",
+      "summary": "This is a README file for the hotels-europe dataset that includes information on price and features of hotels in 46 European cities and for 10 different dates."
+    },
+    {
+      "title": "Hotels Dataset",
+      "url": "https://www.kaggle.com/datasets/raj713335/tbo-hotels-dataset",
+      "summary": "This dataset contains information about 10,00,000+ hotels from different countries and regions, such as their rates, reviews, amenities, location, ..."
+    },
+    {
+      "title": "Sample dataset of JSON Hotels and their reviews",
+      "url": "https://github.com/WillGardella/hotels",
+      "summary": "Sample dataset of JSON Hotels and their reviews. Contribute to WillGardella/hotels development by creating an account on GitHub."
+    },
+    {
+      "title": "Itinerary métro, bus, tramway, transilien, noctilien",
+      "url": "https://www.ratp.fr/en/itineraires",
+      "summary": "Search the fastest itinerary between two points as you prepare your visit to Paris ... Metro timetables |; Bus timetables |; Tramway timetables |; RER timetables ..."
+    },
+    {
+      "title": "Hotel Price Structured Data Reference - Google for Developers",
+      "url": "https://developers.google.com/hotels/hotel-prices/structured-data/hotel-price-structured-data",
+      "summary": "Hotel price structured data is used to explain, validate and display in detail the hotel prices listed on your website regardless of the user interface."
+    }
+  ]
+}

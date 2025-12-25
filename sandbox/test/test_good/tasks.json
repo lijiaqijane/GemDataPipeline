@@ -1,0 +1,1986 @@
+{
+  "environment": {
+    "category": "Paris Travel Planning",
+    "records": [
+      {
+        "title": "Paris Hotel Star Ratings Explained - Paris Discovery Guide",
+        "summary": "Star ratings used by Paris, France hotels tell you a lot about what you'll get for your travel money. We explain what each star means so you can make a good ...",
+        "url": "https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html",
+        "source": "real_content_extracted",
+        "data_schema": {
+          "fields": [
+            "rating_level",
+            "description",
+            "typical_amenities",
+            "room_size",
+            "service_level"
+          ],
+          "samples": [
+            "1-Star",
+            "Basic accommodation, often with shared bathrooms",
+            "2-Star",
+            "Simple rooms with private bathrooms",
+            "5-Star",
+            "Luxury accommodations with concierge, spas, fine dining"
+          ],
+          "patterns": "Descriptive, non-tabular content explaining categories. Information is presented in a narrative format, often with bullet points or sections for each star level (1 to 5).",
+          "anomalies": "No structured data tables were found in the provided content snippet. The data is embedded in paragraphs and lists, requiring natural language processing to extract standardized fields.",
+          "volume": "Estimated 5-10 distinct data points (one per star rating category), but presented as prose, not records."
+        },
+        "real_data_samples": [
+          {
+            "rating_level": "1-Star",
+            "description": "Basic accommodation, often with shared bathrooms"
+          },
+          {
+            "rating_level": "2-Star",
+            "description": "Simple rooms with private bathrooms"
+          }
+        ],
+        "clean_content": "Title: Paris Hotel Star Ratings Explained - Paris Discovery Guide\nURL Source: https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html\nParis Hotel Star Ratings Explained - Paris Discovery Guide\n[![Image 1: Paris Discovery Guide](blob:http://localhost/b9a0050e92646a1d76ef18c80e04835f)](https://www.parisdiscoveryguide.com/index.html)[![Image 2: Paris Discovery Guide](blob:http://localhost/23a6eb904bc0e1aaf3bd40b6837a9b94)](https://www.parisdiscoveryguide.com/index.html)\n[](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Home](https://www.parisdiscoveryguide.com/index.html)\n*   [Plan](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Why Visit Paris?](https://www.parisdiscoveryguide.com/why-visit-paris.html)\n*   [Plan Your Trip](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Best Time to Visit](https://www.parisdiscoveryguide.com/best-time-to-visit-paris.html)\n*   [Which Season is Best?](https://www.parisdiscoveryguide.com/when-to-visit-by-season.html)\n*   [Paris Guide Books](https://www.parisdiscoveryguide.com/paris-guide-books.html)\n*   [Trip Planning Essentials](https://www.parisdiscoveryguide.com/paris-essentials.html)\n*   [Where to Get Euros](https://www.parisdiscoveryguide.com/how-to-get-euros-for-paris-trip.html)\n*   [Electric Adapters and Converters](https://www.parisdiscoveryguide.com/travel-adapter-paris-france.html)\n*   [Flights to Paris](https://www.parisdiscoveryguide.com/cheap-flights-to-paris.html)\n*   [Travel Insurance](https://www.parisdiscoveryguide.com/travel-insurance-for-paris-trip.html)\n*   [Paris Weather](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Year at a Glance](https://www.parisdiscoveryguide.com/paris-weather.html)\n*   [January](https://www.parisdiscoveryguide.com/weather-in-paris-in-january.html)\n*   [February](https://www.parisdiscoveryguide.com/weather-in-paris-in-february.html)\n*   [March](https://www.parisdiscoveryguide.com/weather-in-paris-in-march.html)\n*   [April](https://www.parisdiscoveryguide.com/weather-in-paris-in-april.html)\n*   [May](https://www.parisdiscoveryguide.com/weather-in-paris-in-may.html)\n*   [June](https://www.parisdiscoveryguide.com/weather-in-paris-in-june)\n*   [July](https://www.parisdiscoveryguide.com/weather-in-paris-in-july.html)\n*   [August](https://www.parisdiscoveryguide.com/weather-in-pa",
+        "real_content": "Title: Paris Hotel Star Ratings Explained - Paris Discovery Guide\nURL Source: https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html\nParis Hotel Star Ratings Explained - Paris Discovery Guide\n[![Image 1: Paris Discovery Guide](blob:http://localhost/b9a0050e92646a1d76ef18c80e04835f)](https://www.parisdiscoveryguide.com/index.html)[![Image 2: Paris Discovery Guide](blob:http://localhost/23a6eb904bc0e1aaf3bd40b6837a9b94)](https://www.parisdiscoveryguide.com/index.html)\n[](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Home](https://www.parisdiscoveryguide.com/index.html)\n*   [Plan](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Why Visit Paris?](https://www.parisdiscoveryguide.com/why-visit-paris.html)\n*   [Plan Your Trip](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Best Time to Visit](https://www.parisdiscoveryguide.com/best-time-to-visit-paris.html)\n*   [Which Season is Best?](https://www.parisdiscoveryguide.com/when-to-visit-by-season.html)\n*   [Paris Guide Books](https://www.parisdiscoveryguide.com/paris-guide-books.html)\n*   [Trip Planning Essentials](https://www.parisdiscoveryguide.com/paris-essentials.html)\n*   [Where to Get Euros](https://www.parisdiscoveryguide.com/how-to-get-euros-for-paris-trip.html)\n*   [Electric Adapters and Converters](https://www.parisdiscoveryguide.com/travel-adapter-paris-france.html)\n*   [Flights to Paris](https://www.parisdiscoveryguide.com/cheap-flights-to-paris.html)\n*   [Travel Insurance](https://www.parisdiscoveryguide.com/travel-insurance-for-paris-trip.html)\n*   [Paris Weather](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Year at a Glance](https://www.parisdiscoveryguide.com/paris-weather.html)\n*   [January](https://www.parisdiscoveryguide.com/weather-in-paris-in-january.html)\n*   [February](https://www.parisdiscoveryguide.com/weather-in-paris-in-february.html)\n*   [March](https://www.parisdiscoveryguide.com/weather-in-paris-in-march.html)\n*   [April](https://www.parisdiscoveryguide.com/weather-in-paris-in-april.html)\n*   [May](https://www.parisdiscoveryguide.com/weather-in-paris-in-may.html)\n*   [June](https://www.parisdiscoveryguide.com/weather-in-paris-in-june)\n*   [July](https://www.parisdiscoveryguide.com/weather-in-paris-in-july.html)\n*   [August](https://www.parisdiscoveryguide.com/weather-in-paris-in-august.html)\n*   [September](https://www.parisdiscoveryguide.com/weather-in-paris-in-september.html)\n*   [October](https://www.parisdiscoveryguide.com/weather-in-paris-in-october.html)\n*   [November](https://www.parisdiscoveryguide.com/weather-in-paris-in-november.html)\n*   [December](https://www.parisdiscoveryguide.com/weather-in-paris-in-december.html)\n*   [Skip-the-Line Tickets](https://www.parisdiscoveryguide.com/skip-the-line-tickets-paris-attractions.html)\n*   [Paris Museum Pass](https://www.parisdiscoveryguide.com/paris-museum-pass.html)\n*   [1st Day in Paris: What to Do](https://www.parisdiscoveryguide.com/what-to-do-on-first-day-in-paris.html)\n*   [Paris Travel Q and A](https://www.parisdiscoveryguide.com/paris-travel-questions-answers.html)\n*   [See](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Top Attractions](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [10 Top Attractions](https://www.parisdiscoveryguide.com/paris-attractions-top-10.html)\n*   [Eiffel Tower](https://www.parisdiscoveryguide.com/eiffel-tower-tickets.html)\n*   [Louvre Museum](https://www.parisdiscoveryguide.com/louvre-museum-guided-tour.html)\n*   [Palace of Versailles](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [What to See & Do at Versailles](https://www.parisdiscoveryguide.com/top-sights-at-palace-of-versailles.html)\n*   [Versailles Palace Tours](https://www.parisdiscoveryguide.com/versailles-palace-tours-from-paris.html)\n*   [Where to Stay near Versailles](https://www.parisdiscoveryguide.com/versailles-palace-tours-from-paris.html)\n*   [Getting from Paris to Versailles](https://www.parisdiscoveryguide.com/how-to-get-from-paris-to-versailles-palace.html)\n*   [Giverny](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Best Giverny Tours from Paris](https://www.parisdiscoveryguide.com/top-sights-at-palace-of-versailles.html)\n*   [Getting from Paris to Giverny](https://www.parisdiscoveryguide.com/how-to-get-from-paris-to-giverny.html)\n*   [Disneyland Paris](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Getting from Paris to Disneyland](https://www.parisdiscoveryguide.com/how-to-get-to-disneyland-paris.html)\n*   [Sainte-Chapelle](https://www.parisdiscoveryguide.com/sainte-chapelle.html)\n*   [Arc de Triomphe](https://www.parisdiscoveryguide.com/arc-de-triomphe.html)\n*   [Pere Lachaise Cemetery](https://www.parisdiscoveryguide.com/paris-hotel-star-ratings.html#)\n*   [Pere Lachaise Cemetery](https://www.parisdiscoveryguide.com/pere-lachaise-ceme"
+      },
+      {
+        "title": "Travel-Recommendation-System/Travel details dataset.csv at main",
+        "summary": "Trip ID, Destination, Start date, End date, Duration (days), Traveler name, Traveler age, Traveler gender, Traveler nationality, Accommodation type ...",
+        "url": "https://github.com/mohansaidinesh/Travel-Recommendation-System/blob/main/Travel%20details%20dataset.csv",
+        "source": "downloaded_dataset",
+        "real_data_samples": [
+          {
+            "trip_id": "1",
+            "destination": "London, UK",
+            "start_date": "5/1/2023",
+            "end_date": "5/8/2023",
+            "duration_days": "7",
+            "traveler_name": "John Smith",
+            "traveler_age": "35",
+            "traveler_gender": "Male",
+            "traveler_nationality": "American",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1200",
+            "transportation_type": "Flight",
+            "transportation_cost": "600"
+          },
+          {
+            "trip_id": "2",
+            "destination": "Phuket, Thailand",
+            "start_date": "6/15/2023",
+            "end_date": "6/20/2023",
+            "duration_days": "5",
+            "traveler_name": "Jane Doe",
+            "traveler_age": "28",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Canadian",
+            "accommodation_type": "Resort",
+            "accommodation_cost": "800",
+            "transportation_type": "Flight",
+            "transportation_cost": "500"
+          },
+          {
+            "trip_id": "3",
+            "destination": "Bali, Indonesia",
+            "start_date": "7/1/2023",
+            "end_date": "7/8/2023",
+            "duration_days": "7",
+            "traveler_name": "David Lee",
+            "traveler_age": "45",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Korean",
+            "accommodation_type": "Villa",
+            "accommodation_cost": "1000",
+            "transportation_type": "Flight",
+            "transportation_cost": "700"
+          },
+          {
+            "trip_id": "4",
+            "destination": "New York, USA",
+            "start_date": "8/15/2023",
+            "end_date": "8/29/2023",
+            "duration_days": "14",
+            "traveler_name": "Sarah Johnson",
+            "traveler_age": "29",
+            "traveler_gender": "Female",
+            "traveler_nationality": "British",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "2000",
+            "transportation_type": "Flight",
+            "transportation_cost": "1000"
+          },
+          {
+            "trip_id": "5",
+            "destination": "Tokyo, Japan",
+            "start_date": "9/10/2023",
+            "end_date": "9/17/2023",
+            "duration_days": "7",
+            "traveler_name": "Kim Nguyen",
+            "traveler_age": "26",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Vietnamese",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "700",
+            "transportation_type": "Train",
+            "transportation_cost": "200"
+          },
+          {
+            "trip_id": "6",
+            "destination": "Paris, France",
+            "start_date": "10/5/2023",
+            "end_date": "10/10/2023",
+            "duration_days": "5",
+            "traveler_name": "Michael Brown",
+            "traveler_age": "42",
+            "traveler_gender": "Male",
+            "traveler_nationality": "American",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1500",
+            "transportation_type": "Flight",
+            "transportation_cost": "800"
+          },
+          {
+            "trip_id": "7",
+            "destination": "Sydney, Australia",
+            "start_date": "11/20/2023",
+            "end_date": "11/30/2023",
+            "duration_days": "10",
+            "traveler_name": "Emily Davis",
+            "traveler_age": "33",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Australian",
+            "accommodation_type": "Hostel",
+            "accommodation_cost": "500",
+            "transportation_type": "Flight",
+            "transportation_cost": "1200"
+          },
+          {
+            "trip_id": "8",
+            "destination": "Rio de Janeiro, Brazil",
+            "start_date": "1/5/2024",
+            "end_date": "1/12/2024",
+            "duration_days": "7",
+            "traveler_name": "Lucas Santos",
+            "traveler_age": "25",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Brazilian",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "900",
+            "transportation_type": "Flight",
+            "transportation_cost": "600"
+          },
+          {
+            "trip_id": "9",
+            "destination": "Amsterdam, Netherlands",
+            "start_date": "2/14/2024",
+            "end_date": "2/21/2024",
+            "duration_days": "7",
+            "traveler_name": "Laura Janssen",
+            "traveler_age": "31",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Dutch",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1200",
+            "transportation_type": "Train",
+            "transportation_cost": "200"
+          },
+          {
+            "trip_id": "10",
+            "destination": "Dubai, United Arab Emirates",
+            "start_date": "3/10/2024",
+            "end_date": "3/17/2024",
+            "duration_days": "7",
+            "traveler_name": "Mohammed Ali",
+            "traveler_age": "39",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Emirati",
+            "accommodation_type": "Resort",
+            "accommodation_cost": "2500",
+            "transportation_type": "Flight",
+            "transportation_cost": "800"
+          },
+          {
+            "trip_id": "11",
+            "destination": "Cancun, Mexico",
+            "start_date": "4/1/2024",
+            "end_date": "4/8/2024",
+            "duration_days": "7",
+            "traveler_name": "Ana Hernandez",
+            "traveler_age": "27",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Mexican",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1000",
+            "transportation_type": "Flight",
+            "transportation_cost": "500"
+          },
+          {
+            "trip_id": "12",
+            "destination": "Barcelona, Spain",
+            "start_date": "5/15/2024",
+            "end_date": "5/22/2024",
+            "duration_days": "7",
+            "traveler_name": "Carlos Garcia",
+            "traveler_age": "36",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Spanish",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "800",
+            "transportation_type": "Train",
+            "transportation_cost": "100"
+          },
+          {
+            "trip_id": "13",
+            "destination": "Honolulu, Hawaii",
+            "start_date": "6/10/2024",
+            "end_date": "6/18/2024",
+            "duration_days": "8",
+            "traveler_name": "Lily Wong",
+            "traveler_age": "29",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Chinese",
+            "accommodation_type": "Resort",
+            "accommodation_cost": "3000",
+            "transportation_type": "Flight",
+            "transportation_cost": "1200"
+          },
+          {
+            "trip_id": "14",
+            "destination": "Berlin, Germany",
+            "start_date": "7/1/2024",
+            "end_date": "7/10/2024",
+            "duration_days": "9",
+            "traveler_name": "Hans Mueller",
+            "traveler_age": "48",
+            "traveler_gender": "Male",
+            "traveler_nationality": "German",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1400",
+            "transportation_type": "Flight",
+            "transportation_cost": "700"
+          },
+          {
+            "trip_id": "15",
+            "destination": "Marrakech, Morocco",
+            "start_date": "8/20/2024",
+            "end_date": "8/27/2024",
+            "duration_days": "7",
+            "traveler_name": "Fatima Khouri",
+            "traveler_age": "26",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Moroccan",
+            "accommodation_type": "Riad",
+            "accommodation_cost": "600",
+            "transportation_type": "Flight",
+            "transportation_cost": "400"
+          },
+          {
+            "trip_id": "16",
+            "destination": "Edinburgh, Scotland",
+            "start_date": "9/5/2024",
+            "end_date": "9/12/2024",
+            "duration_days": "7",
+            "traveler_name": "James MacKenzie",
+            "traveler_age": "32",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Scottish",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "900",
+            "transportation_type": "Train",
+            "transportation_cost": "150"
+          },
+          {
+            "trip_id": "17",
+            "destination": "Paris",
+            "start_date": "9/1/2023",
+            "end_date": "9/10/2023",
+            "duration_days": "9",
+            "traveler_name": "Sarah Johnson",
+            "traveler_age": "30",
+            "traveler_gender": "Female",
+            "traveler_nationality": "American",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$900 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$400 "
+          },
+          {
+            "trip_id": "18",
+            "destination": "Bali",
+            "start_date": "8/15/2023",
+            "end_date": "8/25/2023",
+            "duration_days": "10",
+            "traveler_name": "Michael Chang",
+            "traveler_age": "28",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Chinese",
+            "accommodation_type": "Resort",
+            "accommodation_cost": "$1,500 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$700 "
+          },
+          {
+            "trip_id": "19",
+            "destination": "London",
+            "start_date": "7/22/2023",
+            "end_date": "7/28/2023",
+            "duration_days": "6",
+            "traveler_name": "Olivia Rodriguez",
+            "traveler_age": "35",
+            "traveler_gender": "Female",
+            "traveler_nationality": "British",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$1,200 ",
+            "transportation_type": "Train",
+            "transportation_cost": "$150 "
+          },
+          {
+            "trip_id": "20",
+            "destination": "Tokyo",
+            "start_date": "10/5/2023",
+            "end_date": "10/15/2023",
+            "duration_days": "10",
+            "traveler_name": "Kenji Nakamura",
+            "traveler_age": "45",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Japanese",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$1,200 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$800 "
+          },
+          {
+            "trip_id": "21",
+            "destination": "New York",
+            "start_date": "11/20/2023",
+            "end_date": "11/25/2023",
+            "duration_days": "5",
+            "traveler_name": "Emily Lee",
+            "traveler_age": "27",
+            "traveler_gender": "Female",
+            "traveler_nationality": "American",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "$600 ",
+            "transportation_type": "Bus",
+            "transportation_cost": "$100 "
+          },
+          {
+            "trip_id": "22",
+            "destination": "Sydney",
+            "start_date": "12/5/2023",
+            "end_date": "12/12/2023",
+            "duration_days": "7",
+            "traveler_name": "James Wilson",
+            "traveler_age": "32",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Australian",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$1,000 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$600 "
+          },
+          {
+            "trip_id": "23",
+            "destination": "Rome",
+            "start_date": "11/1/2023",
+            "end_date": "11/8/2023",
+            "duration_days": "7",
+            "traveler_name": "Sofia Russo",
+            "traveler_age": "29",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Italian",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "$700 ",
+            "transportation_type": "Train",
+            "transportation_cost": "$80 "
+          },
+          {
+            "trip_id": "24",
+            "destination": "Bangkok",
+            "start_date": "9/15/2023",
+            "end_date": "9/23/2023",
+            "duration_days": "8",
+            "traveler_name": "Raj Patel",
+            "traveler_age": "40",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Indian",
+            "accommodation_type": "Hostel",
+            "accommodation_cost": "$400 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$500 "
+          },
+          {
+            "trip_id": "25",
+            "destination": "Paris",
+            "start_date": "12/22/2023",
+            "end_date": "12/28/2023",
+            "duration_days": "6",
+            "traveler_name": "Lily Nguyen",
+            "traveler_age": "24",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Vietnamese",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$1,400 ",
+            "transportation_type": "Train",
+            "transportation_cost": "$100 "
+          },
+          {
+            "trip_id": "26",
+            "destination": "Hawaii",
+            "start_date": "8/1/2023",
+            "end_date": "8/10/2023",
+            "duration_days": "9",
+            "traveler_name": "David Kim",
+            "traveler_age": "34",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Korean",
+            "accommodation_type": "Resort",
+            "accommodation_cost": "$2,000 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$800 "
+          },
+          {
+            "trip_id": "27",
+            "destination": "Barcelona",
+            "start_date": "10/20/2023",
+            "end_date": "10/28/2023",
+            "duration_days": "8",
+            "traveler_name": "Maria Garcia",
+            "traveler_age": "31",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Spanish",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$1,100 ",
+            "transportation_type": "Train",
+            "transportation_cost": "$150 "
+          },
+          {
+            "trip_id": "28",
+            "destination": "Japan",
+            "start_date": "5/10/2022",
+            "end_date": "5/18/2022",
+            "duration_days": "8",
+            "traveler_name": "Alice Smith",
+            "traveler_age": "30",
+            "traveler_gender": "Female",
+            "traveler_nationality": "American",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$800 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$500 "
+          },
+          {
+            "trip_id": "29",
+            "destination": "Thailand",
+            "start_date": "6/15/2022",
+            "end_date": "6/22/2022",
+            "duration_days": "7",
+            "traveler_name": "Bob Johnson",
+            "traveler_age": "45",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Canadian",
+            "accommodation_type": "Hostel",
+            "accommodation_cost": "$200 ",
+            "transportation_type": "Train",
+            "transportation_cost": "$150 "
+          },
+          {
+            "trip_id": "30",
+            "destination": "France",
+            "start_date": "7/2/2022",
+            "end_date": "7/11/2022",
+            "duration_days": "9",
+            "traveler_name": "Charlie Lee",
+            "traveler_age": "25",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Korean",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "$600 ",
+            "transportation_type": "Car rental",
+            "transportation_cost": "$300 "
+          },
+          {
+            "trip_id": "31",
+            "destination": "Australia",
+            "start_date": "8/20/2022",
+            "end_date": "9/2/2022",
+            "duration_days": "13",
+            "traveler_name": "Emma Davis",
+            "traveler_age": "28",
+            "traveler_gender": "Female",
+            "traveler_nationality": "British",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$1,000 ",
+            "transportation_type": "Car rental",
+            "transportation_cost": "$500 "
+          },
+          {
+            "trip_id": "32",
+            "destination": "Brazil",
+            "start_date": "9/5/2022",
+            "end_date": "9/14/2022",
+            "duration_days": "9",
+            "traveler_name": "Olivia Martin",
+            "traveler_age": "33",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Australian",
+            "accommodation_type": "Hostel",
+            "accommodation_cost": "$150 ",
+            "transportation_type": "Bus",
+            "transportation_cost": "$50 "
+          },
+          {
+            "trip_id": "33",
+            "destination": "Greece",
+            "start_date": "10/12/2022",
+            "end_date": "10/20/2022",
+            "duration_days": "8",
+            "traveler_name": "Harry Wilson",
+            "traveler_age": "20",
+            "traveler_gender": "Male",
+            "traveler_nationality": "American",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "$400 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$600 "
+          },
+          {
+            "trip_id": "34",
+            "destination": "Egypt",
+            "start_date": "11/8/2022",
+            "end_date": "11/15/2022",
+            "duration_days": "7",
+            "traveler_name": "Sophia Lee",
+            "traveler_age": "37",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Canadian",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$700 ",
+            "transportation_type": "Train",
+            "transportation_cost": "$100 "
+          },
+          {
+            "trip_id": "35",
+            "destination": "Mexico",
+            "start_date": "1/5/2023",
+            "end_date": "1/15/2023",
+            "duration_days": "10",
+            "traveler_name": "James Brown",
+            "traveler_age": "42",
+            "traveler_gender": "Male",
+            "traveler_nationality": "British",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "$500 ",
+            "transportation_type": "Plane",
+            "transportation_cost": "$800 "
+          },
+          {
+            "trip_id": "36",
+            "destination": "Italy",
+            "start_date": "2/14/2023",
+            "end_date": "2/20/2023",
+            "duration_days": "6",
+            "traveler_name": "Mia Johnson",
+            "traveler_age": "31",
+            "traveler_gender": "Female",
+            "traveler_nationality": "American",
+            "accommodation_type": "Hostel",
+            "accommodation_cost": "$180 ",
+            "transportation_type": "Train",
+            "transportation_cost": "$120 "
+          },
+          {
+            "trip_id": "37",
+            "destination": "Spain",
+            "start_date": "3/23/2023",
+            "end_date": "3/31/2023",
+            "duration_days": "8",
+            "traveler_name": "William Davis",
+            "traveler_age": "27",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Korean",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$900 ",
+            "transportation_type": "Car rental",
+            "transportation_cost": "$400 "
+          },
+          {
+            "trip_id": "38",
+            "destination": "Canada",
+            "start_date": "4/19/2023",
+            "end_date": "4/26/2023",
+            "duration_days": "7",
+            "traveler_name": "Amelia Brown",
+            "traveler_age": "38",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Australian",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "$350 ",
+            "transportation_type": "Bus",
+            "transportation_cost": "$75 "
+          },
+          {
+            "trip_id": "39",
+            "destination": "Paris, France",
+            "start_date": "6/12/2022",
+            "end_date": "6/19/2022",
+            "duration_days": "7",
+            "traveler_name": "Mia Johnson",
+            "traveler_age": "25",
+            "traveler_gender": "Female",
+            "traveler_nationality": "American",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1400",
+            "transportation_type": "Plane",
+            "transportation_cost": "600"
+          },
+          {
+            "trip_id": "40",
+            "destination": "Sydney, Australia",
+            "start_date": "1/2/2023",
+            "end_date": "1/9/2023",
+            "duration_days": "7",
+            "traveler_name": "Adam Lee",
+            "traveler_age": "33",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Canadian",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "800",
+            "transportation_type": "Train",
+            "transportation_cost": "150"
+          },
+          {
+            "trip_id": "41",
+            "destination": "Tokyo, Japan",
+            "start_date": "12/10/2022",
+            "end_date": "12/18/2022",
+            "duration_days": "8",
+            "traveler_name": "Sarah Wong",
+            "traveler_age": "28",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Chinese",
+            "accommodation_type": "Hostel",
+            "accommodation_cost": "500",
+            "transportation_type": "Plane",
+            "transportation_cost": "900"
+          },
+          {
+            "trip_id": "42",
+            "destination": "Cancun, Mexico",
+            "start_date": "7/1/2023",
+            "end_date": "7/8/2023",
+            "duration_days": "7",
+            "traveler_name": "John Smith",
+            "traveler_age": "45",
+            "traveler_gender": "Male",
+            "traveler_nationality": "American",
+            "accommodation_type": "Resort",
+            "accommodation_cost": "2200",
+            "transportation_type": "Plane",
+            "transportation_cost": "800"
+          },
+          {
+            "trip_id": "43",
+            "destination": "Rio de Janeiro, Brazil",
+            "start_date": "11/20/2022",
+            "end_date": "11/27/2022",
+            "duration_days": "7",
+            "traveler_name": "Maria Silva",
+            "traveler_age": "30",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Brazilian",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1200",
+            "transportation_type": "Plane",
+            "transportation_cost": "700"
+          },
+          {
+            "trip_id": "44",
+            "destination": "London, UK",
+            "start_date": "3/5/2023",
+            "end_date": "3/12/2023",
+            "duration_days": "7",
+            "traveler_name": "Peter Brown",
+            "traveler_age": "55",
+            "traveler_gender": "Male",
+            "traveler_nationality": "British",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "900",
+            "transportation_type": "Train",
+            "transportation_cost": "100"
+          },
+          {
+            "trip_id": "45",
+            "destination": "Barcelona, Spain",
+            "start_date": "8/18/2023",
+            "end_date": "8/25/2023",
+            "duration_days": "7",
+            "traveler_name": "Emma Garcia",
+            "traveler_age": "27",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Spanish",
+            "accommodation_type": "Hostel",
+            "accommodation_cost": "600",
+            "transportation_type": "Plane",
+            "transportation_cost": "600"
+          },
+          {
+            "trip_id": "46",
+            "destination": "New York City, USA",
+            "start_date": "9/15/2022",
+            "end_date": "9/22/2022",
+            "duration_days": "7",
+            "traveler_name": "Michael Davis",
+            "traveler_age": "41",
+            "traveler_gender": "Male",
+            "traveler_nationality": "American",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1500",
+            "transportation_type": "Plane",
+            "transportation_cost": "500"
+          },
+          {
+            "trip_id": "47",
+            "destination": "Bangkok, Thailand",
+            "start_date": "5/1/2023",
+            "end_date": "5/7/2023",
+            "duration_days": "6",
+            "traveler_name": "Nina Patel",
+            "traveler_age": "29",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Indian",
+            "accommodation_type": "Airbnb",
+            "accommodation_cost": "500",
+            "transportation_type": "Bus",
+            "transportation_cost": "50"
+          },
+          {
+            "trip_id": "48",
+            "destination": "Vancouver, Canada",
+            "start_date": "7/10/2022",
+            "end_date": "7/17/2022",
+            "duration_days": "7",
+            "traveler_name": "Kevin Kim",
+            "traveler_age": "24",
+            "traveler_gender": "Male",
+            "traveler_nationality": "Korean",
+            "accommodation_type": "Hostel",
+            "accommodation_cost": "400",
+            "transportation_type": "Train",
+            "transportation_cost": "150"
+          },
+          {
+            "trip_id": "49",
+            "destination": "Amsterdam, Netherlands",
+            "start_date": "6/20/2023",
+            "end_date": "6/28/2023",
+            "duration_days": "8",
+            "traveler_name": "Laura van den Berg",
+            "traveler_age": "31",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Dutch",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "1100",
+            "transportation_type": "Plane",
+            "transportation_cost": "700"
+          },
+          {
+            "trip_id": "50",
+            "destination": "Paris, France",
+            "start_date": "8/15/2023",
+            "end_date": "8/22/2023",
+            "duration_days": "7",
+            "traveler_name": "Jennifer Nguyen",
+            "traveler_age": "31",
+            "traveler_gender": "Female",
+            "traveler_nationality": "Canadian",
+            "accommodation_type": "Hotel",
+            "accommodation_cost": "$1,200 ",
+            "transportation_type": "Train",
+            "transportation_cost": "$300 "
+          }
+        ],
+        "data_schema": {
+          "fields": {
+            "trip_id": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "destination": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "start_date": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "end_date": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "duration_days": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "traveler_name": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "traveler_age": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "traveler_gender": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "traveler_nationality": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "accommodation_type": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "accommodation_cost": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "transportation_type": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "transportation_cost": {
+              "type": "string",
+              "source": "sampled_data"
+            }
+          },
+          "source": "sampled_data"
+        },
+        "downloaded_files": [
+          "sandbox/run/general_agent/task-f050034c-8fb9-4636-97dc-fd3d17e0099b/_sandbox/data/raw/mohansaidinesh-travel-recommendation-system-main.csv"
+        ]
+      },
+      {
+        "title": "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue",
+        "summary": "Scrape London & Paris Hotel Seasonal Pricing to analyze trends, optimize room rates, monitor competitors, and maximize revenue efficiently.",
+        "url": "https://www.travelscrape.com/scrape-london-paris-hotel-seasonal-pricing-revenue.php",
+        "source": "search_with_real_content",
+        "real_content": "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue\nPOWERFULL AND SIMPLE ANALYTICS\nGlobal Flight Prices Datasets\nComprehensive datasets capturing flight pricing\ntrends worldwide, essential for analyzing costs\nand forecasting travel expenses.\nTravel Review Sentiment Datasets\nDatasets that analyze and extract sentiment from\ntravel reviews, providing valuable insights into\ncustomer satisfaction and experiences.\nHotel Guest Review Datasets\nComprehensive datasets containing reviews and\nratings from hotel guests to evaluate service\nquality and guest experiences.\nHotel Room Rates Datasets\nDetailed datasets containing hotel room rate\ninformation for different locations, aiding in\nprice comparisons and market analysis.\nFlight Schedule Datasets\nDetailed information on global flight schedules,\nincluding departure and arrival times, airline\ncarriers, and routes for travel planning.\nPopular Destinations Datasets\nData highlighting trending and popular travel\ndestinations, including visitor statistics and\nkey attractions for better trip planning.\nVacation Rental Listings Datasets\nExtensive data on vacation rental properties,\nincluding details on pricing, amenities, and\navailability for planning trips.\nCar Rental Pricing Datasets\nIn-depth datasets offering insights into car\nrental pricing models, rental locations, and\ncompetitive cost assessments.\nAirport Facilities Datasets\nDetailed datasets on airport facilities,\nincluding amenities, services, and available\nresources for travelers.\nHotel Availability Forecast Datasets\nPredictive datasets providing insights into hotel\nroom availability trends to help anticipate peak\nAirline Price Fluctuation Datasets\nDynamic datasets tracking price changes in\nairline fares, allowing for informed decisions\non optimal booking times.\nCar Rental Location Datasets\nInformation on car rental locations worldwide,\nincluding popular pick-up/drop-off points and\navailable vehicle types.\nGlobal Cruise Itineraries Datasets\nComprehensive datasets detailing cruise\nitineraries, including destinations, departure\ntimes, and duration for vacation planning.\nFerry Routes Datasets\nDetailed data on ferry routes, schedules, and\nticket pricing for travelers looking for\nwater-based transport options.\nComprehensive datasets on flights, hotels, rentals, and destinations offering insights for planning, pricing, and analysis.\nAccurate Travel Data\nComprehensive Travel Dataset\nAirline Data Scraping\nVacation Rental Data Scraping\nTour & Travel Packages Scraping\nReviews & Ratings Analysis\nSchedule Data Extraction\nAmenities Data Collection\nReviews & Rating Analysis\nRanking/Competition Analysis\nCar Rental Data Scraping\nAvailability & Sales\nTravel Industry Web Scraping\nTravel Mobile App Data Scraping\nMobile-Optimized Data Collection\nBooking Insights Services\nTravel Airline and Hotel Data\nAI‑Driven Data Collection\nDynamic Pricing & Trend Forecasting\nHigh‑Accuracy & Scalable Architecture\nUnlock smarter travel insights today!\nAirline Price Tracking\nCompetitor Fare Comparisons\nOnline Travel Agencies (OTAs)\nAggregating Data for Competitive Pricing\nFlight & Hotel Comparisons\nCar Rental Companies\nPricing & Availability Optimization\nLocation-Based Service Offerings\nHotels & Hospitality\nDynamic Pricing Optimization\nReview Sentiment Data\nMarket Analysis for Property Listings\nCompetitor Pricing Insights\nCustom Travel Itinerary Creation\nPackage Pricing Comparisons\nEmpowering Travel Data!\nInsights for Smarter Travel!\nFlight Price data intelligence\nFlight Price Monitoring\nPrice Trend Analysis\nCar Rental Data intelligence\nRental Price Tracking\nAvailability and Fleet Utilization Analysis\nLocation-Specific Pricing Insights\nPricing and Package Comparison\nCruise & Ferries Data intelligence\nTicket Pricing and Availability\nAmenities and Services\nTour & Travel Packages Data intelligence\nItineraries and Highlights\nOffers, and Flash Deals\nReviews, Ratings, and Feedback\nTravel data intelligence\nPricing, and Schedules\nAvailability, Pricing, and Amenities\nOptions and Policies\nDiscounts, and Promotions\nTravel Review Data intelligence\nRatings and Overall Scores\nService-Specific Feedback\nTripAdvisor Review Extraction\nExpedia Review Analysis\nSentiment Analysis of Travel Feedback\nHotel Data intelligence\nCustom Travel Data Solutions\nData Collection (API)\nBooking Trends Analysis\nDemand Forecasting Tools\nCompetitive Market Insights\nData Enrichment Services\nEnhanced Data Quality\nActionable Insights Generation\nAccurate Dataset Integration\nOptimize Travel Scraping\nComprehensive Travel Data Solutions\nScrape Airline Price Data\nExtracting Flight Schedule Data\nAirline Price Scraping from Travel Portals\nCrawling Data from Airbnb\nScraping Vacation Rental Sites\nScrape Hotel Reviews from Travel Portals\nHotel Price Data Extraction from Portals\nScrape Hotel Prices and Listings\nOnline Travel Agency (OTA)\nMass Scale Travel Feed Extraction\nPricing Data Feeds from Travel Portals\nPricing Data Feeds from Travel Portals\nReal-Time Data Monitoring\nFAQ General Questions\n",
+        "clean_content": "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue\nPOWERFULL AND SIMPLE ANALYTICS\nGlobal Flight Prices Datasets\nComprehensive datasets capturing flight pricing\ntrends worldwide, essential for analyzing costs\nand forecasting travel expenses.\nTravel Review Sentiment Datasets\nDatasets that analyze and extract sentiment from\ntravel reviews, providing valuable insights into\ncustomer satisfaction and experiences.\nHotel Guest Review Datasets\nComprehensive datasets containing reviews and\nratings from hotel guests to evaluate service\nquality and guest experiences.\nHotel Room Rates Datasets\nDetailed datasets containing hotel room rate\ninformation for different locations, aiding in\nprice comparisons and market analysis.\nFlight Schedule Datasets\nDetailed information on global flight schedules,\nincluding departure and arrival times, airline\ncarriers, and routes for travel planning.\nPopular Destinations Datasets\nData highlighting trending and popular travel\ndestinations, including visitor statistics and\nkey attractions for better trip planning.\nVacation Rental Listings Datasets\nExtensive data on vacation rental properties,\nincluding details on pricing, amenities, and\navailability for planning trips.\nCar Rental Pricing Datasets\nIn-depth datasets offering insights into car\nrental pricing models, rental locations, and\ncompetitive cost assessments.\nAirport Facilities Datasets\nDetailed datasets on airport facilities,\nincluding amenities, services, and available\nresources for travelers.\nHotel Availability Forecast Datasets\nPredictive datasets providing insights into hotel\nroom availability trends to help anticipate peak\nAirline Price Fluctuation Datasets\nDynamic datasets tracking price changes in\nairline fares, allowing for informed decisions\non optimal booking times.\nCar Rental Location Datasets\nInformation on car rental locations worldwide,\nincluding popular pick-up/drop-off points and\navailable vehicle types.\nGlobal Cruise Itineraries Datasets\nComprehensive datasets detailing cruise\nitineraries, including destinations, departure\ntimes, and duration for vacation planning.\nFerry Routes Datasets\nDetailed data on ferry routes, schedules, and\nticket pricing for travelers looking for\nwater-based transport options.\nComprehensive datasets on flights, hotels, rentals, and destinations offering insights for planning, pricing, and analysis.\nAccurate Travel Data\nComprehens",
+        "info_snippets": [
+          "Airline Price Fluctuation Datasets",
+          "Dynamic datasets tracking price changes in",
+          "Scrape London & Paris Hotel Seasonal Pricing to Maximize Revenue",
+          "Comprehensive datasets capturing flight pricing",
+          "Travel Review Sentiment Datasets",
+          "Datasets that analyze and extract sentiment from",
+          "Comprehensive datasets containing reviews and",
+          "Detailed datasets containing hotel room rate"
+        ],
+        "real_tables": [
+          [
+            [
+              "Hotel Name",
+              "Room Type",
+              "Date",
+              "Rate ($)",
+              "Availability",
+              "Guest Rating",
+              "Special Offer"
+            ],
+            [
+              "Grand Paris Inn",
+              "Deluxe",
+              "15-Dec-25",
+              "220",
+              "Available",
+              "4.5",
+              "Winter Deal"
+            ],
+            [
+              "Louvre Suites",
+              "Standard",
+              "15-Dec-25",
+              "180",
+              "Limited",
+              "4.3",
+              "Holiday Promo"
+            ],
+            [
+              "Eiffel Tower Hotel",
+              "Executive",
+              "15-Dec-25",
+              "300",
+              "Available",
+              "4.7",
+              "Festive Offer"
+            ],
+            [
+              "Champs Elysee Stay",
+              "Deluxe",
+              "15-Dec-25",
+              "250",
+              "Sold Out",
+              "4.6",
+              "None"
+            ],
+            [
+              "Paris Central Inn",
+              "Standard",
+              "15-Dec-25",
+              "200",
+              "Available",
+              "4.2",
+              "Early Bird"
+            ]
+          ]
+        ],
+        "real_data_samples": [
+          {
+            "hotel_name": "Grand Paris Inn",
+            "room_type": "Deluxe",
+            "date": "15-Dec-25",
+            "rate": "220",
+            "availability": "Available",
+            "guest_rating": "4.5",
+            "special_offer": "Winter Deal"
+          },
+          {
+            "hotel_name": "Louvre Suites",
+            "room_type": "Standard",
+            "date": "15-Dec-25",
+            "rate": "180",
+            "availability": "Limited",
+            "guest_rating": "4.3",
+            "special_offer": "Holiday Promo"
+          },
+          {
+            "hotel_name": "Eiffel Tower Hotel",
+            "room_type": "Executive",
+            "date": "15-Dec-25",
+            "rate": "300",
+            "availability": "Available",
+            "guest_rating": "4.7",
+            "special_offer": "Festive Offer"
+          },
+          {
+            "hotel_name": "Champs Elysee Stay",
+            "room_type": "Deluxe",
+            "date": "15-Dec-25",
+            "rate": "250",
+            "availability": "Sold Out",
+            "guest_rating": "4.6",
+            "special_offer": "None"
+          },
+          {
+            "hotel_name": "Paris Central Inn",
+            "room_type": "Standard",
+            "date": "15-Dec-25",
+            "rate": "200",
+            "availability": "Available",
+            "guest_rating": "4.2",
+            "special_offer": "Early Bird"
+          }
+        ],
+        "data_schema": {
+          "fields": {
+            "hotel_name": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "room_type": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "date": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "rate": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "availability": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "guest_rating": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "special_offer": {
+              "type": "string",
+              "source": "html_table"
+            }
+          },
+          "source": "html_table"
+        }
+      },
+      {
+        "title": "hotels.csv - bixbydevelopers/sample-template-import-data",
+        "summary": "Open symbols panel. Edit and raw actions. Name,*Amenities*,Stars,City,Country,Photo,Price,WebSite The Peninsula,\"pool, jacuzzi\",4,Paris,France ...",
+        "url": "https://github.com/bixbydevelopers/sample-template-import-data/blob/master/hotels/hotels.csv",
+        "source": "downloaded_dataset",
+        "real_data_samples": [
+          {
+            "name": "The Peninsula",
+            "amenities": "pool, jacuzzi",
+            "stars": "4",
+            "city": "Paris",
+            "country": "France",
+            "photo": "https://assets.hotelaparis.com/uploads/pictures/000/028/007/rect690_room.jpg",
+            "price": "400",
+            "website": "https://www.peninsula.com/"
+          },
+          {
+            "name": "Regent Berlin",
+            "amenities": "wifi, pets",
+            "stars": "5",
+            "city": "Berlin",
+            "country": "Germany",
+            "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/germany/berlin/hotel-de-rome-berlin-germany-2-p-xlarge.jpg",
+            "price": "900",
+            "website": "https://www.ihg.com/"
+          },
+          {
+            "name": "Grand Hotel Du Palais Royal",
+            "amenities": "wifi",
+            "stars": "5",
+            "city": "Paris",
+            "country": "France",
+            "photo": "https://media.timeout.com/images/103729245/1372/772/image.jpg",
+            "price": "850",
+            "website": "https://www.roccofortehotels.com/hotels-and-resorts/browns-hotel/"
+          },
+          {
+            "name": "The Savoy",
+            "amenities": "wifi",
+            "stars": "5",
+            "city": "London",
+            "country": "UK",
+            "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/united-kingdom/Hotels%20-%20England/london/the-dorchester-p-large.jpg",
+            "price": "1050",
+            "website": "https://www.fairmont.com/savoy-london/"
+          },
+          {
+            "name": "George V",
+            "amenities": "pool, jacuzzi, wifi",
+            "stars": "5",
+            "city": "Paris",
+            "country": "France",
+            "photo": "https://assets.hotelaparis.com/uploads/pictures/000/011/834/rect690_1_chambre_hotel_george_v-2.jpg",
+            "price": "1000",
+            "website": "https://www.fourseasons.com/paris/"
+          },
+          {
+            "name": "The Ritz London",
+            "amenities": "pool, wifi",
+            "stars": "5",
+            "city": "London",
+            "country": "UK",
+            "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/united-kingdom/Hotels%20-%20England/london/the-langham-london-room-p-xlarge.jpg",
+            "price": "850",
+            "website": "https://www.theritzlondon.com/"
+          },
+          {
+            "name": "Le Royal Monceau",
+            "amenities": "wifi",
+            "stars": "5",
+            "city": "Paris",
+            "country": "France",
+            "photo": "https://media.timeout.com/images/103698374/1372/772/image.jpg",
+            "price": "900",
+            "website": "https://www.raffles.com/paris/"
+          },
+          {
+            "name": "Grand Hyatt",
+            "amenities": "pets",
+            "stars": "2",
+            "city": "Berlin",
+            "country": "Germany",
+            "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/germany/berlin/waldorf-astoria-berlin-p-large.jpg",
+            "price": "156",
+            "website": "https://www.hyatt.com/en-US/hotel/germany/grand-hyatt-berlin/bergh?src=corp_lclb_gmb_seo_eame_bergh"
+          },
+          {
+            "name": "The Langham",
+            "amenities": "jacuzzi, wifi",
+            "stars": "2",
+            "city": "London",
+            "country": "UK",
+            "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/united-kingdom/Hotels%20-%20England/london/the-connaught-p-large.jpg",
+            "price": "170",
+            "website": "http://www.langhamhotels.com/en/the-langham/london"
+          },
+          {
+            "name": "The Ritz-Carlton",
+            "amenities": "pets",
+            "stars": "5",
+            "city": "Berlin",
+            "country": "Germany",
+            "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/germany/berlin/ritz-carlton-berlin-p-large.jpg",
+            "price": "900",
+            "website": "http://www.ritzparis.com/en-GB/luxury-hotel-paris"
+          },
+          {
+            "name": "Ritz Paris",
+            "amenities": "pool, wifi",
+            "stars": "4",
+            "city": "Paris",
+            "country": "France",
+            "photo": "https://assets.hotelaparis.com/uploads/pictures/000/037/294/rect690_ritz-paris-hotel-suite-coco-chanel.jpg",
+            "price": "600",
+            "website": "http://www.ritzparis.com/en-GB"
+          },
+          {
+            "name": "Hotel de Rome",
+            "amenities": "pool, jacuzzi",
+            "stars": "5",
+            "city": "Berlin",
+            "country": "Germany",
+            "photo": "https://www.telegraph.co.uk/content/dam/Travel/hotels/europe/germany/berlin/hotel-zoo-berlin-p-large.jpg",
+            "price": "800",
+            "website": "https://www.roccofortehotels.com/hotels-and-resorts/hotel-de-rome/"
+          }
+        ],
+        "data_schema": {
+          "fields": {
+            "name": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "amenities": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "stars": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "city": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "country": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "photo": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "price": {
+              "type": "string",
+              "source": "sampled_data"
+            },
+            "website": {
+              "type": "string",
+              "source": "sampled_data"
+            }
+          },
+          "source": "sampled_data"
+        },
+        "downloaded_files": [
+          "sandbox/run/general_agent/task-f050034c-8fb9-4636-97dc-fd3d17e0099b/_sandbox/data/raw/bixbydevelopers-sample-template-import-data-mast.csv"
+        ]
+      },
+      {
+        "title": "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data",
+        "summary": "TripAdvisor travel datasets obtained through web scraping include hotel and flight data such as prices, reviews, ratings, locations, and availability.",
+        "url": "https://www.actowizsolutions.com/web-scraping-tripadvisor-hotel-flight-dataset.php",
+        "source": "search_with_real_content",
+        "real_content": "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data\nThis Christmas, unlock smarter data with\n15th – 25th December\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nCore Scraping Services\nEnterprise Web Crawling\nWeb Scraping Services\nMobile App Scraping Services\nWeb Scraping API Services\nDeep and Dark Web Scraping\nWeb Data Mining Services\nWeb Scraping with AI\nSearch Engine Data Scraping\nMobile & App Scraping\nApp Store & Play Store\nAndroid App Scraping\nRetail, E-commerce & FMCG\nEcommerce Data Scraping\nLuxury Data Scraping\nGrocery Fmcg Pricing\nCompetitive Promotional\nPricing Intelligence\nTravel & Hospitality\nTravel Data Scraping\nCommodities Scraping\nSports & Fantasy Data\nWine & Alcohol / Liquor\nWine and Alcohol Price\nHR & Recruitment Data\nCoupon and Deals Data\nQSR Fast Food Pricing\nFinancial Data Scraping\nInsurance Data Scraping\nLawyer Data Scraping\nMedia & Entertainment\nAutomotive & Mobility\nEV & Auto Marketplaces\nRide-Hailing & Delivery\nTire Pricing Data Web\nDoctors and Physicians\nReal Estate Property\nBusiness Directory Data\nTransform your data into\nactionable insights with our customizable dashboard, offering\ncomprehensive visualizations across platforms to drive informed\ndecisions and business growth.\nWhat is the Digital Shelf?\nGet all your digital shelf related\nquestions answered in this ultimate digital shelf optimization guide\nspecially curated for global brands and retailers.\nTransform your data into actionable insights with customizable\ndashboards across platforms.\nWhat is the Digital Shelf?\nGet all your digital shelf questions answered in this guide\ncurated for brands and retailers.\nPricing & Promotions\nGeo & Omnichannel Price\nAssortment & Availability\nProduct Availability\nReplenishment Alerts\nAssortment Gap Analysis\nRate of Sale Forecast\nDigital Shelf & Search\nSponsored vs Organic\nBrand Protection & Governance\nCounterfeit Detection\nPrice Intelligence AI\nRetailer Intelligence\nE‑commerce Intelligence\nPricing Intelligence\nAssortment Analytics\nOffline Price & Flyer\nCore Scraping Services\nMobile & App Scraping\nNeed Area-Specific Store Data?\nChoose your region, and we’ll deliver clean, accurate store location datasets.\nDownload Store Location Data\nGrocery & Supermarket Datasets\nFood Delivery Datasets\nTravel & Hospitality Datasets\nBooking.com Datasets\nTripadvisor Datasets\nReal Estate Datasets\nOTT & Media Datasets\nPrime Video Datasets\nJobs & Company Datasets\nLinkedIn Jobs Datasets\nLocal & POI Datasets\nGoogle Maps Datasets\nStore Locator Datasets\nCoupons, Deals & Reviews\nNiche & Emerging Datasets\nDelivery & Compliance\nReady-made Web Scrapers & APIs\nCore Scraping Services\nReady-Made Web Scrapers\nLaunch instantly with ready-made scrapers tailored for popular\nplatforms. Extract clean, structured data without building from\nMobile & App Scraping\nAccess real-time, structured data through scalable REST APIs.\nIntegrate seamlessly into your workflows for faster insights and\nReady Made Data APIs\nGeneral Web Extract API\nSERP API (Google/Bing)\nStreaming, Schedules & Delivery\nWebhook/Queue Delivery\nGovernance, Compliance & Security\nRobots & Terms Aware\nRate Limits & Backoff\nCore Scraping Services\nDownload Sample Datasets\nDownload sample datasets with product titles, price, stock, and\nreviews data. Explore Q4-ready insights to test, analyze, and\npower smarter business strategies.\nMobile & App Scraping\nPlaybook to win the digital shelf. Learn how brands & retailers\ncan track prices, monitor stock, boost visibility, and drive\nconversions with actionable data insights.\nDigital Shelf Playbook\nAssortment Analytics\nMAP Compliance Guide\nPricing Intelligence\nRetail Media Handbook\nAPI Postman Collection\nData Protection & Privacy Policy\nWe deliver innovative solutions, empowering businesses to\ngrow, adapt, and succeed globally.\nCollaborating with industry leaders to provide reliable,\nscalable, and cutting-edge solutions.\nFind clear",
+        "clean_content": "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data\nThis Christmas, unlock smarter data with\n15th – 25th December\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nCore Scraping Services\nEnterprise Web Crawling\nWeb Scraping Services\nMobile App Scraping Services\nWeb Scraping API Services\nDeep and Dark Web Scraping\nWeb Data Mining Services\nWeb Scraping with AI\nSearch Engine Data Scraping\nMobile & App Scraping\nApp Store & Play Store\nAndroid App Scraping\nRetail, E-commerce & FMCG\nEcommerce Data Scraping\nLuxury Data Scraping\nGrocery Fmcg Pricing\nCompetitive Promotional\nPricing Intelligence\nTravel & Hospitality\nTravel Data Scraping\nCommodities Scraping\nSports & Fantasy Data\nWine & Alcohol / Liquor\nWine and Alcohol Price\nHR & Recruitment Data\nCoupon and Deals Data\nQSR Fast Food Pricing\nFinancial Data Scraping\nInsurance Data Scraping\nLawyer Data Scraping\nMedia & Entertainment\nAutomotive & Mobility\nEV & Auto Marketplaces\nRide-Hailing & Delivery\nTire Pricing Data Web\nDoctors and Physicians\nReal Estate Property\nBusiness Directory Data\nTransform your data into\nactionable insights with our customizable dashboard, offering\ncomprehensive visualizations across platforms to drive informed\ndecisions and business growth.\nWhat is the Digital Shelf?\nGet all your digital shelf r",
+        "info_snippets": [
+          "TripAdvisor Travel Datasets: Web Scraping Hotel, Flight Data",
+          "This Christmas, unlock smarter data with",
+          "Actowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!",
+          "Actowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company",
+          "actionable insights with our customizable dashboard, offering",
+          "comprehensive visualizations across platforms to drive informed"
+        ],
+        "real_tables": [
+          [
+            [
+              "﻿Id",
+              "Platform_Name",
+              "Platform_URL",
+              "Item_id",
+              "Category",
+              "Sub_Category",
+              "Description",
+              "Location",
+              "Major_Region",
+              "Country",
+              "Rating",
+              "Number_of_Reviews",
+              "Entry_Fee",
+              "URL"
+            ],
+            [
+              "1",
+              "TripAdvisor",
+              "https://www.tripadvisor.com",
+              "AUS001",
+              "Attraction",
+              "Statue of Liberty",
+              "Iconic symbol of freedom in NYC; ferry access",
+              "NYC",
+              "New York",
+              "USA",
+              "4.5",
+              "43,298",
+              "~$24.50",
+              "https://www.tripadvisor.com/Attraction_Review-g60763-d103887-Reviews-Statue_of_Liberty-New_York_City_New_York.html"
+            ],
+            [
+              "2",
+              "TripAdvisor",
+              "…",
+              "AUS002",
+              "Attraction",
+              "Grand Canyon National Park",
+              "Natural wonder with deep canyon views",
+              "Arizona",
+              "Southwest",
+              "USA",
+              "5",
+              "25,849",
+              "$35 (per car)",
+              "https://www.tripadvisor.com/Attraction_Review-g143028-d104847-Reviews-Grand_Canyon_National_Park-Arizona.html"
+            ]
+          ]
+        ],
+        "real_data_samples": [
+          {
+            "id": "1",
+            "platform_name": "TripAdvisor",
+            "platform_url": "https://www.tripadvisor.com",
+            "item_id": "AUS001",
+            "category": "Attraction",
+            "sub_category": "Statue of Liberty",
+            "description": "Iconic symbol of freedom in NYC; ferry access",
+            "location": "NYC",
+            "major_region": "New York",
+            "country": "USA",
+            "rating": "4.5",
+            "number_of_reviews": "43,298",
+            "entry_fee": "~$24.50",
+            "url": "https://www.tripadvisor.com/Attraction_Review-g60763-d103887-Reviews-Statue_of_Liberty-New_York_City_New_York.html"
+          },
+          {
+            "id": "2",
+            "platform_name": "TripAdvisor",
+            "platform_url": "…",
+            "item_id": "AUS002",
+            "category": "Attraction",
+            "sub_category": "Grand Canyon National Park",
+            "description": "Natural wonder with deep canyon views",
+            "location": "Arizona",
+            "major_region": "Southwest",
+            "country": "USA",
+            "rating": "5",
+            "number_of_reviews": "25,849",
+            "entry_fee": "$35 (per car)",
+            "url": "https://www.tripadvisor.com/Attraction_Review-g143028-d104847-Reviews-Grand_Canyon_National_Park-Arizona.html"
+          }
+        ],
+        "data_schema": {
+          "fields": {
+            "id": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "platform_name": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "platform_url": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "item_id": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "category": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "sub_category": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "description": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "location": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "major_region": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "country": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "rating": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "number_of_reviews": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "entry_fee": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "url": {
+              "type": "string",
+              "source": "html_table"
+            }
+          },
+          "source": "html_table"
+        }
+      },
+      {
+        "title": "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data",
+        "summary": "Airbnb travel datasets obtained through web scraping include hotel and flight data such as prices, reviews, ratings, locations, and availability.",
+        "url": "https://www.actowizsolutions.com/web-scraping-airbnb-hotel-flight-dataset.php",
+        "source": "search_with_real_content",
+        "real_content": "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data Travel Datasets: Web Scraping Hotel, Flight Data\nThis Christmas, unlock smarter data with\n15th – 25th December\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nCore Scraping Services\nEnterprise Web Crawling\nWeb Scraping Services\nMobile App Scraping Services\nWeb Scraping API Services\nDeep and Dark Web Scraping\nWeb Data Mining Services\nWeb Scraping with AI\nSearch Engine Data Scraping\nMobile & App Scraping\nApp Store & Play Store\nAndroid App Scraping\nRetail, E-commerce & FMCG\nEcommerce Data Scraping\nLuxury Data Scraping\nGrocery Fmcg Pricing\nCompetitive Promotional\nPricing Intelligence\nTravel & Hospitality\nTravel Data Scraping\nCommodities Scraping\nSports & Fantasy Data\nWine & Alcohol / Liquor\nWine and Alcohol Price\nHR & Recruitment Data\nCoupon and Deals Data\nQSR Fast Food Pricing\nFinancial Data Scraping\nInsurance Data Scraping\nLawyer Data Scraping\nMedia & Entertainment\nAutomotive & Mobility\nEV & Auto Marketplaces\nRide-Hailing & Delivery\nTire Pricing Data Web\nDoctors and Physicians\nReal Estate Property\nBusiness Directory Data\nTransform your data into\nactionable insights with our customizable dashboard, offering\ncomprehensive visualizations across platforms to drive informed\ndecisions and business growth.\nWhat is the Digital Shelf?\nGet all your digital shelf related\nquestions answered in this ultimate digital shelf optimization guide\nspecially curated for global brands and retailers.\nTransform your data into actionable insights with customizable\ndashboards across platforms.\nWhat is the Digital Shelf?\nGet all your digital shelf questions answered in this guide\ncurated for brands and retailers.\nPricing & Promotions\nGeo & Omnichannel Price\nAssortment & Availability\nProduct Availability\nReplenishment Alerts\nAssortment Gap Analysis\nRate of Sale Forecast\nDigital Shelf & Search\nSponsored vs Organic\nBrand Protection & Governance\nCounterfeit Detection\nPrice Intelligence AI\nRetailer Intelligence\nE‑commerce Intelligence\nPricing Intelligence\nAssortment Analytics\nOffline Price & Flyer\nCore Scraping Services\nMobile & App Scraping\nNeed Area-Specific Store Data?\nChoose your region, and we’ll deliver clean, accurate store location datasets.\nDownload Store Location Data\nGrocery & Supermarket Datasets\nFood Delivery Datasets\nTravel & Hospitality Datasets\nBooking.com Datasets\nTripadvisor Datasets\nReal Estate Datasets\nOTT & Media Datasets\nPrime Video Datasets\nJobs & Company Datasets\nLinkedIn Jobs Datasets\nLocal & POI Datasets\nGoogle Maps Datasets\nStore Locator Datasets\nCoupons, Deals & Reviews\nNiche & Emerging Datasets\nDelivery & Compliance\nReady-made Web Scrapers & APIs\nCore Scraping Services\nReady-Made Web Scrapers\nLaunch instantly with ready-made scrapers tailored for popular\nplatforms. Extract clean, structured data without building from\nMobile & App Scraping\nAccess real-time, structured data through scalable REST APIs.\nIntegrate seamlessly into your workflows for faster insights and\nReady Made Data APIs\nGeneral Web Extract API\nSERP API (Google/Bing)\nStreaming, Schedules & Delivery\nWebhook/Queue Delivery\nGovernance, Compliance & Security\nRobots & Terms Aware\nRate Limits & Backoff\nCore Scraping Services\nDownload Sample Datasets\nDownload sample datasets with product titles, price, stock, and\nreviews data. Explore Q4-ready insights to test, analyze, and\npower smarter business strategies.\nMobile & App Scraping\nPlaybook to win the digital shelf. Learn how brands & retailers\ncan track prices, monitor stock, boost visibility, and drive\nconversions with actionable data insights.\nDigital Shelf Playbook\nAssortment Analytics\nMAP Compliance Guide\nPricing Intelligence\nRetail Media Handbook\nAPI Postman Collection\nData Protection & Privacy Policy\nWe deliver innovative solutions, empowering businesses to\ngrow, adapt, and succeed globally.\nCollaborating with industry leaders to provide reliable,\nscal",
+        "clean_content": "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data Travel Datasets: Web Scraping Hotel, Flight Data\nThis Christmas, unlock smarter data with\n15th – 25th December\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nActowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nSpecial Early-Bird Discounts\nAll Scraping Services\nSave More! Earn More!\nBest Price Guaranteed\nCore Scraping Services\nEnterprise Web Crawling\nWeb Scraping Services\nMobile App Scraping Services\nWeb Scraping API Services\nDeep and Dark Web Scraping\nWeb Data Mining Services\nWeb Scraping with AI\nSearch Engine Data Scraping\nMobile & App Scraping\nApp Store & Play Store\nAndroid App Scraping\nRetail, E-commerce & FMCG\nEcommerce Data Scraping\nLuxury Data Scraping\nGrocery Fmcg Pricing\nCompetitive Promotional\nPricing Intelligence\nTravel & Hospitality\nTravel Data Scraping\nCommodities Scraping\nSports & Fantasy Data\nWine & Alcohol / Liquor\nWine and Alcohol Price\nHR & Recruitment Data\nCoupon and Deals Data\nQSR Fast Food Pricing\nFinancial Data Scraping\nInsurance Data Scraping\nLawyer Data Scraping\nMedia & Entertainment\nAutomotive & Mobility\nEV & Auto Marketplaces\nRide-Hailing & Delivery\nTire Pricing Data Web\nDoctors and Physicians\nReal Estate Property\nBusiness Directory Data\nTransform your data into\nactionable insights with our customizable dashboard, offering\ncomprehensive visualizations across platforms to drive informed\ndecisions and business growth.\nWhat is the",
+        "info_snippets": [
+          "Airbnb Travel Datasets: Web Scraping Hotel, Flight Data Travel Datasets: Web Scraping Hotel, Flight Data",
+          "This Christmas, unlock smarter data with",
+          "Actowiz Metrics  Now Live!     Unlock  Smarter  , Faster  Analytics!",
+          "Actowiz Solutions LLP  ‘The Fastest Growing’  Big Data Analytics Company",
+          "actionable insights with our customizable dashboard, offering",
+          "comprehensive visualizations across platforms to drive informed"
+        ],
+        "real_tables": [
+          [
+            [
+              "﻿product_id",
+              "experience_title",
+              "location",
+              "country",
+              "category",
+              "price",
+              "duration",
+              "highlights",
+              "rating",
+              "review_count",
+              "availability",
+              "product_url",
+              "scraped_date",
+              "language_supported",
+              "cancellation_policy",
+              "pickup_available",
+              "host_name",
+              "product_type",
+              "experience_type",
+              "group_size",
+              "min_age_requirement",
+              "meeting_point",
+              "included_items",
+              "not_included",
+              "host_rating",
+              "host_languages",
+              "availability_days",
+              "booking_type"
+            ],
+            [
+              "1",
+              "Learn to Cook Thai Food in a Garden",
+              "Chiang Mai",
+              "Thailand",
+              "Cooking Class",
+              "35 USD",
+              "3.5 hours",
+              "Farm visit, 3 dishes",
+              "4.9",
+              "1600",
+              "Available",
+              "https://www.airbnb.com/experiences/4001",
+              "10-07-2025",
+              "English, Thai",
+              "Free cancellation",
+              "Yes",
+              "Chef Pan",
+              "In-person",
+              "In-person",
+              "10",
+              "12",
+              "Garden Kitchen, Chiang Mai",
+              "Ingredients, recipes, lunch",
+              "Alcoholic drinks",
+              "4.9",
+              "English, Thai",
+              "Mon–Sun",
+              "Instant Book"
+            ],
+            [
+              "2",
+              "Eiffel Tower Photoshoot",
+              "Paris",
+              "France",
+              "Photography",
+              "80 USD",
+              "1 hour",
+              "Landmark shots",
+              "4.8",
+              "2300",
+              "Available",
+              "https://www.airbnb.com/experiences/4002",
+              "10-07-2025",
+              "English, French",
+              "Free cancellation",
+              "No",
+              "Emilie Clicks",
+              "Experience",
+              "In-person",
+              "6",
+              "5",
+              "Carousel de Paris",
+              "Digital photos",
+              "Printed copies",
+              "4.8",
+              "English, French",
+              "Tue–Sun",
+              "Instant Book"
+            ]
+          ]
+        ],
+        "real_data_samples": [
+          {
+            "product_id": "1",
+            "experience_title": "Learn to Cook Thai Food in a Garden",
+            "location": "Chiang Mai",
+            "country": "Thailand",
+            "category": "Cooking Class",
+            "price": "35 USD",
+            "duration": "3.5 hours",
+            "highlights": "Farm visit, 3 dishes",
+            "rating": "4.9",
+            "review_count": "1600",
+            "availability": "Available",
+            "product_url": "https://www.airbnb.com/experiences/4001",
+            "scraped_date": "10-07-2025",
+            "language_supported": "English, Thai",
+            "cancellation_policy": "Free cancellation",
+            "pickup_available": "Yes",
+            "host_name": "Chef Pan",
+            "product_type": "In-person",
+            "experience_type": "In-person",
+            "group_size": "10",
+            "min_age_requirement": "12",
+            "meeting_point": "Garden Kitchen, Chiang Mai",
+            "included_items": "Ingredients, recipes, lunch",
+            "not_included": "Alcoholic drinks",
+            "host_rating": "4.9",
+            "host_languages": "English, Thai",
+            "availability_days": "Mon–Sun",
+            "booking_type": "Instant Book"
+          },
+          {
+            "product_id": "2",
+            "experience_title": "Eiffel Tower Photoshoot",
+            "location": "Paris",
+            "country": "France",
+            "category": "Photography",
+            "price": "80 USD",
+            "duration": "1 hour",
+            "highlights": "Landmark shots",
+            "rating": "4.8",
+            "review_count": "2300",
+            "availability": "Available",
+            "product_url": "https://www.airbnb.com/experiences/4002",
+            "scraped_date": "10-07-2025",
+            "language_supported": "English, French",
+            "cancellation_policy": "Free cancellation",
+            "pickup_available": "No",
+            "host_name": "Emilie Clicks",
+            "product_type": "Experience",
+            "experience_type": "In-person",
+            "group_size": "6",
+            "min_age_requirement": "5",
+            "meeting_point": "Carousel de Paris",
+            "included_items": "Digital photos",
+            "not_included": "Printed copies",
+            "host_rating": "4.8",
+            "host_languages": "English, French",
+            "availability_days": "Tue–Sun",
+            "booking_type": "Instant Book"
+          }
+        ],
+        "data_schema": {
+          "fields": {
+            "product_id": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "experience_title": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "location": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "country": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "category": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "price": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "duration": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "highlights": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "rating": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "review_count": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "availability": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "product_url": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "scraped_date": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "language_supported": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "cancellation_policy": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "pickup_available": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "host_name": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "product_type": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "experience_type": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "group_size": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "min_age_requirement": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "meeting_point": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "included_items": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "not_included": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "host_rating": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "host_languages": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "availability_days": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "booking_type": {
+              "type": "string",
+              "source": "html_table"
+            }
+          },
+          "source": "html_table"
+        }
+      },
+      {
+        "title": "Travel Review Ratings - UCI Machine Learning Repository",
+        "summary": "This data set is populated by capturing user ratings from Google reviews. Reviews on attractions from 24 categories across Europe are ...",
+        "url": "https://archive.ics.uci.edu/dataset/485/travel+review+ratings",
+        "source": "search_with_real_content",
+        "real_content": "UCI Machine Learning Repository\nTravel Review Ratings - UCI Machine Learning Repository\nDatasets     Contribute Dataset     Donate New     Link External       About Us     Who We Are     Citation Metadata     Contact Information                                                            Login                             Travel Review Ratings     Donated on 12/18/2018                          Google reviews on attractions from 24 categories across Europe are considered. Google user rating ranges from 1 to 5 and average user rating per category is calculated.              Dataset Characteristics   Multivariate, Text     Subject Area   Other     Associated Tasks   Classification, Clustering     Feature Type   Real     # Instances   5456     # Features   24                Dataset Information                   Additional Information        This data set is populated by capturing user ratings from Google reviews. Reviews on attractions from 24 categories across Europe are considered. Google user rating ranges from 1 to 5 and average user rating per category is calculated.            Has Missing Values?        No                      Introductory Paper                   Evaluation of Partitioning Clustering Algorithms for Processing Social Media Data in Tourism Domain   By Dr. Shini Renjith, A. Sreekumar, M. Jathavedan. 2018   Published in IEEE Recent Advances in Intelligent Computational Systems               Variables Table                         Variable Name  Role  Type  Description  Units  Missing Values        userid  ID  Categorical      no     churches  Feature  Continuous      no     resorts  Feature  Continuous      no     beaches  Feature  Integer      no     parks  Feature  Continuous      no     theatres  Feature  Continuous      no     museums  Feature  Continuous      no     malls  Feature  Continuous      no     zoos  Feature  Continuous      no     restaurants  Feature  Integer      no           Rows per page    5  10  15  20  25      0 to   10 of   25                                   Additional Variable Information                             Attribute 1 : Unique user id\nAttribute 2 : Average ratings on churches\nAttribute 3 : Average ratings on resorts\nAttribute 4 : Average ratings on beaches\nAttribute 5 : Average ratings on parks\nAttribute 6 : Average ratings on theatres\nAttribute 7 : Average ratings on museums\nAttribute 8 : Average ratings on malls\nAttribute 9 : Average ratings on zoo\nAttribute 10 : Average ratings on restaurants\nAttribute 11 : Average ratings on pubs/bars\nAttribute 12 : Average ratings on local services\nAttribute 13 : Average ratings on burger/pizza shops\nAttribute 14 : Average ratings on hotels/other lodgings\nAttribute 15 : Average ratings on juice bars\nAttribute 16 : Average ratings on art galleries\nAttribute 17 : Average ratings on dance clubs\nAttribute 18 : Average ratings on swimming pools\nAttribute 19 : Average ratings on gyms\nAttribute 20 : Average ratings on bakeries\nAttribute 22 : Average ratings on cafes\nAttribute 23 : Average ratings on view points\nAttribute 24 : Average ratings on monuments\nAttribute 25 : Average ratings on gardens                          Dataset Files                     File  Size        google_review_ratings.csv  622.1 KB                                               Download   (622.2 KB)                           Import in Python           Install the ucimlrepo package                         pip install ucimlrepo      Import the dataset into your code                         from ucimlrepo import fetch_ucirepo\ntravel_review_ratings = fetch_ucirepo(id=485)\n# data (as pandas dataframes)\nX = travel_review_ratings.data.features\ny = travel_review_ratings.data.targets\nprint(travel_review_ratings.metadata)\n# variable information\nprint(travel_review_ratings.variables)\nView the full documentation          Cite                1 citations            19089 views              Citation                             Renjith, S. (2018). Travel Review Ratings [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5C31Q.      Style:    APA  MLA  Chicago  Vancouver  IEEE  BibTeX                              Creators                     Shini Renjith                   DOI     10.24432/C5C31Q             License    This dataset is licensed under a\nCreative Commons Attribution 4.0 International\n(CC BY 4.0) license.   This allows for the sharing and adaptation of the datasets for any purpose,\nprovided that the appropriate credit is given.                  By using the UCI Machine Learning Repository,\nyou acknowledge and accept the cookies and privacy practices used by the UCI Machine Learning Repository.     Accept   Read Policy                                                         The Project   About Us   CML   National Science Foundation     Navigation   Home   View Datasets   Donate a Dataset     Logistics   Contact   Privacy Notice   Feature Request or Bug Report              Browse Datasets     Donate a Dataset     Link an external Dataset    ",
+        "clean_content": "UCI Machine Learning Repository\nTravel Review Ratings - UCI Machine Learning Repository\nDatasets     Contribute Dataset     Donate New     Link External       About Us     Who We Are     Citation Metadata     Contact Information                                                            Login                             Travel Review Ratings     Donated on 12/18/2018                          Google reviews on attractions from 24 categories across Europe are considered. Google user rating ranges from 1 to 5 and average user rating per category is calculated.              Dataset Characteristics   Multivariate, Text     Subject Area   Other     Associated Tasks   Classification, Clustering     Feature Type   Real     # Instances   5456     # Features   24                Dataset Information                   Additional Information        This data set is populated by capturing user ratings from Google reviews. Reviews on attractions from 24 categories across Europe are considered. Google user rating ranges from 1 to 5 and average user rating per category is calculated.            Has Missing Values?        No                      Introductory Paper                   Evaluation of Partitioning Clustering Algorithms for Processing Social Media Data in Tourism Domain   By Dr. Shini Renjith, A. Sreekumar, M. Jathavedan. 2018   Published in IEEE Recent Advances in Intelligent Computational Systems               Variables Table                         Variable Name  Role  Type  Description  Units  Missing Values        userid  ID  Categorical      no     churches  Feature  Continuous      no     resorts  Feature  Continuous      no     beaches  Feature  Integer      no     parks  Feature  Continuous      no     theatres  Feature  Continuous      no     museums  Feature  Continuous      no     malls  Feature  Continuous      no     zoos  Feature  Continuous      no     restaurants  Feature  Integer      no           Rows per page    5  10  15  20  25      0 to   10 of   25                                   Additional Variable Information                             Attribute 1 : Unique user id\nAttribute 2 : Average ratings on churches\nAttribute 3 : Average ratings on resorts\nAttribute 4 : Average ratings on beaches\nAttribute 5 : Average ratings on parks\nAttribute 6 : Average ratings on theatres\nAttribute 7 : Average ratings on museums\nAttribute 8 : Average ratings on ",
+        "info_snippets": [
+          "Google user rating ranges from 1 to 5 and average user rating per category is calculated",
+          "Reviews on attractions from 24 categories across Europe are considered",
+          "Attribute 2 : Average ratings on churches",
+          "Attribute 3 : Average ratings on resorts",
+          "Attribute 4 : Average ratings on beaches",
+          "Attribute 5 : Average ratings on parks",
+          "Attribute 6 : Average ratings on theatres",
+          "Attribute 7 : Average ratings on museums"
+        ],
+        "real_tables": [
+          [
+            [
+              "Variable Name",
+              "Role",
+              "Type",
+              "Description",
+              "Units",
+              "Missing Values"
+            ],
+            [
+              "userid",
+              "ID",
+              "Categorical",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "churches",
+              "Feature",
+              "Continuous",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "resorts",
+              "Feature",
+              "Continuous",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "beaches",
+              "Feature",
+              "Integer",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "parks",
+              "Feature",
+              "Continuous",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "theatres",
+              "Feature",
+              "Continuous",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "museums",
+              "Feature",
+              "Continuous",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "malls",
+              "Feature",
+              "Continuous",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "zoos",
+              "Feature",
+              "Continuous",
+              "",
+              "",
+              "no"
+            ],
+            [
+              "restaurants",
+              "Feature",
+              "Integer",
+              "",
+              "",
+              "no"
+            ]
+          ],
+          [
+            [
+              "File",
+              "Size"
+            ],
+            [
+              "google_review_ratings.csv",
+              "622.1 KB"
+            ]
+          ]
+        ],
+        "real_data_samples": [
+          {
+            "variable_name": "userid",
+            "role": "ID",
+            "type": "Categorical",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "churches",
+            "role": "Feature",
+            "type": "Continuous",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "resorts",
+            "role": "Feature",
+            "type": "Continuous",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "beaches",
+            "role": "Feature",
+            "type": "Integer",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "parks",
+            "role": "Feature",
+            "type": "Continuous",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "theatres",
+            "role": "Feature",
+            "type": "Continuous",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "museums",
+            "role": "Feature",
+            "type": "Continuous",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "malls",
+            "role": "Feature",
+            "type": "Continuous",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "zoos",
+            "role": "Feature",
+            "type": "Continuous",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "variable_name": "restaurants",
+            "role": "Feature",
+            "type": "Integer",
+            "description": "",
+            "units": "",
+            "missing_values": "no"
+          },
+          {
+            "file": "google_review_ratings.csv",
+            "size": "622.1 KB"
+          }
+        ],
+        "data_schema": {
+          "fields": {
+            "variable_name": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "role": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "type": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "description": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "units": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "missing_values": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "file": {
+              "type": "string",
+              "source": "html_table"
+            },
+            "size": {
+              "type": "string",
+              "source": "html_table"
+            }
+          },
+          "source": "html_table"
+        }
+      },
+      {
+        "title": "Build an AI Travel Planner with CopilotKit, LangGraph & Google ...",
+        "summary": "In this easy-to-follow tutorial, we'll take a simple travel planner application and enhance it with AI using CopilotKit.",
+        "url": "https://dev.to/copilotkit/build-an-ai-travel-planner-with-copilotkit-langgraph-google-maps-api-32fm",
+        "source": "real_content_extracted",
+        "data_schema": {
+          "fields": [
+            "forum_category",
+            "description"
+          ],
+          "samples": [
+            "Software Development",
+            "A space to discuss and keep up software development...",
+            "Science & Technology",
+            "News and discussion of science and technology such as AI, VR..."
+          ],
+          "patterns": "Content primarily lists community forum categories and their descriptions. This is sidebar or navigational content, not the main article's travel data.",
+          "anomalies": "The provided content snippet contains only generic forum category information, not the tutorial's main content about travel planning data structures. The key data models (e.g., for destinations, itineraries) are missing.",
+          "volume": "Approximately 12 forum category records. Volume of travel data discussed in the full article is unknown."
+        },
+        "real_data_samples": [
+          {
+            "forum_category": "Software Development",
+            "description": "A space to discuss and keep up software development and manage your software career"
+          },
+          {
+            "forum_category": "Science & Technology",
+            "description": "News and discussion of science and technology such as AI, VR, cryptocurrency, quantum computing, and more."
+          }
+        ],
+        "clean_content": "Follow new Subforems to improve your feed\nA space to discuss and keep up software development and manage your software career\nNews and discussion of science and technology such as AI, VR, cryptocurrency, quantum computing, and more.\nAn inclusive community for gaming enthusiasts\nFrom composing and gigging to gear, hot music takes, and everything in between.\nPopcorn Movies and TV\nMovie and TV enthusiasm, criticism and everything in-between.\nMemes and software development shitposting\nWeb design, graphic design and everything in-between\nYour central hub for all things security. From ethical hacking and CTFs to GRC and career development, for beginners and pros alike\nA community of golfers and golfing enthusiasts\nA collaborative community for all things Crypto—from Bitcoin to protocol development and DeFi to NFTs and market analysis.\nDiscussing the core forem open source software project — features, bugs, performance, self-hosting.\nA community for makers, hobbyists, and professionals to discuss Arduino, Raspberry Pi, 3D printing, and much more.\nFor developers using HMPL.js to build fast, lightweight web apps. A space to share projects, ask questions, and discuss server-driven templating\nIn this easy-to-follow tutorial, we’ll take a simple travel planner application and enhance it with AI using  CopilotKit .\nBy the end of this article, you’ll learn:\nWhat an agentic copilot is and how to use it to add AI to your application.\nHow to use  useCoAgentStateRender  for human-in-the-loop workflows.\n💁 Prefer learning through videos? Check out  this video tutorial .\nHere’s a preview of the application we’ll be building: 👇\n💁 Interact with the travel planner demo by visiting  this link .\nCheck out the repository\nFor this demonstration, we’ll start with a branch containing a basic, functional application without AI support, which we’ll enhance using CopilotKit. 🚀\nCheckout CopilotKit ⭐️\nCheck out the Starting Branch\nWe’ll begin with the  coagents-travel-tutorial-start  branch, which contains the starter code for our travel app:\ngit clone  -b  coagents-travel-tutorial-start https://github.com/CopilotKit/CopilotKit.git\nEnter fullscreen mode\nExit fullscreen mode\nThe tutorial code is located in the  examples/coagents-travel  directory, which includes two different directories:\nui/ : It holds a Next.js application where we’ll integrate the LangGraph agent.\nagent/ : It holds a Python",
+        "real_content": "Follow new Subforems to improve your feed\nA space to discuss and keep up software development and manage your software career\nNews and discussion of science and technology such as AI, VR, cryptocurrency, quantum computing, and more.\nAn inclusive community for gaming enthusiasts\nFrom composing and gigging to gear, hot music takes, and everything in between.\nPopcorn Movies and TV\nMovie and TV enthusiasm, criticism and everything in-between.\nMemes and software development shitposting\nWeb design, graphic design and everything in-between\nYour central hub for all things security. From ethical hacking and CTFs to GRC and career development, for beginners and pros alike\nA community of golfers and golfing enthusiasts\nA collaborative community for all things Crypto—from Bitcoin to protocol development and DeFi to NFTs and market analysis.\nDiscussing the core forem open source software project — features, bugs, performance, self-hosting.\nA community for makers, hobbyists, and professionals to discuss Arduino, Raspberry Pi, 3D printing, and much more.\nFor developers using HMPL.js to build fast, lightweight web apps. A space to share projects, ask questions, and discuss server-driven templating\nIn this easy-to-follow tutorial, we’ll take a simple travel planner application and enhance it with AI using  CopilotKit .\nBy the end of this article, you’ll learn:\nWhat an agentic copilot is and how to use it to add AI to your application.\nHow to use  useCoAgentStateRender  for human-in-the-loop workflows.\n💁 Prefer learning through videos? Check out  this video tutorial .\nHere’s a preview of the application we’ll be building: 👇\n💁 Interact with the travel planner demo by visiting  this link .\nCheck out the repository\nFor this demonstration, we’ll start with a branch containing a basic, functional application without AI support, which we’ll enhance using CopilotKit. 🚀\nCheckout CopilotKit ⭐️\nCheck out the Starting Branch\nWe’ll begin with the  coagents-travel-tutorial-start  branch, which contains the starter code for our travel app:\ngit clone  -b  coagents-travel-tutorial-start https://github.com/CopilotKit/CopilotKit.git\nEnter fullscreen mode\nExit fullscreen mode\nThe tutorial code is located in the  examples/coagents-travel  directory, which includes two different directories:\nui/ : It holds a Next.js application where we’ll integrate the LangGraph agent.\nagent/ : It holds a Python-based LangGraph agent.\nNavigate to the  examples/coagents-travel  directory:\ncd  examples/coagents-travel\nEnter fullscreen mode\nExit fullscreen mode\nInstall Dependencies\nLet’s set up the Next.js application. Ensure you have  pnpm  installed on your system, as our starter code uses it as the package manager:\nnpm  install   -g  pnpm@latest-10\nEnter fullscreen mode\nExit fullscreen mode\nNow, go to the  ui  directory and install all the required dependencies for the project:\nEnter fullscreen mode\nExit fullscreen mode\nCreate a  .env  file in the  ui  directory and populate it with the necessary environment variables:\nEnter fullscreen mode\nExit fullscreen mode\nIf you need a CopilotKit API key, you can grab one  here . 🔑\nNow, that we have all the dependencies installed, launch the development server:\nEnter fullscreen mode\nExit fullscreen mode\nIf everything is set up correctly, visit  http://localhost:3000  to see the travel app in action. 😻\nNow, we’ll take a look into the LangGraph agent and see how it works.\nBefore we dive into integrating the LangGraph agent, let’s take a moment to understand how it works.\nFor this tutorial, we won’t be building the LangGraph agent from scratch. Instead, we’ll use the prebuilt version located in the  agent  directory.\n💁 Interested in a detailed, step-by-step guide on building a LangGraph agent? Check out the  LangGraph Quickstart Guide .\nLet’s walk through the LangGraph agent to understand its inner workings before adding to our application.\nInstall LangGraph Studio\n💡 LangGraph Studio is an excellent tool for visualizing and debugging LangGraph workflows. While not required for using CopilotKit, it’s highly recommended for understanding how LangGraph operates.\nTo install LangGraph Studio, refer to the  LangChain Studio Setup Guide .\nCreate a  .env  file in the  agent  directory and populate it with the following environment variables:\nEnter fullscreen mode\nExit fullscreen mode\nNeed a Google Maps API key? Follow this  guide  to get one. 🔑\nVisualizing the LangGraph Agent\nWith LangGraph Studio installed, open the  examples/coagents-travel/agent  directory in the studio to load and visualize the LangGraph agent.\n💡  Tip:  It might take a little time to get everything set up, but once it’s installed and you've navigated to the  agent  folder, the visualization will look something like this:\nTesting the LangGraph Agent\nTo test the LangGraph agent, simply add a message to the  messages  state variable and hit \"Submit.\"\nThe agent will process the input, respond in the chat, and follow the defined workflow through the connected nodes.\n"
+      }
+    ],
+    "record_count": 8
+  },
+  "tools": [
+    {
+      "name": "search_hotel_pricing",
+      "description": "\n    Search hotel pricing data from seasonal pricing CSV.\n    Returns hotels matching query in name, room_type, or special_offer.\n    "
+    },
+    {
+      "name": "search_hotel_directory",
+      "description": "\n    Search hotel directory data with amenities, stars, and pricing.\n    Returns hotels matching query in name, city, country, or amenities.\n    "
+    },
+    {
+      "name": "search_travel_recommendations",
+      "description": "\n    Search travel recommendation data with trip details.\n    Returns trips matching query in destination, traveler_name, or accommodation_type.\n    "
+    },
+    {
+      "name": "search_tripadvisor_attractions",
+      "description": "\n    Search TripAdvisor attractions data.\n    Returns attractions matching query in sub_category, description, location, or country.\n    "
+    },
+    {
+      "name": "search_hotel_star_ratings",
+      "description": "\n    Search hotel star ratings information from JSON records.\n    Returns rating levels matching query in rating_level or description.\n    "
+    },
+    {
+      "name": "submit_result",
+      "description": "\n    Persist the result payload to submitted_result.json in current working directory.\n    Returns the result that was submitted.\n    "
+    }
+  ],
+  "tools_interface": "import json\nimport csv\nimport os\nimport re\nfrom typing import List, Dict, Any\nimport random\n\n# Set seed for deterministic behavior if randomness is used\nrandom.seed(0)\n\n# Fallback shim if mcp is not available\ntry:\n    import mcp\nexcept ImportError:\n    # Create a minimal fallback decorator\n    class MockMCP:\n        @staticmethod\n        def tool(func):\n            return func\n    mcp = MockMCP()\n\n@mcp.tool\ndef search_hotel_pricing(query: str, max_results: int = 5) -> List[Dict[str, Any]]:\n    \"\"\"\n    Search hotel pricing data from seasonal pricing CSV.\n    Returns hotels matching query in name, room_type, or special_offer.\n    \"\"\"\n    results = []\n    csv_path = \"data/scrape-london-paris-hotel-seasonal-prici.csv\"\n    \n    if not os.path.exists(csv_path):\n        return [{\"error\": f\"File not found: {csv_path}\"}]\n    \n    try:\n        with open(csv_path, 'r', encoding='utf-8') as f:\n            reader = csv.DictReader(f)\n            for row in reader:\n                # Clean up field names (strip whitespace)\n                row = {k.strip(): v for k, v in row.items()}\n                \n                # Check if query matches any relevant field\n                query_lower = query.lower()\n                matches = False\n                for field in ['hotel_name', 'room_type', 'special_offer']:\n                    if field in row and query_lower in row[field].lower():\n                        matches = True\n                        break\n                \n                if matches:\n                    # Convert rate to numeric if possible\n                    rate = row.get('rate', '0')\n                    try:\n                        rate_num = float(rate)\n                    except (ValueError, TypeError):\n                        rate_num = 0\n                    \n                    results.append({\n                        'hotel_name': row.get('hotel_name', ''),\n                        'room_type': row.get('room_type', ''),\n                        'date': row.get('date', ''),\n                        'rate': rate,\n                        'rate_numeric': rate_num,\n                        'availability': row.get('availability', ''),\n                        'guest_rating': row.get('guest_rating', ''),\n                        'special_offer': row.get('special_offer', '')\n                    })\n                    \n                    if len(results) >= max_results:\n                        break\n    except Exception as e:\n        return [{\"error\": f\"Error reading CSV: {str(e)}\"}]\n    \n    return results\n\n@mcp.tool\ndef search_hotel_directory(query: str, max_results: int = 5) -> List[Dict[str, Any]]:\n    \"\"\"\n    Search hotel directory data with amenities, stars, and pricing.\n    Returns hotels matching query in name, city, country, or amenities.\n    \"\"\"\n    results = []\n    csv_path = \"data/hotels-csv-bixbydevelopers-sample-templa.csv\"\n    \n    if not os.path.exists(csv_path):\n        return [{\"error\": f\"File not found: {csv_path}\"}]\n    \n    try:\n        with open(csv_path, 'r', encoding='utf-8') as f:\n            reader = csv.DictReader(f)\n            for row in reader:\n                # Clean up field names\n                row = {k.strip(): v for k, v in row.items()}\n                \n                # Check if query matches any relevant field\n                query_lower = query.lower()\n                matches = False\n                for field in ['name', 'city', 'country', 'amenities']:\n                    if field in row and query_lower in row[field].lower():\n                        matches = True\n                        break\n                \n                if matches:\n                    # Convert stars and price to numeric if possible\n                    stars = row.get('stars', '0')\n                    price = row.get('price', '0')\n                    try:\n                        stars_num = int(stars)\n                    except (ValueError, TypeError):\n                        stars_num = 0\n                    \n                    try:\n                        price_num = float(price)\n                    except (ValueError, TypeError):\n                        price_num = 0\n                    \n                    results.append({\n                        'name': row.get('name', ''),\n                        'amenities': row.get('amenities', ''),\n                        'stars': stars,\n                        'stars_numeric': stars_num,\n                        'city': row.get('city', ''),\n                        'country': row.get('country', ''),\n                        'photo': row.get('photo', ''),\n                        'price': price,\n                        'price_numeric': price_num,\n                        'website': row.get('website', '')\n                    })\n                    \n                    if len(results) >= max_results:\n                        break\n    except Exception as e:\n        return [{\"error\": f\"Error reading CSV: {str(e)}\"}]\n    \n    return results\n\n@mcp.tool\ndef search_travel_recommendations(query: str, max_results: int = 5) -> List[Dict[str, Any]]:\n    \"\"\"\n    Search travel recommendation data with trip details.\n    Returns trips matching query in destination, traveler_name, or accommodation_type.\n    \"\"\"\n    results = []\n    csv_path = \"data/travel-recommendation-system-travel-deta.csv\"\n    \n    if not os.path.exists(csv_path):\n        return [{\"error\": f\"File not found: {csv_path}\"}]\n    \n    try:\n        with open(csv_path, 'r', encoding='utf-8') as f:\n            reader = csv.DictReader(f)\n            for row in reader:\n                # Clean up field names\n                row = {k.strip(): v for k, v in row.items()}\n                \n                # Check if query matches any relevant field\n                query_lower = query.lower()\n                matches = False\n                for field in ['destination', 'traveler_name', 'accommodation_type', 'traveler_nationality']:\n                    if field in row and query_lower in row[field].lower():\n                        matches = True\n                        break\n                \n                if matches:\n                    # Convert numeric fields\n                    duration_days = row.get('duration_days', '0')\n                    traveler_age = row.get('traveler_age', '0')\n                    accommodation_cost = row.get('accommodation_cost', '0')\n                    transportation_cost = row.get('transportation_cost', '0')\n                    \n                    # Clean cost fields (remove $ and commas)\n                    for cost_field in ['accommodation_cost', 'transportation_cost']:\n                        if cost_field in row:\n                            row[cost_field] = re.sub(r'[^\\d.]', '', row[cost_field])\n                    \n                    try:\n                        duration_num = int(duration_days)\n                    except (ValueError, TypeError):\n                        duration_num = 0\n                    \n                    try:\n                        age_num = int(traveler_age)\n                    except (ValueError, TypeError):\n                        age_num = 0\n                    \n                    try:\n                        acc_cost_num = float(row.get('accommodation_cost', '0'))\n                    except (ValueError, TypeError):\n                        acc_cost_num = 0\n                    \n                    try:\n                        trans_cost_num = float(row.get('transportation_cost', '0'))\n                    except (ValueError, TypeError):\n                        trans_cost_num = 0\n                    \n                    total_cost = acc_cost_num + trans_cost_num\n                    \n                    results.append({\n                        'trip_id': row.get('trip_id', ''),\n                        'destination': row.get('destination', ''),\n                        'start_date': row.get('start_date', ''),\n                        'end_date': row.get('end_date', ''),\n                        'duration_days': duration_days,\n                        'duration_numeric': duration_num,\n                        'traveler_name': row.get('traveler_name', ''),\n                        'traveler_age': traveler_age,\n                        'traveler_age_numeric': age_num,\n                        'traveler_gender': row.get('traveler_gender', ''),\n                        'traveler_nationality': row.get('traveler_nationality', ''),\n                        'accommodation_type': row.get('accommodation_type', ''),\n                        'accommodation_cost': row.get('accommodation_cost', ''),\n                        'accommodation_cost_numeric': acc_cost_num,\n                        'transportation_type': row.get('transportation_type', ''),\n                        'transportation_cost': row.get('transportation_cost', ''),\n                        'transportation_cost_numeric': trans_cost_num,\n                        'total_cost_numeric': total_cost\n                    })\n                    \n                    if len(results) >= max_results:\n                        break\n    except Exception as e:\n        return [{\"error\": f\"Error reading CSV: {str(e)}\"}]\n    \n    return results\n\n@mcp.tool\ndef search_tripadvisor_attractions(query: str, max_results: int = 5) -> List[Dict[str, Any]]:\n    \"\"\"\n    Search TripAdvisor attractions data.\n    Returns attractions matching query in sub_category, description, location, or country.\n    \"\"\"\n    results = []\n    csv_path = \"data/tripadvisor-travel-datasets-web-scraping.csv\"\n    \n    if not os.path.exists(csv_path):\n        return [{\"error\": f\"File not found: {csv_path}\"}]\n    \n    try:\n        with open(csv_path, 'r', encoding='utf-8') as f:\n            # Try to detect delimiter and handle BOM\n            sample = f.read(1024)\n            f.seek(0)\n            \n            # Check for BOM\n            if sample.startswith('\\ufeff'):\n                f = open(csv_path, 'r', encoding='utf-8-sig')\n            \n            reader = csv.DictReader(f)\n            for row in reader:\n                # Clean up field names\n                row = {k.strip().replace('\\ufeff', ''): v for k, v in row.items()}\n                \n                # Check if query matches any relevant field\n                query_lower = query.lower()\n                matches = False\n                for field in ['sub_category', 'description', 'location', 'country', 'category']:\n                    if field in row and query_lower in row[field].lower():\n                        matches = True\n                        break\n                \n                if matches:\n                    # Convert rating to numeric if possible\n                    rating = row.get('rating', '0')\n                    try:\n                        rating_num = float(rating)\n                    except (ValueError, TypeError):\n                        rating_num = 0\n                    \n                    # Clean number of reviews\n                    num_reviews = row.get('number_of_reviews', '0')\n                    num_reviews_clean = re.sub(r'[^\\d]', '', num_reviews)\n                    try:\n                        num_reviews_num = int(num_reviews_clean) if num_reviews_clean else 0\n                    except (ValueError, TypeError):\n                        num_reviews_num = 0\n                    \n                    results.append({\n                        'id': row.get('id', ''),\n                        'platform_name': row.get('platform_name', ''),\n                        'platform_url': row.get('platform_url', ''),\n                        'item_id': row.get('item_id', ''),\n                        'category': row.get('category', ''),\n                        'sub_category': row.get('sub_category', ''),\n                        'description': row.get('description', ''),\n                        'location': row.get('location', ''),\n                        'major_region': row.get('major_region', ''),\n                        'country': row.get('country', ''),\n                        'rating': rating,\n                        'rating_numeric': rating_num,\n                        'number_of_reviews': num_reviews,\n                        'number_of_reviews_numeric': num_reviews_num,\n                        'entry_fee': row.get('entry_fee', ''),\n                        'url': row.get('url', '')\n                    })\n                    \n                    if len(results) >= max_results:\n                        break\n    except Exception as e:\n        return [{\"error\": f\"Error reading CSV: {str(e)}\"}]\n    \n    return results\n\n@mcp.tool\ndef search_hotel_star_ratings(query: str, max_results: int = 5) -> List[Dict[str, Any]]:\n    \"\"\"\n    Search hotel star ratings information from JSON records.\n    Returns rating levels matching query in rating_level or description.\n    \"\"\"\n    results = []\n    json_path = \"records.json\"\n    \n    if not os.path.exists(json_path):\n        return [{\"error\": f\"File not found: {json_path}\"}]\n    \n    try:\n        with open(json_path, 'r', encoding='utf-8') as f:\n            data = json.load(f)\n        \n        # Look for the Paris Hotel Star Ratings entry\n        for item in data:\n            if isinstance(item, dict) and 'title' in item:\n                title = item.get('title', '')\n                if 'Paris Hotel Star Ratings' in title:\n                    # Extract real_data_samples if available\n                    real_samples = item.get('real_data_samples', [])\n                    query_lower = query.lower()\n                    \n                    for sample in real_samples:\n                        if isinstance(sample, dict):\n                            matches = False\n                            for field in ['rating_level', 'description']:\n                                if field in sample and query_lower in str(sample[field]).lower():\n                                    matches = True\n                                    break\n                            \n                            if matches:\n                                results.append({\n                                    'rating_level': sample.get('rating_level', ''),\n                                    'description': sample.get('description', ''),\n                                    'source': 'Paris Hotel Star Ratings Guide'\n                                })\n                                \n                                if len(results) >= max_results:\n                                    break\n                    \n                    # If no matches in real_samples, check data_schema samples\n                    if not results and 'data_schema' in item:\n                        data_schema = item['data_schema']\n                        if 'samples' in data_schema:\n                            samples = data_schema['samples']\n                            # Samples appear to be interleaved: rating, description, rating, description...\n                            for i in range(0, len(samples) - 1, 2):\n                                if i + 1 < len(samples):\n                                    rating = str(samples[i])\n                                    desc = str(samples[i + 1])\n                                    if query_lower in rating.lower() or query_lower in desc.lower():\n                                        results.append({\n                                            'rating_level': rating,\n                                            'description': desc,\n                                            'source': 'Paris Hotel Star Ratings Guide (schema samples)'\n                                        })\n                                        \n                                        if len(results) >= max_results:\n                                            break\n                    \n                    break  # Stop after finding the Paris Hotel Star Ratings entry\n    except Exception as e:\n        return [{\"error\": f\"Error reading JSON: {str(e)}\"}]\n    \n    return results\n\n@mcp.tool\ndef submit_result(result) -> Any:\n    \"\"\"\n    Persist the result payload to submitted_result.json in current working directory.\n    Returns the result that was submitted.\n    \"\"\"\n    output_path = \"submitted_result.json\"\n    \n    try:\n        # Convert result to JSON-serializable format if needed\n        if hasattr(result, '__dict__'):\n            data = result.__dict__\n        elif isinstance(result, (dict, list, str, int, float, bool, type(None))):\n            data = result\n        else:\n            data = str(result)\n        \n        with open(output_path, 'w', encoding='utf-8') as f:\n            json.dump(data, f, indent=2, ensure_ascii=False)\n        \n        return result\n    except Exception as e:\n        # If serialization fails, save error message\n        error_data = {\"error\": f\"Failed to save result: {str(e)}\", \"original_result\": str(result)}\n        with open(output_path, 'w', encoding='utf-8') as f:\n            json.dump(error_data, f, indent=2, ensure_ascii=False)\n        return result\n",
+  "tasks": [
+    {
+      "task": {
+        "id": "f050034c-8fb9-4636-97dc-fd3d17e0099b",
+        "name": "Paris Travel Planning",
+        "description": "A multinational corporation is planning an executive retreat in Europe and needs to analyze multiple factors across different data sources. First, identify all 5-star hotels in Paris that have both 'pool' and 'jacuzzi' amenities. For each hotel, find the current seasonal rate if available, and also check if there are any special offers. Then, identify all TripAdvisor attractions in Paris with ratings >= 4.5 that have entry fees (not free). Next, analyze travel recommendation data to find all trips to Paris where travelers stayed in hotels (accommodation_type = 'Hotel') and calculate the average accommodation cost per night. Finally, cross-reference the hotel directory data with the travel recommendations to identify which 5-star Paris hotels with pool/jacuzzi have actually been booked by travelers in the past year. Return a comprehensive analysis including: 1) Available luxury hotels with pricing, 2) Top attractions with costs, 3) Historical booking patterns for these hotels, 4) A recommended 4-day/3-night package for 2 executives including hotel, attraction visits, and estimated total cost.",
+        "difficulty": 3,
+        "solution_code": "def solve(tools):\n    # Step 1: Find 5-star Paris hotels with pool and jacuzzi\n    hotels_dir = tools['search_hotel_directory']('Paris')\n    luxury_hotels = []\n    hotel_names = []\n    for hotel in hotels_dir:\n        if isinstance(hotel, dict):\n            amenities = hotel.get('amenities', '').lower()\n            stars = hotel.get('stars', '')\n            if 'pool' in amenities and 'jacuzzi' in amenities and stars == '5':\n                hotel_name = hotel.get('name', '')\n                luxury_hotels.append({\n                    'name': hotel_name,\n                    'stars': stars,\n                    'amenities': hotel.get('amenities', ''),\n                    'directory_price': hotel.get('price', '')\n                })\n                hotel_names.append(hotel_name)\n    \n    # Step 2: Get seasonal pricing for these hotels\n    pricing_data = []\n    for name in hotel_names:\n        pricing = tools['search_hotel_pricing'](name)\n        if pricing and not (isinstance(pricing, list) and len(pricing) == 1 and 'error' in pricing[0]):\n            pricing_data.extend(pricing)\n    if not pricing_data:\n        pricing_data = tools['search_hotel_pricing']('sample')\n    \n    # Step 3: Find TripAdvisor attractions in Paris with rating >= 4.5 and entry fee\n    attractions_raw = tools['search_tripadvisor_attractions']('Paris')\n    top_attractions = []\n    if attractions_raw:\n        for attr in attractions_raw:\n            if isinstance(attr, dict):\n                rating_str = attr.get('rating', '0')\n                try:\n                    rating = float(rating_str)\n                except:\n                    rating = 0.0\n                entry_fee = attr.get('entry_fee', '')\n                if rating >= 4.5 and entry_fee and entry_fee.lower() != 'free' and 'free' not in entry_fee.lower():\n                    top_attractions.append({\n                        'name': attr.get('sub_category', ''),\n                        'description': attr.get('description', ''),\n                        'rating': rating_str,\n                        'entry_fee': entry_fee\n                    })\n    \n    # Step 4: Analyze travel recommendations for Paris hotel trips\n    travel_recs = tools['search_travel_recommendations']('Paris')\n    paris_hotel_trips = []\n    total_cost = 0\n    total_nights = 0\n    booked_hotel_names = set()\n    \n    if travel_recs:\n        for trip in travel_recs:\n            if isinstance(trip, dict):\n                acc_type = trip.get('accommodation_type', '')\n                dest = trip.get('destination', '')\n                if 'hotel' in acc_type.lower() and ('paris' in dest.lower() or 'france' in dest.lower()):\n                    cost_str = trip.get('accommodation_cost', '0')\n                    duration_str = trip.get('duration_days', '0')\n                    try:\n                        cost = float(cost_str.replace('$', '').replace(',', '').strip())\n                        nights = int(float(duration_str))\n                        if nights > 0:\n                            total_cost += cost\n                            total_nights += nights\n                            paris_hotel_trips.append(trip)\n                            # Try to extract hotel name from traveler name or other fields\n                            traveler = trip.get('traveler_name', '')\n                            if traveler:\n                                booked_hotel_names.add(traveler)\n                    except:\n                        pass\n    \n    # Step 5: Process luxury hotels with pricing and booking info\n    available_luxury = []\n    for hotel in luxury_hotels:\n        seasonal_rate = 'Not available'\n        special_offer = 'None'\n        nightly_rate = 0\n        \n        # Find matching pricing data\n        for price_rec in pricing_data:\n            if isinstance(price_rec, dict):\n                price_hotel_name = price_rec.get('hotel_name', '')\n                if price_hotel_name and hotel['name'].lower() in price_hotel_name.lower():\n                    rate = price_rec.get('rate', '')\n                    if rate:\n                        try:\n                            nightly_rate = float(str(rate).replace('$', '').replace(',', '').strip())\n                            seasonal_rate = f'${nightly_rate:.2f}'\n                        except:\n                            seasonal_rate = str(rate)\n                    offer = price_rec.get('special_offer', '')\n                    if offer and offer.lower() != 'none':\n                        special_offer = offer\n                    break\n        \n        # Calculate 3-night cost\n        if nightly_rate > 0:\n            three_night_cost = f'${nightly_rate * 3:.2f}'\n        else:\n            three_night_cost = '$0.00'\n        \n        # Check if booked in past year\n        booked = False\n        for booked_name in booked_hotel_names:\n            if hotel['name'].lower() in booked_name.lower() or booked_name.lower() in hotel['name'].lower():\n                booked = True\n                break\n        \n        available_luxury.append({\n            'name': hotel['name'],\n            'stars': hotel['stars'],\n            'amenities': hotel['amenities'],\n            'seasonal_rate': seasonal_rate,\n            'special_offer': special_offer,\n            '3_night_cost': three_night_cost,\n            'booked_in_past_year': booked\n        })\n    \n    # Step 6: Calculate historical averages\n    avg_nightly = '$0.00'\n    if total_nights > 0:\n        avg = total_cost / total_nights\n        avg_nightly = f'${avg:.2f}'\n    \n    # Step 7: Prepare top attractions with cost for 2\n    top_attractions_final = []\n    for attr in top_attractions[:3]:  # Take up to 3\n        fee_str = attr['entry_fee']\n        cost_for_2 = 'Not available'\n        # Try to extract numeric value\n        import re\n        numbers = re.findall(r'\\d+\\.?\\d*', fee_str)\n        if numbers:\n            try:\n                fee = float(numbers[0])\n                cost_for_2 = f'${fee * 2:.2f}'\n            except:\n                pass\n        top_attractions_final.append({\n            'name': attr['name'],\n            'description': attr['description'],\n            'rating': attr['rating'],\n            'entry_fee': attr['entry_fee'],\n            'cost_for_2': cost_for_2\n        })\n    \n    # Step 8: Create recommended package\n    selected_hotel = 'George V'\n    if available_luxury:\n        selected_hotel = available_luxury[0]['name']\n    \n    selected_attractions = [attr['name'] for attr in top_attractions_final]\n    \n    # Calculate package costs\n    hotel_3_nights = '$0.00'\n    for hotel in available_luxury:\n        if hotel['name'] == selected_hotel:\n            hotel_3_nights = hotel['3_night_cost']\n            break\n    \n    attractions_cost = '$0.00'\n    total_attr = 0\n    for attr in top_attractions_final:\n        if attr['name'] in selected_attractions:\n            fee_str = attr['entry_fee']\n            numbers = re.findall(r'\\d+\\.?\\d*', fee_str)\n            if numbers:\n                try:\n                    total_attr += float(numbers[0]) * 2\n                except:\n                    pass\n    if total_attr > 0:\n        attractions_cost = f'${total_attr:.2f}'\n    \n    total_estimated = '$0.00'\n    if hotel_3_nights != '$0.00' and attractions_cost != '$0.00':\n        hotel_val = float(hotel_3_nights.replace('$', ''))\n        attr_val = float(attractions_cost.replace('$', ''))\n        total_estimated = f'${hotel_val + attr_val:.2f}'\n    \n    # Step 9: Build final answer\n    answer = {\n        'analysis_summary': f'Analysis of {len(available_luxury)} luxury hotels and {len(top_attractions_final)} top attractions in Paris',\n        'available_luxury_hotels': available_luxury,\n        'top_attractions': top_attractions_final,\n        'historical_data': {\n            'average_hotel_nightly_cost': avg_nightly,\n            'total_paris_hotel_trips': len(paris_hotel_trips),\n            'matching_hotels_booked': sum(1 for h in available_luxury if h['booked_in_past_year'])\n        },\n        'recommended_package': {\n            'package_name': 'Executive Paris Luxury Retreat',\n            'selected_hotel': selected_hotel,\n            'selected_attractions': selected_attractions,\n            'cost_breakdown': {\n                'hotel_3_nights': hotel_3_nights,\n                'attractions_2_people': attractions_cost,\n                'total_estimated': total_estimated\n            }\n        }\n    }\n    \n    return tools['submit_result'](answer)\n",
+        "reference_solution": "def solve(tools):\n    # Step 1: Find 5-star Paris hotels with pool and jacuzzi\n    hotels_dir = tools['search_hotel_directory']('Paris')\n    luxury_hotels = []\n    hotel_names = []\n    for hotel in hotels_dir:\n        if isinstance(hotel, dict):\n            amenities = hotel.get('amenities', '').lower()\n            stars = hotel.get('stars', '')\n            if 'pool' in amenities and 'jacuzzi' in amenities and stars == '5':\n                hotel_name = hotel.get('name', '')\n                luxury_hotels.append({\n                    'name': hotel_name,\n                    'stars': stars,\n                    'amenities': hotel.get('amenities', ''),\n                    'directory_price': hotel.get('price', '')\n                })\n                hotel_names.append(hotel_name)\n    \n    # Step 2: Get seasonal pricing for these hotels\n    pricing_data = []\n    for name in hotel_names:\n        pricing = tools['search_hotel_pricing'](name)\n        if pricing and not (isinstance(pricing, list) and len(pricing) == 1 and 'error' in pricing[0]):\n            pricing_data.extend(pricing)\n    if not pricing_data:\n        pricing_data = tools['search_hotel_pricing']('sample')\n    \n    # Step 3: Find TripAdvisor attractions in Paris with rating >= 4.5 and entry fee\n    attractions_raw = tools['search_tripadvisor_attractions']('Paris')\n    top_attractions = []\n    if attractions_raw:\n        for attr in attractions_raw:\n            if isinstance(attr, dict):\n                rating_str = attr.get('rating', '0')\n                try:\n                    rating = float(rating_str)\n                except:\n                    rating = 0.0\n                entry_fee = attr.get('entry_fee', '')\n                if rating >= 4.5 and entry_fee and entry_fee.lower() != 'free' and 'free' not in entry_fee.lower():\n                    top_attractions.append({\n                        'name': attr.get('sub_category', ''),\n                        'description': attr.get('description', ''),\n                        'rating': rating_str,\n                        'entry_fee': entry_fee\n                    })\n    \n    # Step 4: Analyze travel recommendations for Paris hotel trips\n    travel_recs = tools['search_travel_recommendations']('Paris')\n    paris_hotel_trips = []\n    total_cost = 0\n    total_nights = 0\n    booked_hotel_names = set()\n    \n    if travel_recs:\n        for trip in travel_recs:\n            if isinstance(trip, dict):\n                acc_type = trip.get('accommodation_type', '')\n                dest = trip.get('destination', '')\n                if 'hotel' in acc_type.lower() and ('paris' in dest.lower() or 'france' in dest.lower()):\n                    cost_str = trip.get('accommodation_cost', '0')\n                    duration_str = trip.get('duration_days', '0')\n                    try:\n                        cost = float(cost_str.replace('$', '').replace(',', '').strip())\n                        nights = int(float(duration_str))\n                        if nights > 0:\n                            total_cost += cost\n                            total_nights += nights\n                            paris_hotel_trips.append(trip)\n                            # Try to extract hotel name from traveler name or other fields\n                            traveler = trip.get('traveler_name', '')\n                            if traveler:\n                                booked_hotel_names.add(traveler)\n                    except:\n                        pass\n    \n    # Step 5: Process luxury hotels with pricing and booking info\n    available_luxury = []\n    for hotel in luxury_hotels:\n        seasonal_rate = 'Not available'\n        special_offer = 'None'\n        nightly_rate = 0\n        \n        # Find matching pricing data\n        for price_rec in pricing_data:\n            if isinstance(price_rec, dict):\n                price_hotel_name = price_rec.get('hotel_name', '')\n                if price_hotel_name and hotel['name'].lower() in price_hotel_name.lower():\n                    rate = price_rec.get('rate', '')\n                    if rate:\n                        try:\n                            nightly_rate = float(str(rate).replace('$', '').replace(',', '').strip())\n                            seasonal_rate = f'${nightly_rate:.2f}'\n                        except:\n                            seasonal_rate = str(rate)\n                    offer = price_rec.get('special_offer', '')\n                    if offer and offer.lower() != 'none':\n                        special_offer = offer\n                    break\n        \n        # Calculate 3-night cost\n        if nightly_rate > 0:\n            three_night_cost = f'${nightly_rate * 3:.2f}'\n        else:\n            three_night_cost = '$0.00'\n        \n        # Check if booked in past year\n        booked = False\n        for booked_name in booked_hotel_names:\n            if hotel['name'].lower() in booked_name.lower() or booked_name.lower() in hotel['name'].lower():\n                booked = True\n                break\n        \n        available_luxury.append({\n            'name': hotel['name'],\n            'stars': hotel['stars'],\n            'amenities': hotel['amenities'],\n            'seasonal_rate': seasonal_rate,\n            'special_offer': special_offer,\n            '3_night_cost': three_night_cost,\n            'booked_in_past_year': booked\n        })\n    \n    # Step 6: Calculate historical averages\n    avg_nightly = '$0.00'\n    if total_nights > 0:\n        avg = total_cost / total_nights\n        avg_nightly = f'${avg:.2f}'\n    \n    # Step 7: Prepare top attractions with cost for 2\n    top_attractions_final = []\n    for attr in top_attractions[:3]:  # Take up to 3\n        fee_str = attr['entry_fee']\n        cost_for_2 = 'Not available'\n        # Try to extract numeric value\n        import re\n        numbers = re.findall(r'\\d+\\.?\\d*', fee_str)\n        if numbers:\n            try:\n                fee = float(numbers[0])\n                cost_for_2 = f'${fee * 2:.2f}'\n            except:\n                pass\n        top_attractions_final.append({\n            'name': attr['name'],\n            'description': attr['description'],\n            'rating': attr['rating'],\n            'entry_fee': attr['entry_fee'],\n            'cost_for_2': cost_for_2\n        })\n    \n    # Step 8: Create recommended package\n    selected_hotel = 'George V'\n    if available_luxury:\n        selected_hotel = available_luxury[0]['name']\n    \n    selected_attractions = [attr['name'] for attr in top_attractions_final]\n    \n    # Calculate package costs\n    hotel_3_nights = '$0.00'\n    for hotel in available_luxury:\n        if hotel['name'] == selected_hotel:\n            hotel_3_nights = hotel['3_night_cost']\n            break\n    \n    attractions_cost = '$0.00'\n    total_attr = 0\n    for attr in top_attractions_final:\n        if attr['name'] in selected_attractions:\n            fee_str = attr['entry_fee']\n            numbers = re.findall(r'\\d+\\.?\\d*', fee_str)\n            if numbers:\n                try:\n                    total_attr += float(numbers[0]) * 2\n                except:\n                    pass\n    if total_attr > 0:\n        attractions_cost = f'${total_attr:.2f}'\n    \n    total_estimated = '$0.00'\n    if hotel_3_nights != '$0.00' and attractions_cost != '$0.00':\n        hotel_val = float(hotel_3_nights.replace('$', ''))\n        attr_val = float(attractions_cost.replace('$', ''))\n        total_estimated = f'${hotel_val + attr_val:.2f}'\n    \n    # Step 9: Build final answer\n    answer = {\n        'analysis_summary': f'Analysis of {len(available_luxury)} luxury hotels and {len(top_attractions_final)} top attractions in Paris',\n        'available_luxury_hotels': available_luxury,\n        'top_attractions': top_attractions_final,\n        'historical_data': {\n            'average_hotel_nightly_cost': avg_nightly,\n            'total_paris_hotel_trips': len(paris_hotel_trips),\n            'matching_hotels_booked': sum(1 for h in available_luxury if h['booked_in_past_year'])\n        },\n        'recommended_package': {\n            'package_name': 'Executive Paris Luxury Retreat',\n            'selected_hotel': selected_hotel,\n            'selected_attractions': selected_attractions,\n            'cost_breakdown': {\n                'hotel_3_nights': hotel_3_nights,\n                'attractions_2_people': attractions_cost,\n                'total_estimated': total_estimated\n            }\n        }\n    }\n    \n    return tools['submit_result'](answer)\n",
+        "state_hash": {
+          "pre": "6de9089cfa933609094e9144f3bccbb1e471e5ad35ab10727371fb676e574822",
+          "post": "6de9089cfa933609094e9144f3bccbb1e471e5ad35ab10727371fb676e574822"
+        }
+      },
+      "verifier": {
+        "verification_code": "def verify(tools, answer):\n    try:\n        import json\n        import re\n        \n        if answer is None:\n            return {'passed': False, 'message': 'Answer is None'}\n        \n        data = answer\n        if isinstance(answer, dict):\n            if 'status' in answer and 'submitted_data' in answer:\n                data = answer['submitted_data']\n            elif 'status' in answer and 'data' in answer:\n                data = answer['data']\n        \n        if not isinstance(data, dict):\n            return {'passed': False, 'message': 'Answer data is not a dict'}\n        \n        # Check required top-level keys\n        required_keys = ['analysis_summary', 'available_luxury_hotels', 'top_attractions', \n                        'historical_data', 'recommended_package']\n        for key in required_keys:\n            if key not in data:\n                return {'passed': False, 'message': f'Missing key: {key}'}\n        \n        # Verify hotels structure\n        if not isinstance(data['available_luxury_hotels'], list):\n            return {'passed': False, 'message': 'Hotels not a list'}\n        \n        hotel_required = ['name', 'stars', 'amenities', 'seasonal_rate', 'special_offer', '3_night_cost', 'booked_in_past_year']\n        for hotel in data['available_luxury_hotels']:\n            if not isinstance(hotel, dict):\n                return {'passed': False, 'message': 'Hotel entry not a dict'}\n            for key in hotel_required:\n                if key not in hotel:\n                    return {'passed': False, 'message': f'Hotel missing key: {key}'}\n            if hotel['stars'] != '5':\n                return {'passed': False, 'message': 'Hotel not 5-star'}\n            amenities = hotel.get('amenities', '').lower()\n            if 'pool' not in amenities or 'jacuzzi' not in amenities:\n                return {'passed': False, 'message': 'Hotel missing required amenities'}\n        \n        # Verify attractions structure\n        if not isinstance(data['top_attractions'], list):\n            return {'passed': False, 'message': 'Attractions not a list'}\n        \n        attr_required = ['name', 'description', 'rating', 'entry_fee', 'cost_for_2']\n        for attr in data['top_attractions']:\n            if not isinstance(attr, dict):\n                return {'passed': False, 'message': 'Attraction entry not a dict'}\n            for key in attr_required:\n                if key not in attr:\n                    return {'passed': False, 'message': f'Attraction missing key: {key}'}\n            try:\n                rating = float(attr['rating'])\n                if rating < 4.5:\n                    return {'passed': False, 'message': 'Attraction rating below 4.5'}\n            except:\n                pass\n            if not attr['entry_fee'] or 'free' in attr['entry_fee'].lower():\n                return {'passed': False, 'message': 'Attraction has no entry fee or is free'}\n        \n        # Verify historical data\n        hist = data['historical_data']\n        if not isinstance(hist, dict):\n            return {'passed': False, 'message': 'Historical data not a dict'}\n        hist_keys = ['average_hotel_nightly_cost', 'total_paris_hotel_trips', 'matching_hotels_booked']\n        for key in hist_keys:\n            if key not in hist:\n                return {'passed': False, 'message': f'Historical missing key: {key}'}\n        \n        # Verify package\n        pkg = data['recommended_package']\n        if not isinstance(pkg, dict):\n            return {'passed': False, 'message': 'Package not a dict'}\n        pkg_keys = ['package_name', 'selected_hotel', 'selected_attractions', 'cost_breakdown']\n        for key in pkg_keys:\n            if key not in pkg:\n                return {'passed': False, 'message': f'Package missing key: {key}'}\n        \n        cost = pkg['cost_breakdown']\n        cost_keys = ['hotel_3_nights', 'attractions_2_people', 'total_estimated']\n        for key in cost_keys:\n            if key not in cost:\n                return {'passed': False, 'message': f'Cost breakdown missing key: {key}'}\n        \n        # Cross-check with actual data sources\n        # Check hotel directory data\n        hotels_check = tools['search_hotel_directory']('sample')\n        if hotels_check and isinstance(hotels_check, list) and len(hotels_check) > 0:\n            found_hotels = False\n            for h in hotels_check:\n                if isinstance(h, dict) and h.get('city', '').lower() == 'paris':\n                    found_hotels = True\n                    break\n            if not found_hotels and len(data['available_luxury_hotels']) > 0:\n                return {'passed': False, 'message': 'No Paris hotels found in directory data'}\n        \n        # Check attractions data\n        attractions_check = tools['search_tripadvisor_attractions']('sample')\n        if attractions_check and isinstance(attractions_check, list) and len(attractions_check) > 0:\n            found_attractions = False\n            for a in attractions_check:\n                if isinstance(a, dict) and a.get('country', '').lower() == 'france':\n                    found_attractions = True\n                    break\n            if not found_attractions and len(data['top_attractions']) > 0:\n                return {'passed': False, 'message': 'No France attractions found in TripAdvisor data'}\n        \n        # Check travel recommendations\n        travel_check = tools['search_travel_recommendations']('sample')\n        if travel_check and isinstance(travel_check, list) and len(travel_check) > 0:\n            found_travel = False\n            for t in travel_check:\n                if isinstance(t, dict) and 'hotel' in t.get('accommodation_type', '').lower():\n                    found_travel = True\n                    break\n            if not found_travel and data['historical_data']['total_paris_hotel_trips'] > 0:\n                return {'passed': False, 'message': 'No hotel trips found in travel data'}\n        \n        # Final validation\n        if len(data['available_luxury_hotels']) == 0:\n            return {'passed': False, 'message': 'No luxury hotels found'}\n        \n        return {'passed': True, 'message': 'All verification checks passed'}\n    \n    except Exception as e:\n        return {'passed': False, 'message': f'Verification error: {str(e)}'}\n",
+        "reward_function": "def verify(tools, answer):\n    try:\n        import json\n        import re\n        \n        if answer is None:\n            return {'passed': False, 'message': 'Answer is None'}\n        \n        data = answer\n        if isinstance(answer, dict):\n            if 'status' in answer and 'submitted_data' in answer:\n                data = answer['submitted_data']\n            elif 'status' in answer and 'data' in answer:\n                data = answer['data']\n        \n        if not isinstance(data, dict):\n            return {'passed': False, 'message': 'Answer data is not a dict'}\n        \n        # Check required top-level keys\n        required_keys = ['analysis_summary', 'available_luxury_hotels', 'top_attractions', \n                        'historical_data', 'recommended_package']\n        for key in required_keys:\n            if key not in data:\n                return {'passed': False, 'message': f'Missing key: {key}'}\n        \n        # Verify hotels structure\n        if not isinstance(data['available_luxury_hotels'], list):\n            return {'passed': False, 'message': 'Hotels not a list'}\n        \n        hotel_required = ['name', 'stars', 'amenities', 'seasonal_rate', 'special_offer', '3_night_cost', 'booked_in_past_year']\n        for hotel in data['available_luxury_hotels']:\n            if not isinstance(hotel, dict):\n                return {'passed': False, 'message': 'Hotel entry not a dict'}\n            for key in hotel_required:\n                if key not in hotel:\n                    return {'passed': False, 'message': f'Hotel missing key: {key}'}\n            if hotel['stars'] != '5':\n                return {'passed': False, 'message': 'Hotel not 5-star'}\n            amenities = hotel.get('amenities', '').lower()\n            if 'pool' not in amenities or 'jacuzzi' not in amenities:\n                return {'passed': False, 'message': 'Hotel missing required amenities'}\n        \n        # Verify attractions structure\n        if not isinstance(data['top_attractions'], list):\n            return {'passed': False, 'message': 'Attractions not a list'}\n        \n        attr_required = ['name', 'description', 'rating', 'entry_fee', 'cost_for_2']\n        for attr in data['top_attractions']:\n            if not isinstance(attr, dict):\n                return {'passed': False, 'message': 'Attraction entry not a dict'}\n            for key in attr_required:\n                if key not in attr:\n                    return {'passed': False, 'message': f'Attraction missing key: {key}'}\n            try:\n                rating = float(attr['rating'])\n                if rating < 4.5:\n                    return {'passed': False, 'message': 'Attraction rating below 4.5'}\n            except:\n                pass\n            if not attr['entry_fee'] or 'free' in attr['entry_fee'].lower():\n                return {'passed': False, 'message': 'Attraction has no entry fee or is free'}\n        \n        # Verify historical data\n        hist = data['historical_data']\n        if not isinstance(hist, dict):\n            return {'passed': False, 'message': 'Historical data not a dict'}\n        hist_keys = ['average_hotel_nightly_cost', 'total_paris_hotel_trips', 'matching_hotels_booked']\n        for key in hist_keys:\n            if key not in hist:\n                return {'passed': False, 'message': f'Historical missing key: {key}'}\n        \n        # Verify package\n        pkg = data['recommended_package']\n        if not isinstance(pkg, dict):\n            return {'passed': False, 'message': 'Package not a dict'}\n        pkg_keys = ['package_name', 'selected_hotel', 'selected_attractions', 'cost_breakdown']\n        for key in pkg_keys:\n            if key not in pkg:\n                return {'passed': False, 'message': f'Package missing key: {key}'}\n        \n        cost = pkg['cost_breakdown']\n        cost_keys = ['hotel_3_nights', 'attractions_2_people', 'total_estimated']\n        for key in cost_keys:\n            if key not in cost:\n                return {'passed': False, 'message': f'Cost breakdown missing key: {key}'}\n        \n        # Cross-check with actual data sources\n        # Check hotel directory data\n        hotels_check = tools['search_hotel_directory']('sample')\n        if hotels_check and isinstance(hotels_check, list) and len(hotels_check) > 0:\n            found_hotels = False\n            for h in hotels_check:\n                if isinstance(h, dict) and h.get('city', '').lower() == 'paris':\n                    found_hotels = True\n                    break\n            if not found_hotels and len(data['available_luxury_hotels']) > 0:\n                return {'passed': False, 'message': 'No Paris hotels found in directory data'}\n        \n        # Check attractions data\n        attractions_check = tools['search_tripadvisor_attractions']('sample')\n        if attractions_check and isinstance(attractions_check, list) and len(attractions_check) > 0:\n            found_attractions = False\n            for a in attractions_check:\n                if isinstance(a, dict) and a.get('country', '').lower() == 'france':\n                    found_attractions = True\n                    break\n            if not found_attractions and len(data['top_attractions']) > 0:\n                return {'passed': False, 'message': 'No France attractions found in TripAdvisor data'}\n        \n        # Check travel recommendations\n        travel_check = tools['search_travel_recommendations']('sample')\n        if travel_check and isinstance(travel_check, list) and len(travel_check) > 0:\n            found_travel = False\n            for t in travel_check:\n                if isinstance(t, dict) and 'hotel' in t.get('accommodation_type', '').lower():\n                    found_travel = True\n                    break\n            if not found_travel and data['historical_data']['total_paris_hotel_trips'] > 0:\n                return {'passed': False, 'message': 'No hotel trips found in travel data'}\n        \n        # Final validation\n        if len(data['available_luxury_hotels']) == 0:\n            return {'passed': False, 'message': 'No luxury hotels found'}\n        \n        return {'passed': True, 'message': 'All verification checks passed'}\n    \n    except Exception as e:\n        return {'passed': False, 'message': f'Verification error: {str(e)}'}\n"
+      },
+      "metadata": {
+        "topic": "Paris Travel Planning",
+        "tools_code": "import json\nimport csv\nimport os\nimport re\nfrom typing import List, Dict, Any\nimport random\n\n# Set seed for deterministic behavior if randomness is used\nrandom.seed(0)\n\n# Fallback shim if mcp is not available\ntry:\n    import mcp\nexcept ImportError:\n    # Create a minimal fallback decorator\n    class MockMCP:\n        @staticmethod\n        def tool(func):\n            return func\n    mcp = MockMCP()\n\n@mcp.tool\ndef search_hotel_pricing(query: str, max_results: int = 5) -> List[Dict[str, Any]]:\n    \"\"\"\n    Search hotel pricing data from seasonal pricing CSV.\n    Returns hotels matching query in name, room_type, or special_offer.\n    \"\"\"\n    results = []\n    csv_path = \"data/scrape-london-paris-hotel-seasonal-prici.csv\"\n    \n    if not os.path.exists(csv_path):\n        return [{\"error\": f\"File not found: {csv_path}\"}]\n    \n    try:\n        with open(csv_path, 'r', encoding='utf-8') as f:\n            reader = csv.DictReader(f)\n            for row in reader:\n                # Clean up field names (strip whitespace)\n                row = {k.strip(): v for k, v in row.items()}\n                \n                # Check if query matches any relevant field\n                query_lower = query.lower()\n                matches = False\n                for field in ['hotel_name', 'room_type', 'special_offer']:\n                    if field in row and query_lower in row[field].lower():\n                        matches = True\n                        break\n                \n                if matches:\n                    # Convert rate to numeric if possible\n                    rate = row.get('rate', '0')\n                    try:\n                        rate_num = float(rate)\n                    except (ValueError, TypeError):\n                        rate_num = 0\n                    \n                    results.append({\n                        'hotel_name': row.get('hotel_name', ''),\n                        'room_type': row.get('room_type', ''),\n                        'date': row.get('date', ''),\n                        'rate': rate,\n                        'rate_numeric': rate_num,\n                        'availability': row.get('availability', ''),\n                        'guest_rating': row.get('guest_rating', ''),\n                        'special_offer': row.get('special_offer', '')\n                    })\n                    \n                    if len(results) >= max_results:\n                        break\n    except Exception as e:\n        return [{\"error\": f\"Error reading CSV: {str(e)}\"}]\n    \n    return results\n\n@mcp.tool\ndef search_hotel_directory(query: str, max_results: int = 5) -> List[Dict[str, Any]]:\n    \"\"\"\n    Search hotel directory data with amenities, stars, and pricing.\n    Returns hotels matching query in name, city, country, or amenities.\n    \"\"\"\n    results = []\n    csv_path = \"data/hotels-csv-bixbydevelopers-sample-templa.csv\"\n    \n    if not os.path.exists(csv_path):\n        return [{\"error\": f\"File not found: {csv_path}\"}]\n    \n    try:\n        with open(csv_path, 'r', encoding='utf-8') as f:\n            reader = csv.DictReader(f)\n            for row in reader:\n                # Clean up field names\n                row = {k.strip(): v for k, v in row.items()}\n                \n                # Check if query matches any relevant field\n                query_lower = query.lower()\n                matches = False\n                for field in ['name', 'city', 'country', 'amenities']:\n                    if field in row and query_lower in row[field].lower():\n                        matches = True\n                        break\n                \n                if matches:\n                    # Convert stars and price to numeric if possible\n                    stars = row.get('stars', '0')\n                    price = row.get('price', '0')\n                    try:\n                        stars_num = int(stars)\n                    except (ValueError, TypeError):\n                        stars_num = 0\n                    \n                    try:\n                        price_num = float(price)\n                    except (ValueError, TypeError):\n                        price_num = 0\n                    \n                    results.append({\n                        'name': row.get('name', ''),\n                        'amenities': row.get('amenities', ''),\n                        'stars': stars,\n                        'stars_numeric': stars_num,\n                        'city': row.get('city', ''),\n                        'country': row.get('country', ''),\n                        'photo': row.get('photo', ''),\n                        'price': price,\n                        'price_numeric': price_num,\n                        'website': row.get('website', '')\n                    })\n                    \n                    if len(results) >= max_results:\n                        break\n    except Exception as e:\n        return [{\"error\": f\"Error reading CSV: {str(e)}\"}]\n    \n    return results\n\n@mcp.tool\ndef search_travel_recomm",
+        "data_profile": "{}",
+        "tool_selftest": "{\"search_hotel_pricing\": {\"queries\": [\"Paris Travel Planning\", \"sample\", \"test\"], \"samples\": [[{\"error\": \"File not found: data/scrape-london-paris-hotel-seasonal-prici.csv\"}], [{\"error\": \"File not found: data/scrape-london-paris-hotel-seasonal-prici.csv\"}]], \"fields\": [\"error\"]}, \"search_hotel_directory\": {\"queries\": [\"Paris Travel Planning\", \"sample\", \"test\"], \"samples\": [[{\"error\": \"File not found: data/hotels-csv-bixbydevelopers-sample-templa.csv\"}], [{\"error\": \"File not found: data/hotels-csv-bixbydevelopers-sample-templa.csv\"}]], \"fields\": [\"error\"]}, \"search_travel_recommendations\": {\"queries\": [\"Paris Travel Planning\", \"sample\", \"test\"], \"samples\": [[{\"error\": \"File not found: data/travel-recommendation-system-travel-deta.csv\"}], [{\"error\": \"File not found: data/travel-recommendation-system-travel-deta.csv\"}]], \"fields\": [\"error\"]}, \"search_tripadvisor_attractions\": {\"queries\": [\"Paris Travel Planning\", \"sample\", \"test\"], \"samples\": [[{\"error\": \"File not found: data/tripadvisor-travel-datasets-web-scraping.csv\"}], [{\"error\": \"File not found: data/tripadvisor-travel-datasets-web-scraping.csv\"}]], \"fields\": [\"error\"]}, \"search_hotel_star_ratings\": {\"queries\": [\"Paris Travel Planning\", \"sample\", \"test\"], \"samples\": [[{\"error\": \"File not found: records.json\"}], [{\"error\": \"File not found: records.json\"}]], \"fields\": [\"error\"]}}",
+        "pre_state_hash": "6de9089cfa933609094e9144f3bccbb1e471e5ad35ab10727371fb676e574822",
+        "post_state_hash": "6de9089cfa933609094e9144f3bccbb1e471e5ad35ab10727371fb676e574822",
+        "new_artifact_count": "0",
+        "changed_artifact_count": "0",
+        "tools_code_preview": "import json\nimport csv\nimport os\nimport re\nfrom typing import List, Dict, Any\nimport random\n\n# Set seed for deterministic behavior if randomness is used\nrandom.seed(0)\n\n# Fallback shim if mcp is not a",
+        "runtime_tool_calls": "search_hotel_directory,search_hotel_pricing,search_travel_recommendations,search_tripadvisor_attractions,submit_result",
+        "runtime_tool_call_count": "5",
+        "repaired": "true",
+        "refined": "true"
+      }
+    }
+  ],
+  "metadata": {
+    "version": "1.1",
+    "format": "quadruple",
+    "task_count": 1,
+    "tool_count": 6,
+    "generation_timestamp": "2025-12-24T18:20:59.167581",
+    "merged": false
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "987db0d2-087e-4f60-8b90-27831840bfb5",
+  "agent_type": "general_agent",
+  "topic": "Paris Travel Planning",
+  "difficulty": 3,
+  "records_count": 5,
+  "task_tools": [
+    "search_hotel_pricing",
+    "search_travel_recommendations",
+    "search_tripadvisor_attractions",
+    "search_paris_hotel_guides",
+    "submit_result"
+  ]
+}

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import os
 import logging
+import os
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -14,8 +14,8 @@ from agent_gem.tools import BashTool, PythonRunnerTool, SearchTool
 from ..base import BaseAgent, TaskContext
 from .data_pipeline import DataPipelineMixin
 from .persist import persist_quadruple_format
-from .task_builder import TaskBuilderMixin
 from .sandbox import GeneralAgentSandboxFusionExecutor
+from .task_builder import TaskBuilderMixin
 from .tool_synthesis import ToolSynthesisMixin
 from .validation_flow import ValidationMixin
 
@@ -43,7 +43,9 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             logger.error("Search tool configuration failed: %s", exc)
             raise
         if not isinstance(sandbox, SandboxFusionExecutor):
-            sandbox.register_tool(PythonRunnerTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s))
+            sandbox.register_tool(
+                PythonRunnerTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s)
+            )
         sandbox.set_tool_call_callback(self._record_tool_call)
 
     def generate(self, request: GenerationRequest) -> Optional[TaskPackage]:
@@ -60,9 +62,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
 
             sandbox_dir = Path(self.writer.task_dir(task_id, self.agent_type), "_sandbox")
             if not request.use_sandbox_fusion:
-                raise RuntimeError(
-                    "SandboxFusion is required; local sandbox execution is disabled."
-                )
+                raise RuntimeError("SandboxFusion is required; local sandbox execution is disabled.")
             sandbox = GeneralAgentSandboxFusionExecutor(
                 sandbox_dir=sandbox_dir,
                 base_url=os.getenv("SANDBOX_FUSION_URL", "http://localhost:8080"),
@@ -73,9 +73,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             available = sandbox.tool_names()
             missing = required_tools - available
             if missing:
-                raise RuntimeError(
-                    f"Sandbox missing required tools: {sorted(missing)}"
-                )
+                raise RuntimeError(f"Sandbox missing required tools: {sorted(missing)}")
 
             logger.info(
                 "Generating task: %s, topic: %s, path: %s",
@@ -128,7 +126,9 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             )
             expected_fields = self._expected_fields_from_format(package.task.submit_result_format)
             if expected_fields:
-                regen_for_format, format_reasons = self._needs_tool_regeneration(tool_selftest, required_fields=expected_fields)
+                regen_for_format, format_reasons = self._needs_tool_regeneration(
+                    tool_selftest, required_fields=expected_fields
+                )
                 if regen_for_format:
                     task_tool_specs, tools_code, tool_selftest = self._regenerate_tools_with_selftest(
                         request.topic,
@@ -152,9 +152,16 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                         tool_selftest=tool_selftest,
                     )
                     ctx.add_step(
-                        {"type": "tool_regeneration_for_format", "reasons": format_reasons, "expected_fields": sorted(expected_fields)}
+                        {
+                            "type": "tool_regeneration_for_format",
+                            "reasons": format_reasons,
+                            "expected_fields": sorted(expected_fields),
+                        }
                     )
-                    logger.info("Tool regeneration for expected submit_result_format fields: %s", sorted(expected_fields))
+                    logger.info(
+                        "Tool regeneration for expected submit_result_format fields: %s",
+                        sorted(expected_fields),
+                    )
             if package.metadata is None:
                 package.metadata = {}
             package = package.copy(

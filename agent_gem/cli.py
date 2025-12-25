@@ -7,7 +7,9 @@ from pathlib import Path
 import coloredlogs
 import dotenv
 
+from agent_gem.agents.code_agent.cli import add_code_synthesize_subparser, handle_code_synthesize
 from agent_gem.agents.general_agent.cli import add_synthesize_subparser, handle_synthesize
+from agent_gem.agents.search_agent.cli import add_search_synthesize_subparser, handle_search_synthesize
 from agent_gem.generator import EnvironmentGenerator, GenerationRequest
 from agent_gem.llm import LLMClient
 
@@ -21,9 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     # Original generate command
-    gen_parser = subparsers.add_parser(
-        "generate", help="Generate tasks using agent pipelines"
-    )
+    gen_parser = subparsers.add_parser("generate", help="Generate tasks using agent pipelines")
     gen_parser.add_argument(
         "--agent-type",
         default="general_agent",
@@ -61,6 +61,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     add_synthesize_subparser(subparsers)
+
+    add_search_synthesize_subparser(subparsers)
+
+    add_code_synthesize_subparser(subparsers)
 
     return parser
 
@@ -113,6 +117,10 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "synthesize":
         handle_synthesize(args)
+    elif args.command == "search_synthesize":
+        handle_search_synthesize(args)
+    elif args.command == "code_synthesize":
+        handle_code_synthesize(args)
     else:
         _handle_generate(args)
 

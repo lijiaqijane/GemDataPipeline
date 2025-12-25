@@ -4,7 +4,7 @@ from .docker import DockerTool
 from .python_runner import PythonRunnerTool
 from .records import JsonRecordsQueryTool
 from .sandbox_fusion import SandboxFusionTool
-from .search import SearchTool
+from .search import SearchTool, VisitTool
 
 __all__ = [
     "BaseTool",
@@ -16,4 +16,5 @@ __all__ = [
     "JsonRecordsQueryTool",
     "SandboxFusionTool",
     "SearchTool",
+    "VisitTool",
 ]

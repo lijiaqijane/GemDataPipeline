@@ -1,0 +1,51 @@
+{
+  "run_id": "d127fe39cd564907b23ebe37eab916e2",
+  "task_id": "f050034c-8fb9-4636-97dc-fd3d17e0099b",
+  "task_title": "Paris Travel Planning",
+  "run_group": "difficulty_3",
+  "started_at": 1766571230.890562,
+  "ended_at": 1766571230.9344687,
+  "duration_s": 0.04390668869018555,
+  "answer": {
+    "analysis_summary": "Analysis of 1 luxury hotels and 0 top attractions in Paris",
+    "available_luxury_hotels": [
+      {
+        "name": "George V",
+        "stars": "5",
+        "amenities": "pool, jacuzzi, wifi",
+        "seasonal_rate": "Not available",
+        "special_offer": "None",
+        "3_night_cost": "$0.00",
+        "booked_in_past_year": false
+      }
+    ],
+    "top_attractions": [],
+    "historical_data": {
+      "average_hotel_nightly_cost": "$188.24",
+      "total_paris_hotel_trips": 5,
+      "matching_hotels_booked": 0
+    },
+    "recommended_package": {
+      "package_name": "Executive Paris Luxury Retreat",
+      "selected_hotel": "George V",
+      "selected_attractions": [],
+      "cost_breakdown": {
+        "hotel_3_nights": "$0.00",
+        "attractions_2_people": "$0.00",
+        "total_estimated": "$0.00"
+      }
+    }
+  },
+  "verified": false,
+  "verification_score": null,
+  "verification_details": {
+    "passed": false,
+    "message": "Insufficient data sources accessed"
+  },
+  "error": null,
+  "verification_error": "Insufficient data sources accessed",
+  "result_persisted": false,
+  "result_persist_reason": "verification_error: Insufficient data sources accessed\nverification_details: {\"passed\": false, \"message\": \"Insufficient data sources accessed\"}\nanswer_preview: {\"analysis_summary\": \"Analysis of 1 luxury hotels and 0 top attractions in Paris\", \"available_luxury_hotels\": [{\"name\": \"George V\", \"stars\": \"5\", \"amenities\": \"pool, jacuzzi, wifi\", \"seasonal_rate\": \"Not available\", \"special_offer\": \"None\", \"3_night_cost\": \"$0.00\", \"booked_in_past_year\": false}], \"top_attractions\": [], \"historical_data\": {\"average_hotel_nightly_cost\": \"$188.24\", \"total_paris_hotel_trips\": 5, \"matching_hotels_booked\": 0}, \"recommended_package\": {\"package_name\": \"Executive Paris Luxury Retreat\", \"selected_hotel\": \"George V\", \"selected_attractions\": [], \"cost_breakdown\": {\"hotel_3_nights\": \"$0.00\", \"attractions_2_people\": \"$0.00\", \"total_estimated\": \"$0.00\"}}}",
+  "task_candidate": false,
+  "task_candidate_reason": "verification_error: Insufficient data sources accessed\nverification_details: {\"passed\": false, \"message\": \"Insufficient data sources accessed\"}\nanswer_preview: {\"analysis_summary\": \"Analysis of 1 luxury hotels and 0 top attractions in Paris\", \"available_luxury_hotels\": [{\"name\": \"George V\", \"stars\": \"5\", \"amenities\": \"pool, jacuzzi, wifi\", \"seasonal_rate\": \"Not available\", \"special_offer\": \"None\", \"3_night_cost\": \"$0.00\", \"booked_in_past_year\": false}], \"top_attractions\": [], \"historical_data\": {\"average_hotel_nightly_cost\": \"$188.24\", \"total_paris_hotel_trips\": 5, \"matching_hotels_booked\": 0}, \"recommended_package\": {\"package_name\": \"Executive Paris Luxury Retreat\", \"selected_hotel\": \"George V\", \"selected_attractions\": [], \"cost_breakdown\": {\"hotel_3_nights\": \"$0.00\", \"attractions_2_people\": \"$0.00\", \"total_estimated\": \"$0.00\"}}}"
+}

@@ -1,0 +1,2 @@
+question_title,question_body_partial,tags,ask_date,last_activity,platform
+How to approach debugging a huge not so familiar code base?,"Seldom during working on large scale projects, suddenly you are moved on to a project which is already in maintainance phase.You end up with having a huge code C/C++ code base on your hands, with not much doccumentation about t",['c++'],"15 years, 2 months ago","6 years, 9 months ago",Stack Overflow

@@ -1,0 +1,3 @@
+id,platform_name,platform_url,item_id,category,sub_category,description,location,major_region,country,rating,number_of_reviews,entry_fee,url
+1,TripAdvisor,https://www.tripadvisor.com,AUS001,Attraction,Statue of Liberty,Iconic symbol of freedom in NYC; ferry access,NYC,New York,USA,4.5,"43,298",~$24.50,https://www.tripadvisor.com/Attraction_Review-g60763-d103887-Reviews-Statue_of_Liberty-New_York_City_New_York.html
+2,TripAdvisor,…,AUS002,Attraction,Grand Canyon National Park,Natural wonder with deep canyon views,Arizona,Southwest,USA,5,"25,849",$35 (per car),https://www.tripadvisor.com/Attraction_Review-g143028-d104847-Reviews-Grand_Canyon_National_Park-Arizona.html

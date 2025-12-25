@@ -5,13 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Type
 
-from agent_gem.agents import (
-    BaseAgent,
-    CodeAgent,
-    CodeInterpreterAgent,
-    GeneralAgent,
-    SearchAgent,
-)
+from agent_gem.agents import BaseAgent, CodeAgent, CodeInterpreterAgent, GeneralAgent, SearchAgent
 from agent_gem.core import TaskPackage, ToolSpec, score_task, validate_task_package
 from agent_gem.writer import TaskWriter
 
@@ -34,6 +28,13 @@ class GenerationRequest:
     seed_tools: Optional[List[ToolSpec]] = None
     max_tokens: int = 10000  # Maximum tokens for LLM generation
     task_id_prefix: Optional[str] = None  # Optional prefix for task ID (e.g., "category-name-task-1")
+    domain: Optional[List[str]] = None
+    num_entities_each_domain: int = 1
+    num_tasks_each_entity: int = 1
+    num_answer_agent: int = 1
+    search_depth: int = 1
+    search_breadth: int = 1
+    require_all_incorrect: bool = False
 
 
 class EnvironmentGenerator:
@@ -72,18 +73,14 @@ class EnvironmentGenerator:
             else:
                 logger.warning("Agent returned no packages on iteration %d", idx + 1)
 
-        persisted = (
-            self.task_writer.persist(packages) if request.persist_result else packages
-        )
+        persisted = self.task_writer.persist(packages) if request.persist_result else packages
         return self._prioritize(persisted)
 
     def _prioritize(self, packages: List[TaskPackage]) -> List[TaskPackage]:
         scored = [(score_task(pkg.task).composite, pkg) for pkg in packages]
         scored.sort(key=lambda pair: pair[0], reverse=True)
         for rank, (composite, pkg) in enumerate(scored, start=1):
-            logger.info(
-                "Rank #%d: %s (score=%.3f)", rank, pkg.task.summary(), composite
-            )
+            logger.info("Rank #%d: %s (score=%.3f)", rank, pkg.task.summary(), composite)
         return [pkg for composite, pkg in scored]
 
     def _resolve_agent(self, agent_type: str) -> BaseAgent:

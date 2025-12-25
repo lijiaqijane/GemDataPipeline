@@ -1,0 +1,6 @@
+hotel_name,room_type,date,rate,availability,guest_rating,special_offer
+Grand Paris Inn,Deluxe,15-Dec-25,220,Available,4.5,Winter Deal
+Louvre Suites,Standard,15-Dec-25,180,Limited,4.3,Holiday Promo
+Eiffel Tower Hotel,Executive,15-Dec-25,300,Available,4.7,Festive Offer
+Champs Elysee Stay,Deluxe,15-Dec-25,250,Sold Out,4.6,None
+Paris Central Inn,Standard,15-Dec-25,200,Available,4.2,Early Bird

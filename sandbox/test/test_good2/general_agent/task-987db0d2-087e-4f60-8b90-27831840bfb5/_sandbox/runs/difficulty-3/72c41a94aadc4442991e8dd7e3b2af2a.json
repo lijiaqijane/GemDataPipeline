@@ -1,0 +1,40 @@
+{
+  "run_id": "72c41a94aadc4442991e8dd7e3b2af2a",
+  "task_id": "987db0d2-087e-4f60-8b90-27831840bfb5",
+  "task_title": "Paris Travel Planning",
+  "run_group": "difficulty_3",
+  "started_at": 1766633756.1437743,
+  "ended_at": 1766633756.1855314,
+  "duration_s": 0.04175710678100586,
+  "answer": {
+    "adr_premium_percentage": 35.1,
+    "most_expensive_accommodation_type": "Hotel",
+    "premium_hotels_below_75th_percentile": [
+      {
+        "hotel_name": "Grand Paris Inn",
+        "guest_rating": 4.5,
+        "rate": 220.0,
+        "special_offer": "Winter Deal"
+      }
+    ],
+    "rating_rate_correlation": 0.9,
+    "data_quality_notes": {
+      "high_rated_hotels_analyzed": 3,
+      "low_rated_hotels_analyzed": 2,
+      "american_traveler_trips_analyzed": 3,
+      "total_hotels_in_correlation": 5
+    }
+  },
+  "verified": true,
+  "verification_score": null,
+  "verification_details": {
+    "passed": true,
+    "message": "All verification checks passed"
+  },
+  "error": null,
+  "verification_error": null,
+  "result_persisted": false,
+  "result_persist_reason": "answer_format_mismatch: key 'adr_premium_percentage' must be string",
+  "task_candidate": false,
+  "task_candidate_reason": "answer_format_mismatch: key 'adr_premium_percentage' must be string"
+}

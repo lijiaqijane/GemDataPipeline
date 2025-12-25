@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-12-25T03:37:55.886869",
+  "result": {
+    "adr_premium_percentage": "35.1",
+    "most_expensive_accommodation_type": "Hotel",
+    "premium_hotels_below_75th_percentile": [
+      {
+        "hotel_name": "Grand Paris Inn",
+        "guest_rating": 4.5,
+        "rate": 220.0,
+        "special_offer": "Winter Deal"
+      }
+    ],
+    "rating_rate_correlation": "0.9",
+    "data_quality_notes": {
+      "high_rated_hotels_analyzed": "3",
+      "low_rated_hotels_analyzed": "2",
+      "american_traveler_trips_analyzed": "3",
+      "total_hotels_in_correlation": "5"
+    }
+  }
+}

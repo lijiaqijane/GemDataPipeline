@@ -1,0 +1,41 @@
+{
+  "run_id": "23007444f2a74772b0790a70d55f75da",
+  "task_id": "f9b29ce6-c298-4a9e-b639-17bca2e13949",
+  "task_title": "Paris Travel Planning",
+  "run_group": "difficulty_2",
+  "started_at": 1766630330.0933104,
+  "ended_at": 1766630330.13489,
+  "duration_s": 0.0415797233581543,
+  "answer": {
+    "package_name": "Paris Premium Experience Package",
+    "hotel": {
+      "name": "Ritz Paris",
+      "stars": "4",
+      "amenities": "pool, wifi",
+      "price": 600.0,
+      "city": "Paris"
+    },
+    "airbnb_experience": {
+      "title": "No suitable experience found",
+      "rating": "",
+      "price": "",
+      "location": ""
+    },
+    "attraction": {
+      "name": "No suitable attraction found",
+      "entry_fee": "",
+      "rating": "",
+      "location": ""
+    },
+    "historical_travelers": [],
+    "verification_summary": "✓ Found 4-star Paris hotel with pool and wifi | ✗ No suitable Airbnb experience found | ✗ No suitable attraction found | ✗ Only found 0 American travelers (need 3)"
+  },
+  "verified": false,
+  "verification_score": null,
+  "verification_details": {
+    "passed": false,
+    "message": "Airbnb location is not Paris: "
+  },
+  "error": null,
+  "verification_error": "Airbnb location is not Paris: "
+}

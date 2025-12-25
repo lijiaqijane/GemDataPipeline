@@ -1,0 +1,18 @@
+{
+  "package_name": "Luxury Paris Experience",
+  "hotels": [
+    {
+      "name": "George V",
+      "stars": "5",
+      "amenities": "pool, jacuzzi, wifi",
+      "seasonal_rate": "Not available",
+      "3_night_cost": "$0.00"
+    }
+  ],
+  "attractions": [],
+  "cost_summary": {
+    "total_hotel_3_nights": "$0.00",
+    "total_attractions_2_people": "$0.00",
+    "grand_total": "$0.00"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "analysis_summary": "Analysis of 1 luxury hotels and 0 top attractions in Paris",
+  "available_luxury_hotels": [
+    {
+      "name": "George V",
+      "stars": "5",
+      "amenities": "pool, jacuzzi, wifi",
+      "seasonal_rate": "Not available",
+      "special_offer": "None",
+      "3_night_cost": "$0.00",
+      "booked_in_past_year": false
+    }
+  ],
+  "top_attractions": [],
+  "historical_data": {
+    "average_hotel_nightly_cost": "$188.24",
+    "total_paris_hotel_trips": 5,
+    "matching_hotels_booked": 0
+  },
+  "recommended_package": {
+    "package_name": "Executive Paris Luxury Retreat",
+    "selected_hotel": "George V",
+    "selected_attractions": [],
+    "cost_breakdown": {
+      "hotel_3_nights": "$0.00",
+      "attractions_2_people": "$0.00",
+      "total_estimated": "$0.00"
+    }
+  }
+}

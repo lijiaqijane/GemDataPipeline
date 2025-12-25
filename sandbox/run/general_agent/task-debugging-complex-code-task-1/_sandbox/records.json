@@ -1,0 +1,496 @@
+{
+  "records": [
+    {
+      "title": "Debugging complex codebases: A comprehensive guide | by Onsiter",
+      "summary": "This article aims to provide you with a deep dive into debugging techniques, tools, and strategies that can help you navigate through complex codebases.",
+      "url": "https://medium.com/@onsiter/debugging-complex-codebases-a-comprehensive-guide-5f8528c48ce4",
+      "source": "real_content_extracted",
+      "data_schema": {
+        "fields": [
+          "access_status",
+          "error_code",
+          "platform",
+          "security_check"
+        ],
+        "samples": [
+          "403",
+          "Forbidden",
+          "medium.com",
+          "CAPTCHA required"
+        ],
+        "patterns": [
+          "Access blocked with security verification",
+          "Standard Medium access restriction pattern",
+          "Favicon reference present"
+        ],
+        "anomalies": [
+          "No actual article content accessible",
+          "Blocked by security check",
+          "Title shown but content unavailable"
+        ],
+        "volume": "No data extracted due to access restrictions"
+      },
+      "real_data_samples": [
+        {
+          "access_status": "blocked",
+          "error_code": "403",
+          "error_message": "Forbidden",
+          "platform": "medium.com",
+          "security_message": "Verify you are human by completing the action below.",
+          "content_available": false
+        }
+      ],
+      "clean_content": "Title: Just a moment...\nURL Source: https://medium.com/@onsiter/debugging-complex-codebases-a-comprehensive-guide-5f8528c48ce4\nWarning: Target URL returned error 403: Forbidden\nWarning: This page maybe requiring CAPTCHA, please make sure you are authorized to access this page.\n![Image 1: Icon for medium.com](https://medium.com/favicon.ico)medium.com\n-------------------------------------------------------------------------\nVerify you are human by completing the action below.\nmedium.com needs to review the security of your connection before proceeding.",
+      "real_content": "Title: Just a moment...\nURL Source: https://medium.com/@onsiter/debugging-complex-codebases-a-comprehensive-guide-5f8528c48ce4\nWarning: Target URL returned error 403: Forbidden\nWarning: This page maybe requiring CAPTCHA, please make sure you are authorized to access this page.\n![Image 1: Icon for medium.com](https://medium.com/favicon.ico)medium.com\n-------------------------------------------------------------------------\nVerify you are human by completing the action below.\nmedium.com needs to review the security of your connection before proceeding."
+    },
+    {
+      "title": "Debugging complex issues in your code can be daunting ... - Zigpoll",
+      "summary": "Master debugging complex code with proven methods, tools, and user feedback integration like Zigpoll for faster, efficient bug detection and resolution.",
+      "url": "http://www.zigpoll.com/content/how-do-you-typically-approach-debugging-complex-issues-in-your-code-and-what-tools-or-methods-do-you-find-most-effective-during-this-process",
+      "source": "real_content_extracted",
+      "data_schema": {
+        "fields": [
+          "approach_step",
+          "step_description",
+          "tools_mentioned",
+          "methodology"
+        ],
+        "samples": [
+          "Fully Understand the Problem Before You Start Debugging",
+          "Reproduce the Issue Consistently",
+          "Analyze Error Messages and Logs",
+          "Sentry"
+        ],
+        "patterns": [
+          "Numbered list structure for approach steps",
+          "Each step contains descriptive text and tool recommendations",
+          "Tools mentioned within descriptive text (not as separate fields)"
+        ],
+        "anomalies": [
+          "Incomplete content - text cuts off mid-sentence",
+          "Only one complete step shown in provided content",
+          "No structured data tables present"
+        ],
+        "volume": "Low - only partial content available, estimated 1-5 approach steps total"
+      },
+      "real_data_samples": [
+        {
+          "approach_step": "1. Fully Understand the Problem Before You Start Debugging",
+          "step_description": "A successful debugging session begins with a deep understanding of the issue. Jumping into code changes without clarity often wastes time.",
+          "sub_steps": [
+            {
+              "action": "Reproduce the Issue Consistently",
+              "details": "Ensure you can reliably trigger the bug. Use automated tests or simulate conditions to recreate the error."
+            },
+            {
+              "action": "Analyze Error Messages and Logs",
+              "details": "Carefully read stack traces and error logs to pinpoint where and why the failure occurs."
+            }
+          ],
+          "tools_mentioned": [
+            "Sentry"
+          ],
+          "content_completeness": "partial"
+        }
+      ],
+      "clean_content": "Debugging complex issues in your code can be daunting, but adopting a systematic approach combined with the right tools ensures efficient problem resolution. Below is a detailed guide on how to typically approach complex debugging challenges and the most effective tools and methods to streamline this process.\nHow to Approach Debugging Complex Code Issues: Effective Methods and Essential Tools\nDebugging complex issues in your code can be daunting, but adopting a systematic approach combined with the right tools ensures efficient problem resolution. Below is a detailed guide on how to typically approach complex debugging challenges and the most effective tools and methods to streamline this process.\n1. Fully Understand the Problem Before You Start Debugging\nA successful debugging session begins with a deep understanding of the issue. Jumping into code changes without clarity often wastes time.\nReproduce the Issue Consistently : Ensure you can reliably trigger the bug. Use automated tests or simulate conditions to recreate the error.\nAnalyze Error Messages and Logs : Carefully read stack traces and error logs to pinpoint where and why the failure occurs. Tools like  Sentry  can aggregate error reports.\nThis clarity directs your focus for targeted investigation.\n2. Divide and Conquer: Isolate the Bug Within the Codebase\nComplex codebases require breaking down the investigation for effective troubleshooting.\nBinary Search Debugging : Comment out or disable halves of the affected code to determine where the bug resides, iteratively narrowing down.\nFeature and Module Isolation : Temporarily isolate suspected components to confirm if the bug originates there.\nInput Simplification : Reduce inputs or test cases to a minimal reproducible example, simplifying tracing.\nThis strategy breaks overwhelming problems into manageable parts for focused analysis.\n3. Strategic Logging: Gain Insights into Runtime Behavior\nAdding targeted logging is one of the most practical ways to uncover runtime issues.\nLog Key Variables and Program States : Use logs to capture variable values and state transitions at critical points.\nUse Log Severity Levels : Differentiate between debug, info, warning, error, and critical logs to filter relevant data.\nTimestamp and Correlate Logs : Especially useful for diagnosing timing or sequence-related bugs.\nLeverage logging frameworks such as  Log4j  for J",
+      "real_content": "Debugging complex issues in your code can be daunting, but adopting a systematic approach combined with the right tools ensures efficient problem resolution. Below is a detailed guide on how to typically approach complex debugging challenges and the most effective tools and methods to streamline this process.\nHow to Approach Debugging Complex Code Issues: Effective Methods and Essential Tools\nDebugging complex issues in your code can be daunting, but adopting a systematic approach combined with the right tools ensures efficient problem resolution. Below is a detailed guide on how to typically approach complex debugging challenges and the most effective tools and methods to streamline this process.\n1. Fully Understand the Problem Before You Start Debugging\nA successful debugging session begins with a deep understanding of the issue. Jumping into code changes without clarity often wastes time.\nReproduce the Issue Consistently : Ensure you can reliably trigger the bug. Use automated tests or simulate conditions to recreate the error.\nAnalyze Error Messages and Logs : Carefully read stack traces and error logs to pinpoint where and why the failure occurs. Tools like  Sentry  can aggregate error reports.\nThis clarity directs your focus for targeted investigation.\n2. Divide and Conquer: Isolate the Bug Within the Codebase\nComplex codebases require breaking down the investigation for effective troubleshooting.\nBinary Search Debugging : Comment out or disable halves of the affected code to determine where the bug resides, iteratively narrowing down.\nFeature and Module Isolation : Temporarily isolate suspected components to confirm if the bug originates there.\nInput Simplification : Reduce inputs or test cases to a minimal reproducible example, simplifying tracing.\nThis strategy breaks overwhelming problems into manageable parts for focused analysis.\n3. Strategic Logging: Gain Insights into Runtime Behavior\nAdding targeted logging is one of the most practical ways to uncover runtime issues.\nLog Key Variables and Program States : Use logs to capture variable values and state transitions at critical points.\nUse Log Severity Levels : Differentiate between debug, info, warning, error, and critical logs to filter relevant data.\nTimestamp and Correlate Logs : Especially useful for diagnosing timing or sequence-related bugs.\nLeverage logging frameworks such as  Log4j  for Java,  Winston  for Node.js, or  Python’s logging module  for structured log management.\n4. Master Use of Interactive Debuggers\nDebuggers are indispensable for exploring code execution step-by-step.\nSet Breakpoints : Pause execution at critical spots to inspect execution context.\nStep Through Code : Step over, into, or out of functions sequentially to monitor behavior.\nInspect and Modify Variables : Examine current values and try modifying them live to validate assumptions.\nAnalyze Call Stacks : Understand execution flow and function invocation order.\nModern IDEs like  Visual Studio Code ,  JetBrains IntelliJ , and  PyCharm  feature powerful debuggers supporting multi-threading and asynchronous debugging.\n5. Employ Automated Tests and Test-Driven Debugging\nRobust automated testing speeds up bug detection and bug fixing.\nUse Unit and Integration Tests : Tests help isolate the exact scenarios causing failures.\nRegression Testing : Ensures that fixes do not break existing functionality.\nAdopt Test-Driven Development (TDD) : Writing tests before coding clarifies expected behavior and reduces bugs.\nPopular testing frameworks include  JUnit  (Java),  pytest  (Python), and  Jest  (JavaScript).\n6. Leverage Static and Dynamic Code Analysis Tools\nStatic and dynamic analyzers provide early detection of potential issues without manual debugging.\nStatic Analysis Tools : Analyze source code for syntax errors, code smells, and security threats without running the program.\nExamples:  ESLint  for JavaScript,  Pylint  for Python,  SonarQube  supporting multiple languages.\nDynamic Analysis Tools : Monitor program during execution to detect memory leaks, race conditions, and performance bottlenecks.\nExamples:  Valgrind ,  AddressSanitizer , built-in profilers in IDEs.\nCombining both ensures higher code quality and reduces elusive bugs.\n7. Use Version Control Systems Effectively for Debugging\nVersion control is crucial in locating when and how bugs entered the codebase.\nGit Blame : Quickly find which commit last modified buggy lines for targeted investigation.\nGit Bisect : Conduct a binary search through commits to find the specific change introducing the bug.\nIsolated Experimentation : Use branches to try fixes without impacting stable code.\nLearning these techniques in tools like  Git  dramatically improves debugging productivity.\n8. Debugging Asynchronous and Concurrent Code\nBugs in asynchronous and multithreaded code require specialized strategies due to timing complexities.\nUse Debuggers Supporting Async Contexts : Tools such as Chrome DevTools for JavaScript or Visual S"
+    },
+    {
+      "title": "What approaches work best for debugging complex code issues ...",
+      "summary": "Always debug the program for the simplest input that produces the bug. Solving a bug in the simplest case brings you closer to solving it in the ...",
+      "url": "https://www.quora.com/What-approaches-work-best-for-debugging-complex-code-issues-during-the-development-process",
+      "source": "real_content_extracted",
+      "data_schema": {
+        "fields": [
+          "access_status",
+          "error_code",
+          "platform",
+          "security_check"
+        ],
+        "samples": [
+          "403",
+          "Forbidden",
+          "www.quora.com",
+          "CAPTCHA required"
+        ],
+        "patterns": [
+          "Access blocked with security verification",
+          "Standard Quora access restriction pattern",
+          "Favicon reference present"
+        ],
+        "anomalies": [
+          "No actual question or answer content accessible",
+          "Blocked by security check",
+          "Title shown but content unavailable"
+        ],
+        "volume": "No data extracted due to access restrictions"
+      },
+      "real_data_samples": [
+        {
+          "access_status": "blocked",
+          "error_code": "403",
+          "error_message": "Forbidden",
+          "platform": "www.quora.com",
+          "security_message": "Verify you are human by completing the action below.",
+          "content_available": false
+        }
+      ],
+      "clean_content": "Title: Just a moment...\nURL Source: https://www.quora.com/What-approaches-work-best-for-debugging-complex-code-issues-during-the-development-process\nWarning: Target URL returned error 403: Forbidden\nWarning: This page maybe requiring CAPTCHA, please make sure you are authorized to access this page.\n![Image 1: Icon for www.quora.com](https://www.quora.com/favicon.ico)www.quora.com\n----------------------------------------------------------------------------------\nVerify you are human by completing the action below.\nwww.quora.com needs to review the security of your connection before proceeding.",
+      "real_content": "Title: Just a moment...\nURL Source: https://www.quora.com/What-approaches-work-best-for-debugging-complex-code-issues-during-the-development-process\nWarning: Target URL returned error 403: Forbidden\nWarning: This page maybe requiring CAPTCHA, please make sure you are authorized to access this page.\n![Image 1: Icon for www.quora.com](https://www.quora.com/favicon.ico)www.quora.com\n----------------------------------------------------------------------------------\nVerify you are human by completing the action below.\nwww.quora.com needs to review the security of your connection before proceeding."
+    },
+    {
+      "title": "Debugging Complex Backend Code: A Step-by-Step Guide for ...",
+      "summary": "Let's make this process easy to understand, even for beginners, by working through a real-world example of a broken backend API and fixing it step by step.",
+      "url": "https://medium.com/@hirunmihisara/debugging-complex-backend-code-a-step-by-step-guide-for-beginners-bdb623601f19",
+      "source": "real_content_extracted",
+      "data_schema": {
+        "fields": [
+          "access_status",
+          "error_code",
+          "platform",
+          "security_check"
+        ],
+        "samples": [
+          "403",
+          "Forbidden",
+          "medium.com",
+          "CAPTCHA required"
+        ],
+        "patterns": [
+          "Access blocked with security verification",
+          "Standard Medium access restriction pattern",
+          "Favicon reference present"
+        ],
+        "anomalies": [
+          "No actual article content accessible",
+          "Blocked by security check",
+          "Title shown but content unavailable"
+        ],
+        "volume": "No data extracted due to access restrictions"
+      },
+      "real_data_samples": [
+        {
+          "access_status": "blocked",
+          "error_code": "403",
+          "error_message": "Forbidden",
+          "platform": "medium.com",
+          "security_message": "Verify you are human by completing the action below.",
+          "content_available": false
+        }
+      ],
+      "clean_content": "Title: Just a moment...\nURL Source: https://medium.com/@hirunmihisara/debugging-complex-backend-code-a-step-by-step-guide-for-beginners-bdb623601f19\nWarning: Target URL returned error 403: Forbidden\nWarning: This page maybe requiring CAPTCHA, please make sure you are authorized to access this page.\n![Image 1: Icon for medium.com](https://medium.com/favicon.ico)medium.com\n-------------------------------------------------------------------------\nVerify you are human by completing the action below.\nmedium.com needs to review the security of your connection before proceeding.",
+      "real_content": "Title: Just a moment...\nURL Source: https://medium.com/@hirunmihisara/debugging-complex-backend-code-a-step-by-step-guide-for-beginners-bdb623601f19\nWarning: Target URL returned error 403: Forbidden\nWarning: This page maybe requiring CAPTCHA, please make sure you are authorized to access this page.\n![Image 1: Icon for medium.com](https://medium.com/favicon.ico)medium.com\n-------------------------------------------------------------------------\nVerify you are human by completing the action below.\nmedium.com needs to review the security of your connection before proceeding."
+    },
+    {
+      "title": "How to approach debugging a huge not so familiar code base?",
+      "summary": "Put breakpoints where you don't understand the code or where you think the error can be. Start following the code line by line. Debugging is ...",
+      "url": "https://stackoverflow.com/questions/3889460/how-to-approach-debugging-a-huge-not-so-familiar-code-base",
+      "source": "real_content_extracted",
+      "data_schema": {
+        "fields": [
+          "question_title",
+          "question_body",
+          "tags",
+          "ask_date",
+          "view_count",
+          "answer_count",
+          "score"
+        ],
+        "samples": [
+          "How to approach debugging a huge not so familiar code base?",
+          "c++",
+          "15 years, 2 months ago",
+          "Seldom during working on large scale projects..."
+        ],
+        "patterns": [
+          "Stack Overflow question page structure",
+          "Tags indicate programming languages/topics",
+          "Relative time format for dates",
+          "Truncated question body in preview"
+        ],
+        "anomalies": [
+          "Question body is truncated in provided content",
+          "Missing complete metadata (votes, answers, etc.)",
+          "No answers or comments shown in provided content"
+        ],
+        "volume": "Single question with potential multiple answers (not shown)"
+      },
+      "real_data_samples": [
+        {
+          "question_title": "How to approach debugging a huge not so familiar code base?",
+          "question_body_partial": "Seldom during working on large scale projects, suddenly you are moved on to a project which is already in maintainance phase.You end up with having a huge code C/C++ code base on your hands, with not much doccumentation about t",
+          "tags": [
+            "c++"
+          ],
+          "ask_date": "15 years, 2 months ago",
+          "last_activity": "6 years, 9 months ago",
+          "platform": "Stack Overflow"
+        }
+      ],
+      "clean_content": "c++ - How to approach debugging a huge not so familiar code base? - Stack Overflow\nSkip to main content\nImplement a knowledge platform layer to power your enterprise and AI tools.\nStack Data Licensing\nKeep up-to-date on features we add to Stack Overflow and Stack Internal.\nSign up  or  log in  to customize your list.\nmore stack exchange communities\nCommunities for your favorite technologies.   Explore all Collectives\nStack Overflow for Teams is now called  Stack Internal . Bring the best of human thought and AI automation together at your work.\nBring the best of human thought and AI automation together at your work.\nCollectives™ on Stack Overflow\nFind centralized, trusted content and collaborate around the technologies you use most.\nLearn more about Collectives\nBring the best of human thought and AI automation together at your work.\nExplore Stack Internal\nHow to approach debugging a huge not so familiar code base?\n15 years, 2 months ago\n6 years, 9 months ago\nSeldom during working on large scale projects, suddenly you are moved on to a project which is already in maintainance phase.You end up with having a huge code C/C++ code base on your hands, with not much doccumentation about the design.The last person who could give you some knowledge transfer about the code has left the company already and to add to your horrors there is not enough time to get acquainted with the code and develop an understanding of the overall module/s.In this scenario when you are expected to fix bugs(core dumps,functionality,performance problems etc) on the module/s what is the approach that you will take?\nWhat are your usual steps for debugging a not so familiar C/C++ code base when trying to fix a bug?\nEDIT: Enviornment is Linux, but code is ported on Windows too so suggestions for both will be helpful.\nc++    c    debugging\nImprove this question\nedited  Oct 8, 2010 at 11:53\nasked  Oct 8, 2010 at 9:55\n208k     56   56 gold badges     449   449 silver badges     540   540 bronze badges\nShould be CV as this has no definite answer. Maybe even a candidate for  programmers.stackexchange.com .\nOct 8, 2010 at 10:00\n@Space: Ofcourse there should be some definite steps to appraching such a problem...see traces..isolate problem code..put break points in that relevant part and so on...\nOct 8, 2010 at 10:02\nThe first instinct in such cases usually is to cry.\nOct 8, 2010 at 10:07\n@Matteo Itali",
+      "real_content": "c++ - How to approach debugging a huge not so familiar code base? - Stack Overflow\nSkip to main content\nImplement a knowledge platform layer to power your enterprise and AI tools.\nStack Data Licensing\nKeep up-to-date on features we add to Stack Overflow and Stack Internal.\nSign up  or  log in  to customize your list.\nmore stack exchange communities\nCommunities for your favorite technologies.   Explore all Collectives\nStack Overflow for Teams is now called  Stack Internal . Bring the best of human thought and AI automation together at your work.\nBring the best of human thought and AI automation together at your work.\nCollectives™ on Stack Overflow\nFind centralized, trusted content and collaborate around the technologies you use most.\nLearn more about Collectives\nBring the best of human thought and AI automation together at your work.\nExplore Stack Internal\nHow to approach debugging a huge not so familiar code base?\n15 years, 2 months ago\n6 years, 9 months ago\nSeldom during working on large scale projects, suddenly you are moved on to a project which is already in maintainance phase.You end up with having a huge code C/C++ code base on your hands, with not much doccumentation about the design.The last person who could give you some knowledge transfer about the code has left the company already and to add to your horrors there is not enough time to get acquainted with the code and develop an understanding of the overall module/s.In this scenario when you are expected to fix bugs(core dumps,functionality,performance problems etc) on the module/s what is the approach that you will take?\nWhat are your usual steps for debugging a not so familiar C/C++ code base when trying to fix a bug?\nEDIT: Enviornment is Linux, but code is ported on Windows too so suggestions for both will be helpful.\nc++    c    debugging\nImprove this question\nedited  Oct 8, 2010 at 11:53\nasked  Oct 8, 2010 at 9:55\n208k     56   56 gold badges     449   449 silver badges     540   540 bronze badges\nShould be CV as this has no definite answer. Maybe even a candidate for  programmers.stackexchange.com .\nOct 8, 2010 at 10:00\n@Space: Ofcourse there should be some definite steps to appraching such a problem...see traces..isolate problem code..put break points in that relevant part and so on...\nOct 8, 2010 at 10:02\nThe first instinct in such cases usually is to cry.\nOct 8, 2010 at 10:07\n@Matteo Italia, For me its usually the second.. First is to  curse  the person who left... :)\nOct 8, 2010 at 10:09\nOct 8, 2010 at 10:11\nShow  1  more comment\n15 Answers                                         15\nHighest score (default)\nTrending (recent votes count more)\nDate modified (newest first)\nDate created (oldest first)\nIf possible, step through it from main() to the problematic area, and follow the execution path. Along the way you'll get a good idea of how the different parts play together.\nIt could also be helpful to use a static code analysis tool, like  CppDepends  or even  Doxygen , to figure out the relations between modules and be able to view them graphically.\nedited  Mar 25, 2019 at 16:10\n9,220     3   3 gold badges     24   24 silver badges     42   42 bronze badges\nanswered  Oct 8, 2010 at 10:00\n76.7k     37   37 gold badges     152   152 silver badges     207   207 bronze badges\nSign up to request clarification or add additional context in comments.\n1 Comment                     Add a comment                            Macke     Macke     Over a year ago                           Yup. Doxygen also has the incredibly useful ability to show call graphs and call dependecies in both directions. It needs to be enabled specifically though.     2010-11-03T11:28:27.127Z+00:00                    0                  Reply                       Copy link\nUse a pen and paper, or images/graphs/charts in general, to figure out which parts belong where and draw some arrows and so on.\nThis helps you build and see the image that will then be refined in your mind as you become more comfortable with it.\nI used a similar approach attacking a hellish system that had 10 singletons all #including each other. I had to redraw it a few times in order to fit everything, but seeing it in front of you helps.\nIt might also be useful to use  Graphviz  when constructing dependency graphs. That way you only have to list everything (in a text file) and then the tool will draw the (often unsightly) picture. (This is what I did for the #include dependencies in above syste,)\nedited  Nov 3, 2010 at 11:24\nanswered  Oct 8, 2010 at 10:02\n25.9k     7   7 gold badges     89   89 silver badges     121   121 bronze badges\nComments              Add a comment\nAs others have already suggested, writing unit-tests is a great way to get into the codebase. There are a number of advantages to this approach:\nIt allows you to test your\nassumptions about how the code\nworks. Adding a passing test proves\nthat your assumptions about that\nsmall piece of code that you are\ntesting are correct. The more\npassing"
+    },
+    {
+      "title": "The Basics of Debugging Python Problems - KDnuggets",
+      "summary": "In this article, we will explore the basics of debugging, especially in your data science workflows, using a real-life dataset from a DoorDash delivery job.",
+      "url": "https://www.kdnuggets.com/the-basics-of-debugging-python-problems",
+      "source": "search_with_real_content",
+      "real_content": "The Basics of Debugging Python Problems - KDnuggets\nThe Basics of Debugging Python Problems\nI got 99 problems... and Python debugging is all of them.\nBy   Nate Rosidi  , KDnuggets Market Trends & SQL Content Specialist on July 21, 2025 in  Python\nImage by Author | Canva\nEver run a Python script and immediately wished you hadn’t pressed Enter?\nIn this article, we will explore the basics of debugging, especially in your data science workflows, using a real-life dataset from a DoorDash delivery job, and most importantly, how to debug like a pro.\nDoorDash Delivery Duration Prediction: What Are We Dealing With?\nIn this data  project , DoorDash asked its data science candidates to predict the delivery duration. Let’s first look at the dataset info. Here is the code:\nhistorical_data.info()\nIt seems that they did not provide the delivery duration, so you should calculate it here. It is simple, but no worries if you are a beginner. Let’s see how it can be calculated.\nfrom datetime import datetime\n# Assuming historical_data is your DataFrame\nhistorical_data[\"created_at\"] = pd.to_datetime(historical_data['created_at'])\nhistorical_data[\"actual_delivery_time\"] = pd.to_datetime(historical_data['actual_delivery_time'])\nhistorical_data[\"actual_total_delivery_duration\"] = (historical_data[\"actual_delivery_time\"] - historical_data[\"created_at\"]).dt.total_seconds()\nhistorical_data.head()\nGood, now we can start! But before that, here is the data definition language for this dataset.\nColumns in  historical_data.csv\nmarket_id: A city/region in which DoorDash operates, e.g., Los Angeles, given in the data as an id.\ncreated_at: Timestamp in UTC when the order was submitted by the consumer to DoorDash. (Note: this timestamp is in UTC, but in case you need it, the actual timezone of the region was US/Pacific).\nactual_delivery_time: Timestamp in UTC when the order was delivered to the consumer.\nstore_id: An ID representing the restaurant the order was submitted for.\nstore_primary_category: Cuisine category of the restaurant, e.g., Italian, Asian.\norder_protocol: A store can receive orders from DoorDash through many modes. This field represents an ID denoting the protocol.\ntotal_items: Total number of items in the order.\nsubtotal: Total value of the order submitted (in cents).\nnum_distinct_items: Number of distinct items included in the order.\nmin_item_price: Price of the item with the least cost in the order (in cents).\nmax_item_price: Price of the item with the highest cost in the order (in cents).\nDoorDash being a marketplace, we have information on the state of the marketplace when the order is placed, which can be used to estimate delivery time. The following features are values at the time of  created_at  (order submission time):\ntotal_onshift_dashers: Number of available dashers who are within 10 miles of the store at the time of order creation.\ntotal_busy_dashers: Subset of the above  total_onshift_dashers  who are currently working on an order.\ntotal_outstanding_orders: Number of orders within 10 miles of this order that are currently being processed.\nPredictions from other models:\nWe have predictions from other models for various stages of the delivery process that we can use:\nestimated_order_place_duration: Estimated time for the restaurant to receive the order from DoorDash (in seconds).\nestimated_store_to_consumer_driving_duration: Estimated travel time between the store and consumer (in seconds).\nGreat, so let’s get started!\nCommon Python Errors in Data Science Projects\nIn this section, we will discover common debugging errors in one of the  data science projects , starting with reading the dataset and going through to the most important part: modeling.\nReading the Dataset:  FileNotFoundError , Dtype Warning, and Fixes\nCase 1: File Not Found — Classic\nIn data science, your first bug often greets you at  read_csv . And not with a hello. Let’s debug that exact moment together, line by line. Here is the code:\ndf = pd.read_csv('Strata Questions/historical_data.csv')\nexcept FileNotFoundError as e:\nprint(\"File not found. Here's where Python is looking:\")\nprint(\"Working directory:\", os.getcwd())\nprint(\"Available files:\", os.listdir())\nYou don’t just raise an error—you interrogate it. This shows where the code thinks it is and what it sees around it. If your file’s not on the list, now you know. No guessing. Just facts.\nReplace the path with the full one, and voilà!\nCase 2: Dtype Misinterpretation — Python’s Quietly Wrong Guess\nYou load the dataset, but something’s off. The bug hides inside your types.\n# Assuming df is your loaded DataFrame\nprint(\"Column Types:\\n\", df.dtypes)\nexcept Exception as e:\nprint(\"Error reading dtypes:\", e)\nCase 3: Date Parsing — The Silent Saboteur\nWe discovered that we should calculate the delivery duration first, and we did it with this method.\n# This code was shown earlier to calculate the delivery duration\ndf[\"created_at\"] = pd.to_datetime(df['created_at'])\ndf[\"actual_delivery_time\"] = pd.to_datetim",
+      "clean_content": "The Basics of Debugging Python Problems - KDnuggets\nThe Basics of Debugging Python Problems\nI got 99 problems... and Python debugging is all of them.\nBy   Nate Rosidi  , KDnuggets Market Trends & SQL Content Specialist on July 21, 2025 in  Python\nImage by Author | Canva\nEver run a Python script and immediately wished you hadn’t pressed Enter?\nIn this article, we will explore the basics of debugging, especially in your data science workflows, using a real-life dataset from a DoorDash delivery job, and most importantly, how to debug like a pro.\nDoorDash Delivery Duration Prediction: What Are We Dealing With?\nIn this data  project , DoorDash asked its data science candidates to predict the delivery duration. Let’s first look at the dataset info. Here is the code:\nhistorical_data.info()\nIt seems that they did not provide the delivery duration, so you should calculate it here. It is simple, but no worries if you are a beginner. Let’s see how it can be calculated.\nfrom datetime import datetime\n# Assuming historical_data is your DataFrame\nhistorical_data[\"created_at\"] = pd.to_datetime(historical_data['created_at'])\nhistorical_data[\"actual_delivery_time\"] = pd.to_datetime(historical_data['actual_delivery_time'])\nhistorical_data[\"actual_total_delivery_duration\"] = (historical_data[\"actual_delivery_time\"] - historical_data[\"created_at\"]).dt.total_seconds()\nhistorical_data.head()\nGood, now we can start! But before that, here is the data definition language for this dataset.\nColumns in  historical_data.csv\nmarket_id: A city/region in which DoorDash operates, e.g., Los Angeles, given in the data as an id.\ncreated_at: Timestamp in UTC when the order was submitted by the consumer to DoorDash. (Note: this timestamp is in UTC, but in case you need it, the actual timezone of the region was US/Pacific).\nactual_delivery_time: Timestamp in UTC when the order was delivered to the consumer.\nstore_id: An ID representing the restaurant the order was submitted for.\nstore_primary_category: Cuisine category of the restaurant, e.g., Italian, Asian.\norder_protocol: A store can receive orders from DoorDash through many modes. This field represents an ID denoting the protocol.\ntotal_items: Total number of items in the order.\nsubtotal: Total value of the order submitted (in cents).\nnum_distinct_items: Number of distinct items included in the order.\nmin_item_price: Price of the item with the",
+      "info_snippets": [
+        "By   Nate Rosidi  , KDnuggets Market Trends & SQL Content Specialist on July 21, 2025 in  Python",
+        "Let’s first look at the dataset info",
+        "Good, now we can start! But before that, here is the data definition language for this dataset",
+        "min_item_price: Price of the item with the",
+        "The Basics of Debugging Python Problems - KDnuggets",
+        "The Basics of Debugging Python Problems",
+        "and Python debugging is all of them",
+        "Ever run a Python script and immediately wished you hadn’t pressed Enter?"
+      ],
+      "real_tables": [
+        [
+          [
+            "Top Posts"
+          ]
+        ]
+      ],
+      "data_schema": {
+        "fields": {
+          "top_posts": {
+            "type": "string",
+            "source": "html_table"
+          }
+        },
+        "source": "html_table"
+      }
+    }
+  ],
+  "search_hits": [
+    {
+      "title": "Debugging complex codebases: A comprehensive guide | by Onsiter",
+      "url": "https://medium.com/@onsiter/debugging-complex-codebases-a-comprehensive-guide-5f8528c48ce4",
+      "summary": "This article aims to provide you with a deep dive into debugging techniques, tools, and strategies that can help you navigate through complex codebases."
+    },
+    {
+      "title": "Debugging complex issues in your code can be daunting ... - Zigpoll",
+      "url": "http://www.zigpoll.com/content/how-do-you-typically-approach-debugging-complex-issues-in-your-code-and-what-tools-or-methods-do-you-find-most-effective-during-this-process",
+      "summary": "Master debugging complex code with proven methods, tools, and user feedback integration like Zigpoll for faster, efficient bug detection and resolution."
+    },
+    {
+      "title": "Effective Strategies For Debugging Complex Code - Turing",
+      "url": "https://www.turing.com/blog/effective-strategies-for-debugging-complex-code",
+      "summary": "It's essential to adopt systematic approaches when debugging complex code. Break down the problem into smaller, more manageable components."
+    },
+    {
+      "title": "What approaches work best for debugging complex code issues ...",
+      "url": "https://www.quora.com/What-approaches-work-best-for-debugging-complex-code-issues-during-the-development-process",
+      "summary": "Always debug the program for the simplest input that produces the bug. Solving a bug in the simplest case brings you closer to solving it in the ..."
+    },
+    {
+      "title": "Debugging Complex Backend Code: A Step-by-Step Guide for ...",
+      "url": "https://medium.com/@hirunmihisara/debugging-complex-backend-code-a-step-by-step-guide-for-beginners-bdb623601f19",
+      "summary": "Let's make this process easy to understand, even for beginners, by working through a real-world example of a broken backend API and fixing it step by step."
+    },
+    {
+      "title": "How to approach debugging a huge not so familiar code base?",
+      "url": "https://stackoverflow.com/questions/3889460/how-to-approach-debugging-a-huge-not-so-familiar-code-base",
+      "summary": "Put breakpoints where you don't understand the code or where you think the error can be. Start following the code line by line. Debugging is ..."
+    },
+    {
+      "title": "Debugging & Logging - Code Analyzer | ColdFusion Administrator",
+      "url": "https://www.cfguide.io/coldfusion-administrator/debugging-logging-code-analyzer",
+      "summary": "The Code Analyzer is a static code analysis tool in ColdFusion Administrator that scans your CFML application code to identify potential issues, ..."
+    },
+    {
+      "title": "The Ultimate Guide to Debugging Complex Bugs: Tools and ...",
+      "url": "https://aditya-sunjava.medium.com/the-ultimate-guide-to-debugging-complex-bugs-tools-and-techniques-for-developers-bcbdc2af1460",
+      "summary": "This article will delve deeply into effective debugging techniques, focusing on the use of integrated debuggers and logging as primary tools."
+    },
+    {
+      "title": "How to effectively debug and troubleshoot complex code ...",
+      "url": "https://www.quora.com/How-can-I-effectively-debug-and-troubleshoot-complex-code-issues",
+      "summary": "You must have a way of testing the code, eg: a harness that can present input and record/display result. You must prepare test data which tests ..."
+    },
+    {
+      "title": "Debugging code for science: Fantastic Bugs and Where to Find Them.",
+      "url": "https://www.blopig.com/blog/2025/03/debugging-code-for-science-fantastic-bugs-and-where-to-find-them/",
+      "summary": "We'll explore different categories of bugs unique to scientific code, strategies for tracking them down, and preventative measures that can save you hours of ..."
+    },
+    {
+      "title": "The Art of Debugging Complex Data Pipelines: Solving the Unsolvable",
+      "url": "https://www.linkedin.com/pulse/art-debugging-complex-data-pipelines-solving-tristan-mckinnon-g8zdf",
+      "summary": "In this article, we'll explore my approach to diagnosing and fixing issues in ETL/ELT pipelines, discuss common pitfalls like schema mismatches and data drift,"
+    },
+    {
+      "title": "How to Debug Data Science Code | Hockey Graphs",
+      "url": "https://hockey-graphs.com/2020/06/22/how-to-debug-data-science-code/",
+      "summary": "This has been a very detailed list of steps to take when debugging code, but it's still not complete. You'll inevitably develop your own habits and tricks to ..."
+    },
+    {
+      "title": "The Basics of Debugging Python Problems - KDnuggets",
+      "url": "https://www.kdnuggets.com/the-basics-of-debugging-python-problems",
+      "summary": "In this article, we will explore the basics of debugging, especially in your data science workflows, using a real-life dataset from a DoorDash delivery job."
+    },
+    {
+      "title": "Mastering Debugging: Fixing Code Errors Efficiently - Kaggle",
+      "url": "https://www.kaggle.com/discussions/general/578560",
+      "summary": "Step 1: Analyze the Error Message. Instead of guessing, start by carefully reading the error message—it often points to the exact issue. Common error types ..."
+    },
+    {
+      "title": "How to get into a large codebase - tsak.dev",
+      "url": "https://tsak.dev/posts/how-to-get-into-large-codebases/",
+      "summary": "Making a codebase and application debuggable is one of the most valuable ways to gain insight into the flow of data and how it's mutated during execution."
+    },
+    {
+      "title": "Debugging CSV file - python - Stack Overflow",
+      "url": "https://stackoverflow.com/questions/68678153/debugging-csv-file",
+      "summary": "I'm dealing with an issue with a CSV file - my code runs perfectly with the old file. But I've recently updated the file to include more websites my script can ..."
+    },
+    {
+      "title": "Debugging FAQ",
+      "url": "https://ds.cs.rutgers.edu/debugging-guide/",
+      "summary": "We can use the Debugger Toolbar to run our code line-by-line, jump inside and out of methods, as well as continue running until we find a breakpoint/the program ..."
+    },
+    {
+      "title": "Debugging invalid JSON - GitHub Docs",
+      "url": "https://docs.github.com/copilot/copilot-chat-cookbook/debugging-errors/debugging-invalid-json",
+      "summary": "When working with JSON data, you may encounter issues such as trailing commas, mismatched braces, or incorrect data types that make the JSON invalid."
+    },
+    {
+      "title": "How a single JSON file could become your entire code base",
+      "url": "https://dev.to/zelcion/how-a-single-json-file-could-become-your-entire-code-base-356j",
+      "summary": "I have a fun personal theory, that all ever created about code can be somewhat traced back to the code accessibility problem."
+    },
+    {
+      "title": "5 Steps to Debug Complex Data Mapping Issues - Latenode",
+      "url": "https://latenode.com/blog/development-programming/debugging-techniques/5-steps-to-debug-complex-data-mapping-issues",
+      "summary": "This guide outlines five actionable steps - from validating schemas to testing edge cases - that help identify and resolve mapping issues ..."
+    },
+    {
+      "title": "What are some of the most common debugging errors ...",
+      "url": "https://www.reddit.com/r/cpp/comments/1iqoaa7/professional_programmers_what_are_some_of_the/",
+      "summary": "I'm interested to know from most experienced programmers what are generally the most common debugging errors that encounter in your work? Stack overflows, ..."
+    },
+    {
+      "title": "Debugging 101: Finding and Fixing Bugs Like a Pro",
+      "url": "https://medium.com/@SoftwareEngineering/debugging-101-finding-and-fixing-bugs-like-a-pro-f614bdf2a600",
+      "summary": "Reproduce the Bug: This is crucial. · Read the Error Message (Carefully!): Error messages are your friends, even if they look cryptic at first."
+    },
+    {
+      "title": "Is it normal to spend so many hours trying to debug your code and ...",
+      "url": "https://www.reddit.com/r/learnprogramming/comments/yb2pb4/is_it_normal_to_spend_so_many_hours_trying_to/",
+      "summary": "I once spent 4 hours debugging for my code to suddenly start working as in intended without changing anything."
+    },
+    {
+      "title": "Debugging Performance Issues",
+      "url": "https://www.debuggingbook.org/html/PerformanceDebugger.html",
+      "summary": "This chapter provides a class PerformanceDebugger that allows measuring and visualizing the time taken per line in a function."
+    },
+    {
+      "title": "coding practices, debugging, and reproducible research - Stat 243",
+      "url": "https://stat243.berkeley.edu/stat243-fall-2023/units/unit4-goodPractices.html",
+      "summary": "Assertions, exceptions and testing are critically important for writing robust code that is less likely to contain bugs. Exceptions. You've ..."
+    },
+    {
+      "title": "Debugging Codable - Swiftjective-C",
+      "url": "https://swiftjectivec.com/Easier-Debugging-Swift-Codable-Error-Context-Missing-Keys/",
+      "summary": "Codable is impressive, but it bails out quickly if .json doesn't appear exactly how it expects. Here's how I cleaned things up to pinpoint ..."
+    },
+    {
+      "title": "Lines of Code",
+      "url": "https://www.kaggle.com/datasets/landlord/lines-of-code/data",
+      "summary": "So here is the database for the information of Number of lines of code for some of the biggest projects throughout the history of Human-Computer Interaction ..."
+    },
+    {
+      "title": "How do you dive into large code bases?",
+      "url": "https://softwareengineering.stackexchange.com/questions/6395/how-do-you-dive-into-large-code-bases",
+      "summary": "Open multiple copies of my editor (Visual Studio/Eclipse/Whatever) and then debug and do line breaks step through the code. Find out the flow of ..."
+    },
+    {
+      "title": "Practical Debugging for Data Science | by Manu Joseph - Medium",
+      "url": "https://medium.com/data-science/practical-debugging-for-data-science-fd744c21f332",
+      "summary": "I'm gonna cover pointers on how to debug a machine learning model, both from the programmatic side as well as the machine learning side."
+    },
+    {
+      "title": "How to find out which function in my code is taking the longest to ...",
+      "url": "https://www.quora.com/How-can-I-find-out-which-function-in-my-code-is-taking-the-longest-to-execute",
+      "summary": "The utility that you want would be a profiler to record which portions of a program are executed at all or most frequently or consume the most execution time."
+    },
+    {
+      "title": "Why is function call taking significantly longer than code executed ...",
+      "url": "https://stackoverflow.com/questions/12634197/why-is-function-call-taking-significantly-longer-than-code-executed-according-to",
+      "summary": "The first line by gprof refers to the total time the function needs to execute, while the second line refers to just the time needed by the return statement."
+    },
+    {
+      "title": "[PDF] Automated Debugging for Arbitrarily Long Executions",
+      "url": "https://www.plai.ifi.lmu.de/publications/hotos13-res.pdf",
+      "summary": "In this paper we argue that automated post- mortem debugging of failures is feasible for real, in- production systems with no runtime recording. We pro- pose ..."
+    },
+    {
+      "title": "How do you effectively read and understand complex C# ...",
+      "url": "https://www.reddit.com/r/csharp/comments/1cbwg0n/how_do_you_effectively_read_and_understand/",
+      "summary": "Debugging is hands down the best way I understand what's going on. Set a breakpoint in a chunk of code and step through it."
+    },
+    {
+      "title": "What are your strategies for debugging hard or intractable issues?",
+      "url": "https://www.reddit.com/r/ExperiencedDevs/comments/udvcfo/what_are_your_strategies_for_debugging_hard_or/",
+      "summary": "For more complicated problems, you have to learn to start from the error condition and work backwards, even to create the conditions you need to ..."
+    },
+    {
+      "title": "7 easy* ways to make your code easier to debug",
+      "url": "https://lkarev.hashnode.dev/7-easy-ways-to-make-your-code-easier-to-debug",
+      "summary": "What it does, is read some input from the user, parses it, take a part of it (the attribute number ), and then returns the result of some ..."
+    },
+    {
+      "title": "Hardest types of bugs to track? [closed] - Stack Overflow",
+      "url": "https://stackoverflow.com/questions/570353/hardest-types-of-bugs-to-track",
+      "summary": "What are some good strategies to fix bugs as code becomes more complex? Hot Network Questions · Add fixed offset frequency to incoming signal."
+    },
+    {
+      "title": "How do debuggers know the line numbers in the source ...",
+      "url": "https://stackoverflow.com/questions/14221554/how-do-debuggers-know-the-line-numbers-in-the-source-code",
+      "summary": "The compiler inserts information about the source files and line numbers into the compiled binary so that the debugger can use this information during runtime."
+    },
+    {
+      "title": "Some Data Scientists write bad Python code and are stubborn in ...",
+      "url": "https://www.reddit.com/r/dataengineering/comments/19c2ftl/some_data_scientists_write_bad_python_code_and/",
+      "summary": "I'm not claiming to be a good programmer with two and a half years of professional experience, but I think some of our Data Scientists write bad Python code."
+    },
+    {
+      "title": "boyter/scc: Sloc, Cloc and Code",
+      "url": "https://github.com/boyter/scc",
+      "summary": "A tool similar to cloc, sloccount and tokei. For counting the lines of code, blank lines, comment lines, and physical lines of source code in many programming ..."
+    },
+    {
+      "title": "Struggling to complete a very complicated bug fix task in a system I ...",
+      "url": "https://www.reddit.com/r/ExperiencedDevs/comments/vzi8j9/struggling_to_complete_a_very_complicated_bug_fix/",
+      "summary": "Struggling to complete a very complicated bug fix task in a system I am still getting to know, any tips for debugging a complex sysatem ?"
+    },
+    {
+      "title": "10 Common Programming Errors and How to Avoid Them",
+      "url": "https://blog.codacy.com/common-programming-errors",
+      "summary": "We take a deep dive into the most common programming errors with examples and tips on how to avoid and mitigate these errors to improve your code."
+    },
+    {
+      "title": "Build a Coding Agent from Scratch: The Complete Python Tutorial",
+      "url": "https://www.siddharthbharath.com/build-a-coding-agent-python-tutorial/",
+      "summary": "Read and understand codebases; Execute code safely in a sandboxed environment; Iterate on solutions based on test results and error feedback ..."
+    },
+    {
+      "title": "Made-With-ML/datasets/dataset.csv at main - GitHub",
+      "url": "https://github.com/GokuMohandas/Made-With-ML/blob/main/datasets/dataset.csv",
+      "summary": "Learn how to design, develop, deploy and iterate on production-grade ML applications. - Made-With-ML/datasets/dataset.csv at main ..."
+    },
+    {
+      "title": "How to debug JSON files - Stack Overflow",
+      "url": "https://stackoverflow.com/questions/23686596/how-to-debug-json-files",
+      "summary": "Try putting your JSON file's content into a validator, like http://jsonlint.com/ or http://jsonformatter.curiousconcept.com/ and see what it says."
+    },
+    {
+      "title": "What are the most common types of programming bugs ...",
+      "url": "https://www.quora.com/What-are-the-most-common-types-of-programming-bugs-that-arent-syntax-errors-and-why-do-they-take-so-long-to-debug",
+      "summary": "There are three general types of programming errors. First are syntax errors. These occur when you fail to understand the syntax of the language ..."
+    }
+  ]
+}
