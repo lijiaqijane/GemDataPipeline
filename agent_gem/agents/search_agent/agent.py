@@ -89,8 +89,7 @@ class SearchAgent(
             entities_per_entity=request.search_breadth,
         )
         logger.info(f"Sampled {len(entities)} entities")
-        breakpoint()
-        # entities = [Entity(name="Ultraman Jonias", domain="cartoon", description="The ultraman.")]
+
         # Step 2: Question Construction
         tasks: Dict[str, List] = {}
         for entity in entities:
@@ -104,7 +103,7 @@ class SearchAgent(
             )
             tasks[entity.name] = task_list
             logger.info(f"Generated {len(task_list)} questions for {entity.name}")
-        breakpoint()
+
         # Step 3: Answer Generation and Verification
         results: List[Dict[str, Any]] = []
         for entity_name, task_list in tasks.items():
@@ -212,9 +211,7 @@ class SearchAgent(
             "visit": self.visit_tool.execute,
         }
 
-    def _get_tool_call_map_for_request(
-        self, request: GenerationRequest
-    ) -> Dict[str, Callable]:
+    def _get_tool_call_map_for_request(self, request: GenerationRequest) -> Dict[str, Callable]:
         """Get the tool call map for the agent, wrapped to respect request constraints.
 
         Args:
@@ -224,22 +221,18 @@ class SearchAgent(
             Dictionary mapping tool names to their wrapped execution functions.
         """
 
-        def wrapped_search(
-            query: str, max_results: int = 5, depth: int = 1
-        ) -> List[Dict[str, str]]:
+        def wrapped_search(query: str, max_results: int = 5, depth: int = 1) -> List[Dict[str, str]]:
             # Clamp depth and max_results to request constraints
             clamped_depth = min(max(1, depth), request.search_depth)
             clamped_breadth = min(max(1, max_results), request.search_breadth)
-            return self.search_tool.execute(
-                query, max_results=clamped_breadth, depth=clamped_depth
-            )
+            return self.search_tool.execute(query, max_results=clamped_breadth, depth=clamped_depth)
 
         return {
             "search": wrapped_search,
             "visit": self.visit_tool.execute,
         }
 
-    def _get_domains(self, num_domains: int) -> List[str] :
+    def _get_domains(self, num_domains: int) -> List[str]:
         """Get the domains for the agent.
 
         Returns:
