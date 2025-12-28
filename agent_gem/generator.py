@@ -33,8 +33,8 @@ class GenerationRequest:
     num_entities_each_domain: int = 1
     num_tasks_each_entity: int = 1
     num_answer_agent: int = 1
-    search_depth: int = 1
-    search_breadth: int = 1
+    search_depth: int = 2
+    search_breadth: int = 2
     require_all_incorrect: bool = False
 
 

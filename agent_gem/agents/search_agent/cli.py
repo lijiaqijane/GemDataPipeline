@@ -61,6 +61,18 @@ def add_search_synthesize_subparser(
         help="Require all candidates to be incorrect",
     )
     search_parser.add_argument(
+        "--search_depth",
+        type=int,
+        default=2,
+        help="Number of expansion iterations for entity sampling and search depth",
+    )
+    search_parser.add_argument(
+        "--search_breadth",
+        type=int,
+        default=2,
+        help="Number of new entities to extract per entity and search breadth",
+    )
+    search_parser.add_argument(
         "--output",
         type=str,
         default=None,
@@ -87,6 +99,8 @@ def handle_search_synthesize(args: argparse.Namespace) -> None:
             num_tasks_each_entity=args.num_tasks_each_entity,
             num_answer_agent=args.num_answer_agent,
             require_all_incorrect=args.require_all_incorrect,
+            search_depth=args.search_depth,
+            search_breadth=args.search_breadth,
         )
 
         logger.info("Starting generation process")

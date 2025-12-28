@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from agent_gem.tools import SearchTool, VisitTool
+from agent_gem.tools import MediaWikiTool, SearchTool, VisitTool
 
 from ..base import BaseAgent
 from .answer_generator import AnswerGeneratorMixin
@@ -46,6 +46,7 @@ class SearchAgent(
         api_key=os.getenv("SERPER_API_KEY"),
     )
     visit_tool = VisitTool(api_key=os.getenv("JINA_API_KEY"))
+    wiki_tool = MediaWikiTool()
 
     def generate(self, request: GenerationRequest) -> List[Dict[str, Any]]:
         """Generate tasks and answers using search tools.
@@ -74,13 +75,18 @@ class SearchAgent(
             f"entities per domain: {request.num_entities_each_domain}"
         )
 
+        # Get tool call map wrapped with request constraints
+        tool_call_map = self._get_tool_call_map_for_request(request)
+
         # Step 1: Entity Sampling
         entities = self.sample_entities(
             llm=self.llm,
             tools=self._get_tools_info(),
-            tool_call_map=self._get_tool_call_map(),
+            tool_call_map=tool_call_map,
             num_entities_each_domain=request.num_entities_each_domain,
             domains=request.domain,
+            num_iterations=request.search_depth,
+            entities_per_entity=request.search_breadth,
         )
         logger.info(f"Sampled {len(entities)} entities")
         breakpoint()
@@ -92,7 +98,7 @@ class SearchAgent(
             task_list = self._construct_question(
                 llm=self.llm,
                 tools=self._get_tools_info(),
-                tool_call_map=self._get_tool_call_map(),
+                tool_call_map=tool_call_map,
                 entity=entity,
                 num_tasks=request.num_tasks_each_entity,
             )
@@ -108,7 +114,7 @@ class SearchAgent(
                 candidates = self._generate_answers(
                     llm=self.llm,
                     tools=self._get_tools_info(),
-                    tool_call_map=self._get_tool_call_map(),
+                    tool_call_map=tool_call_map,
                     qa_pair=qa_pair,
                 )
                 logger.info(f"Generated {len(candidates)} candidate answers")
@@ -128,6 +134,8 @@ class SearchAgent(
                             "entity": qa_pair.entity.name,
                             "domain": qa_pair.entity.domain,
                             "description": qa_pair.entity.description,
+                            "pageview": qa_pair.entity.pageview,
+                            "parent": qa_pair.entity.parent.name if qa_pair.entity.parent else None,
                             "search_context": qa_pair.search_context,
                             "candidates": [candidate.answer for candidate in candidates],
                             "verification_results": [result.is_correct for result in verification_results],
@@ -204,7 +212,34 @@ class SearchAgent(
             "visit": self.visit_tool.execute,
         }
 
-    def _get_domains(self, num_domains: int) -> List[str]:
+    def _get_tool_call_map_for_request(
+        self, request: GenerationRequest
+    ) -> Dict[str, Callable]:
+        """Get the tool call map for the agent, wrapped to respect request constraints.
+
+        Args:
+            request: The generation request containing search constraints.
+
+        Returns:
+            Dictionary mapping tool names to their wrapped execution functions.
+        """
+
+        def wrapped_search(
+            query: str, max_results: int = 5, depth: int = 1
+        ) -> List[Dict[str, str]]:
+            # Clamp depth and max_results to request constraints
+            clamped_depth = min(max(1, depth), request.search_depth)
+            clamped_breadth = min(max(1, max_results), request.search_breadth)
+            return self.search_tool.execute(
+                query, max_results=clamped_breadth, depth=clamped_depth
+            )
+
+        return {
+            "search": wrapped_search,
+            "visit": self.visit_tool.execute,
+        }
+
+    def _get_domains(self, num_domains: int) -> List[str] :
         """Get the domains for the agent.
 
         Returns:
