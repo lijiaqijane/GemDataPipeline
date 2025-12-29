@@ -4,7 +4,7 @@ import ast
 import json
 import logging
 import re
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from agent_gem.core.task_schema import (
     EvaluationCriteria,
@@ -135,7 +135,12 @@ class TaskBuilderMixin:
             "- FINAL LINE MUST BE: return tools['submit_result'](answer)\n"
             "  (This ensures solve() returns the answer payload; do NOT omit `return`.)\n"
             "- Must call submit_result exactly once.\n"
-            "- Must construct `answer` to match submit_result_format.\n\n"
+            "- Must construct `answer` to match submit_result_format.\n"
+            "  NOTE: submit_result_format is a JSON Schema that defines the structure of `answer`.\n"
+            "  IMPORTANT: The submit_result tool contains NO validation - it's a simple pass-through wrapper.\n"
+            "  It just returns whatever you pass: def submit_result(result: Any) -> Any: return result\n"
+            "  Workflow: (1) Query data using data tools, (2) Transform results into answer dict matching submit_result_format, "
+            "(3) Call tools['submit_result'](answer) to submit (no validation happens here), (4) Return the result.\n\n"
             "Rules for `verification`:\n"
             "- Must define: def verify(tools, answer):\n"
             "- Deterministic; may import json, re.\n"
@@ -146,7 +151,11 @@ class TaskBuilderMixin:
             "- If returning a dict, include a short failure message to help repairs.\n"
             "- If answer is wrapped by submit_result (keys like status/message/submitted_data or status/message/data), verify the wrapped payload.\n"
             "- Must call at least ONE data tool (exclude submit_result) to cross-check outputs.\n"
-            "- Should verify `answer` matches submit_result_format STRUCTURE and is consistent with tool outputs.\n\n"
+            "- Should verify `answer` matches submit_result_format STRUCTURE and is consistent with tool outputs.\n"
+            "  NOTE: submit_result_format is a JSON Schema. Verify that answer has all required fields, correct types, "
+            "and that the data values are consistent with what the data tools returned.\n"
+            "  IMPORTANT: The submit_result tool does NOT validate format - it contains NO validation logic at all.\n"
+            "  All format validation is YOUR responsibility in verify(). The submit_result tool is just a pass-through wrapper.\n\n"
             f"Topic: {request.topic}\n"
             f"Task content: {task_content}\n"
             f"Allowed tool names (EXACT): {json.dumps(allowed_tool_names, ensure_ascii=False)}\n"
@@ -288,7 +297,8 @@ class TaskBuilderMixin:
     ) -> str:
         content = (task_content or "").strip()
         sentences = [s for s in re.split(r"[.!?]", content) if s.strip()]
-        if content and len(content) >= 220 and len(sentences) >= 3:
+        # Increased minimum requirements: 400 chars and 5 sentences for more detailed task descriptions
+        if content and len(content) >= 400 and len(sentences) >= 5:
             return content
 
         fmt = submit_result_format
@@ -344,18 +354,36 @@ class TaskBuilderMixin:
         ]
         tool_names = [spec.name for spec in tool_specs if spec.name != self._SUBMIT_RESULT_TOOL]
 
+        data_profile_payload: Any = data_profile or {}
+        tool_selftest_payload: Any = tool_selftest or {}
+        try:
+            data_profile_payload = self._convert_paths_to_strings(data_profile_payload)
+            tool_selftest_payload = self._convert_paths_to_strings(tool_selftest_payload)
+        except Exception:
+            pass
+
         prompt = (
             "You are a task generator.\n"
             "Create ONE verifiable task that will be progressively strengthened in later refinement rounds. Start with a"
             " reasonable, solvable baseline and align with the available tools/data.\n"
-            "Return ONLY JSON with keys: task_title, task_content, submit_result_format, difficulty_level.\n"
+            "Return ONLY JSON with keys: task_title, task_content, submit_result_format, difficulty_level.\n\n"
+            "REQUIREMENTS for task_content (MUST be detailed and comprehensive):\n"
+            "- Must be at least 400-500 characters long with 5-8 complete sentences.\n"
+            "- Must clearly describe: (1) What data to query/retrieve, (2) What operations to perform, "
+            "(3) What specific criteria or filters to apply, (4) What the expected output should contain, "
+            "(5) Any edge cases or special considerations.\n"
+            "- Must reference specific tool names and explain how they should be used together.\n"
+            "- Must include concrete examples of what fields/values to look for in the data.\n"
+            "- Must specify any data quality requirements (e.g., exclude nulls, filter by date ranges).\n"
+            "- Write in clear, actionable language that leaves no ambiguity about the task requirements.\n\n"
             f"Topic: {request.topic}\n"
             f"Tool list (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
             f"Allowed tool names (you MUST call from these): {json.dumps(tool_names, ensure_ascii=False)}\n"
             f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
-            f"Local data sources (detected): {json.dumps(data_profile or {}, ensure_ascii=False)[:1200]}\n"
-            f"Tool self-tests (schemas): {json.dumps(tool_selftest or {}, ensure_ascii=False)[:1200]}\n"
-            "CRITICAL: design submit_result_format and task_content ONLY using fields actually available from the tools/data above.\n"
+            f"Local data sources (detected): {json.dumps(data_profile_payload, ensure_ascii=False)[:1200]}\n"
+            f"Tool self-tests (schemas): {json.dumps(tool_selftest_payload, ensure_ascii=False)[:1200]}\n"
+            + "CRITICAL: design submit_result_format and task_content ONLY using fields actually available from the tools/data above.\n"
+            + "CRITICAL: difficulty_level must be the integer 1.\n"
         )
 
         max_tokens = getattr(ctx.request, "max_tokens", 10000)
@@ -388,6 +416,19 @@ class TaskBuilderMixin:
             raise RuntimeError("Task proposal failed: invalid JSON response.")
 
         task_content = (extracted.get("task_content") or "").strip()
+        # submit_result_format: JSON Schema defining the structure of the answer
+        # This format is used to:
+        # 1. Guide solve() to construct the answer dict with correct structure
+        # 2. Guide verify() to validate that answer matches the expected schema
+        # 
+        # IMPORTANT: The submit_result tool itself contains NO validation or schema checking.
+        # It is a simple pass-through wrapper: def submit_result(result: Any) -> Any: return result
+        # All validation is done by verify() function, not by submit_result tool.
+        # 
+        # Relationship:
+        # - solve() constructs answer matching submit_result_format -> calls submit_result(answer) -> returns result
+        # - verify() receives answer and validates it matches submit_result_format structure
+        # - submit_result tool does NOT check format, it just returns what it receives
         submit_result_format = extracted.get("submit_result_format") or {
             "type": "object",
             "properties": {"result": {"type": "array", "items": {"type": "object"}}},
@@ -400,17 +441,8 @@ class TaskBuilderMixin:
             tool_names,
         )
 
-        difficulty_raw = extracted.get("difficulty_level")
-        if isinstance(difficulty_raw, str):
-            mapped = {
-                "beginner": 1,
-                "easy": 1,
-                "medium": 2,
-                "hard": 3,
-                "expert": 4,
-            }.get(difficulty_raw.strip().lower())
-            difficulty_raw = mapped if mapped is not None else None
-        ctx.current_difficulty = int(difficulty_raw or ctx.current_difficulty or 1)
+        # Force difficulty_level to 1 for initial task proposal.
+        ctx.current_difficulty = 1
         ctx.add_step(
             {
                 "type": "parse_task_info",

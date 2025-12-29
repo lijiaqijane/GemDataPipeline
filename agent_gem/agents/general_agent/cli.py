@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import sys
@@ -11,8 +12,6 @@ from agent_gem.generator import GenerationRequest
 from agent_gem.llm import LLMClient
 from agent_gem.utils import check_sandbox_fusion, validate_environment
 from agent_gem.writer import TaskWriter
-from agent_gem.agents.general_agent.persist import persist_quadruple_format
-from .sandbox import GeneralAgentSandboxExecutor
 
 
 def add_synthesize_subparser(subparsers: argparse._SubParsersAction) -> None:
@@ -63,18 +62,6 @@ def add_synthesize_subparser(subparsers: argparse._SubParsersAction) -> None:
         "--verbose",
         action="store_true",
         help="Enable verbose (DEBUG) logging",
-    )
-    synth_parser.add_argument(
-        "--merge",
-        action="store_true",
-        default=False,
-        help="Merge tasks.json with existing content",
-    )
-    synth_parser.add_argument(
-        "--no-merge",
-        action="store_false",
-        dest="merge",
-        help="Overwrite tasks.json instead of merging",
     )
     synth_parser.add_argument(
         "--max-tokens",
@@ -170,7 +157,7 @@ def handle_synthesize(args: argparse.Namespace) -> None:
     agent = GeneralAgent(llm, taskdb_root=str(sandbox_path))
 
     num_tasks = getattr(args, "num", 1)
-    all_packages = []
+    successful_task_ids = []
     
     # Process each category
     for category_idx, category in enumerate(categories):
@@ -178,7 +165,6 @@ def handle_synthesize(args: argparse.Namespace) -> None:
         
         # Generate category slug for task_id prefix
         category_slug = _generate_category_slug(category)
-        category_packages = []  # Packages for current category
 
         # Process each task in the category
         for task_idx in range(num_tasks):
@@ -186,6 +172,7 @@ def handle_synthesize(args: argparse.Namespace) -> None:
             logging.info(f"Generating task {task_idx + 1}/{num_tasks} for category: {category} (ID: {task_id_prefix})")
 
             # Generate the task package (includes all refinement rounds internally)
+            # agent.generate() will automatically handle all difficulty levels and persist results
             request = GenerationRequest(
                 agent_type="general_agent",
                 topic=category,
@@ -195,90 +182,38 @@ def handle_synthesize(args: argparse.Namespace) -> None:
                 use_sandbox_fusion=args.use_sandbox_fusion,
                 max_refine_rounds=args.rounds,  # Number of rounds (initial + refinements)
                 max_validation_rounds=args.max_validation_rounds,
-                persist_result=True,
+                persist_result=True,  # Will persist all difficulty levels via persist_quadruple_format
                 max_tokens=getattr(args, "max_tokens", 10000),
                 task_id_prefix=task_id_prefix,
             )
 
             package = agent.generate(request)
-            if not package:
+            if package:
+                successful_task_ids.append(package.task.task_id)
+            else:
                 logging.warning(f"Failed to generate task package for category: {category}, task: {task_idx + 1}")
-                continue
 
-            # Extract records from writer (which loads from db.json)
-            records = writer.records
+    # Read all tasks from persisted tasks.json files for printing summary
+    all_tasks_info = []
+    for task_id in successful_task_ids:
+        task_dir = writer.task_dir(task_id, "general_agent")
+        tasks_json_path = task_dir / "tasks.json"
+        if tasks_json_path.exists():
+            try:
+                with open(tasks_json_path, 'r', encoding='utf-8') as f:
+                    tasks_data = json.load(f)
+                # Extract all tasks from the persisted file
+                for task_entry in tasks_data.get("tasks", []):
+                    task_info = task_entry.get("task", {})
+                    all_tasks_info.append({
+                        "difficulty": task_info.get("difficulty", "unknown"),
+                        "title": task_info.get("name", "Unknown"),
+                        "content": task_info.get("description", "")[:100],
+                    })
+            except Exception as e:
+                logging.debug(f"Failed to read tasks.json for {task_id}: {e}")
 
-            # Generate per-round packages for quadruple format output
-            packages = []
-
-            initial_request = GenerationRequest(
-                agent_type="general_agent",
-                topic=category,
-                num=1,
-                difficulty=1,
-                validate=not args.no_validate,
-                use_sandbox_fusion=args.use_sandbox_fusion,
-                max_refine_rounds=1,
-                max_validation_rounds=args.max_validation_rounds,
-                persist_result=False,
-                task_id_prefix=task_id_prefix,  # Use same task_id for all rounds
-            )
-            initial_package = agent.generate(initial_request)
-            if initial_package:
-                packages.append(initial_package)
-                current_package = initial_package
-
-                for round_idx in range(1, args.rounds):
-                    from agent_gem.agents.base import TaskContext
-
-                    refine_request = GenerationRequest(
-                        agent_type="general_agent",
-                        topic=category,
-                        num=1,
-                        difficulty=round_idx + 1,
-                        validate=not args.no_validate,
-                        max_refine_rounds=1,
-                        max_validation_rounds=args.max_validation_rounds,
-                        persist_result=False,
-                        task_id_prefix=task_id_prefix,  # Use same task_id for all rounds
-                    )
-                    ctx = TaskContext(task_id=current_package.task.task_id, request=refine_request)
-                    ctx.current_difficulty = round_idx + 1
-
-                    sandbox_dir = Path(writer.task_dir(current_package.task.task_id, "general_agent"), "_sandbox")
-                    sandbox = GeneralAgentSandboxExecutor(sandbox_dir=sandbox_dir)
-                    agent._configure_sandbox(sandbox)
-                    agent._register_task_tools(current_package.task.tool_set, sandbox, ctx)
-
-                    refined = agent._refine_task(
-                        previous=current_package,
-                        records=records,
-                        tool_specs=current_package.task.tool_set,
-                        ctx=ctx,
-                        target_difficulty=round_idx + 1,
-                    )
-
-                    refined = agent._ensure_substantive_task(current_package.task.tool_set, refined, ctx)
-                    if not args.no_validate:
-                        refined = agent._ensure_valid(refine_request, refined, ctx, sandbox, records)
-
-                    packages.append(refined)
-                    current_package = refined
-
-            category_packages.extend(packages)
-        
-        # Persist after each category (merge mode for multiple categories)
-        persist_quadruple_format(
-            writer,
-            category=category,
-            records=records,
-            packages=category_packages,  # Include all packages from all tasks in this category
-            output_path=sandbox_path / "tasks.json",
-            merge=(getattr(args, "merge", False) or category_idx > 0),  # Merge if multiple categories
-        )
-        
-        all_packages.extend(category_packages)
-
-    print(f"Synthesized {len(all_packages)} task(s) across {len(categories)} category/categories:")
-    for pkg in all_packages:
-        print(f"- [{pkg.task.difficulty_level}] {pkg.task.task_title}: {pkg.task.task_content[:100]}")
+    # Print summary of successfully generated tasks (all difficulty levels)
+    print(f"Synthesized {len(all_tasks_info)} task(s) across {len(categories)} category/categories:")
+    for task_info in all_tasks_info:
+        print(f"- [{task_info['difficulty']}] {task_info['title']}: {task_info['content']}")

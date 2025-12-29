@@ -221,26 +221,6 @@ import json
 import importlib.util
 import traceback
 from pathlib import Path
-import sys
-import types
-
-# Ensure a usable @mcp.tool decorator exists at import-time.
-# This does NOT provide any tool implementations; it only prevents import failures
-# when a real `mcp` package is present but lacks `tool`.
-try:
-    import mcp  # type: ignore
-except Exception:
-    mcp = types.ModuleType("mcp")
-if not hasattr(mcp, "tool"):
-    def _tool(func=None, **kwargs):
-        if func is None:
-            def wrapper(f):
-                return f
-            return wrapper
-        return func
-    mcp.tool = _tool  # type: ignore[attr-defined]
-sys.modules["mcp"] = mcp
-
 class ToolProxy(dict):
     def __getattr__(self, name):
         if name in self:
@@ -263,20 +243,6 @@ try:
                 tools[key] = value
 except Exception:
     pass
-
-def _load_records():
-    records_path = Path("records.json")
-    if not records_path.exists():
-        return []
-    try:
-        data = json.loads(records_path.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-    if isinstance(data, dict) and isinstance(data.get("records"), list):
-        data = data["records"]
-    if isinstance(data, list):
-        return [row for row in data if isinstance(row, dict)]
-    return []
 
 {extra_helpers}# User requirement: all required tools MUST be implemented by the agent in tools.py.
 missing = [name for name in {json.dumps(required_tools)} if name not in tools or not callable(tools.get(name))]

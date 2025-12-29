@@ -44,7 +44,7 @@ class SearchAgent(
         cache_path=Path(os.getenv("SEARCH_CACHE_PATH", "")),
         api_key=os.getenv("SERPER_API_KEY"),
     )
-    visit_tool = VisitTool(api_key=os.getenv("JINA_API_KEY"))
+    visit_tool = VisitTool()
 
     def generate(self, request: GenerationRequest) -> List[Dict[str, Any]]:
         """Generate tasks and answers using search tools.

@@ -20,44 +20,36 @@ def persist_quadruple_format(
     records: List[Dict[str, Any]],
     packages: Iterable[TaskPackage],
     output_path: Optional[Path] = None,
-    merge: bool = True,
 ) -> Path:
-    """Persist tasks in quadruple format compatible with general_agent output."""
+    """Persist tasks in quadruple format compatible with general_agent output.
+    
+    Each task gets its own tasks.json file in its task directory.
+    """
     packages_list = list(packages)
     if not packages_list:
         logger.warning("No packages to persist in quadruple format")
-        return output_path or (writer.root / "tasks.json")
+        # If no packages, use first package's task directory if output_path not provided
+        if output_path:
+            return output_path
+        # Fallback to writer.root if we can't determine task directory
+        return writer.root / "tasks.json"
 
-    target = output_path or (writer.root / "tasks.json")
+    # Use the first package to determine task directory
+    first_package = packages_list[0]
+    task_dir = writer.task_dir(first_package.task.task_id, first_package.agent_type)
+    target = output_path or (task_dir / "tasks.json")
 
-    # Load existing tasks if merging
-    existing_tasks = []
-    existing_tools = []
-    existing_task_keys = set()
-    if merge and target.exists():
-        try:
-            existing_data = json.loads(target.read_text())
-            existing_tasks = existing_data.get("tasks", [])
-            existing_tools = existing_data.get("tools", [])
-            for entry in existing_tasks:
-                task = entry.get("task", {}) if isinstance(entry, dict) else {}
-                task_id = task.get("id") or entry.get("name", "")
-                difficulty = task.get("difficulty") or entry.get("difficulty")
-                existing_task_keys.add((task_id, difficulty))
-        except Exception as exc:
-            logger.warning("Failed to load existing tasks.json for merging: %s", exc)
-
-    first_meta = packages_list[0].metadata if packages_list else {}
+    # Get tools_interface from the task's sandbox
+    first_meta = first_package.metadata if packages_list else {}
     tools_interface = first_meta.get("tools_code", "")
     if packages_list:
-        candidate = packages_list[0]
-        tools_path = writer.task_dir(candidate.task.task_id, candidate.agent_type) / "_sandbox" / "tools.py"
+        tools_path = task_dir / "_sandbox" / "tools.py"
         if tools_path.exists():
             tools_interface = tools_path.read_text(encoding="utf-8")
 
-    # Collect all tools from all packages and existing tasks
-    all_tools = list(existing_tools)  # Start with existing tools
-    tool_names_seen = {t.get("name", "") for t in existing_tools}
+    # Collect all tools from packages (no merging with existing)
+    all_tools = []
+    tool_names_seen = set()
     for package in packages_list:
         for tool_spec in package.task.tool_set:
             if tool_spec.name not in tool_names_seen:
@@ -69,17 +61,9 @@ def persist_quadruple_format(
                 )
                 tool_names_seen.add(tool_spec.name)
 
-    # Build tasks with task and verifier structure
-    tasks_with_verifiers = list(existing_tasks)  # Start with existing tasks
+    # Build tasks with task and verifier structure (no merging)
+    tasks_with_verifiers = []
     for package in packages_list:
-        key = (package.task.task_id, package.task.difficulty_level)
-        if key in existing_task_keys:
-            logger.debug(
-                "Skipping duplicate task: %s (difficulty %s)",
-                package.task.task_id,
-                package.task.difficulty_level,
-            )
-            continue
         if not isinstance(package.verification, str) or "def verify" not in package.verification:
             logger.warning("Skipping task with invalid verification code: %s", package.task.task_id)
             continue
@@ -106,34 +90,12 @@ def persist_quadruple_format(
             "metadata": package.metadata,
         }
         tasks_with_verifiers.append(task_entry)
-        existing_task_keys.add(key)
-
-    # Merge records if merging (use existing records from db.json if available)
-    final_records = records
-    if not final_records and writer.path.exists():
-        try:
-            db_data = json.loads(writer.path.read_text())
-            final_records = db_data.get("records", [])
-        except Exception:
-            final_records = records
-    if merge and writer.path.exists():
-        try:
-            db_data = json.loads(writer.path.read_text())
-            existing_db_records = db_data.get("records", [])
-            if existing_db_records:
-                record_titles = {r.get("title", "").lower() for r in existing_db_records}
-                for record in records:
-                    if record.get("title", "").lower() not in record_titles:
-                        existing_db_records.append(record)
-                final_records = existing_db_records
-        except Exception:
-            pass
 
     payload = {
         "environment": {
             "category": category,
-            "records": final_records,
-            "record_count": len(final_records),
+            "records": records,
+            "record_count": len(records),
         },
         "tools": all_tools,
         "tools_interface": tools_interface,
@@ -144,18 +106,16 @@ def persist_quadruple_format(
             "task_count": len(tasks_with_verifiers),
             "tool_count": len(all_tools),
             "generation_timestamp": datetime.now().isoformat(),
-            "merged": merge and target.exists(),
         },
     }
 
     target.parent.mkdir(parents=True, exist_ok=True)
     dump_json(target, payload)
     logger.info(
-        "Quadruple format tasks saved to %s (tasks: %d, tools: %d, records: %d, merged: %s)",
+        "Quadruple format tasks saved to %s (tasks: %d, tools: %d, records: %d)",
         target,
         len(tasks_with_verifiers),
         len(all_tools),
-        len(final_records),
-        merge and target.exists(),
+        len(records),
     )
     return target

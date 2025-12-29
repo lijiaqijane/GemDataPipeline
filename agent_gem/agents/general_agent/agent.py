@@ -60,7 +60,17 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 task_id = str(uuid.uuid4())
             ctx = TaskContext(task_id=task_id, request=request)
 
-            sandbox_dir = Path(self.writer.task_dir(task_id, self.agent_type), "_sandbox")
+            # Set task-specific llm_io.log path
+            task_dir = self.writer.task_dir(task_id, self.agent_type)
+            task_llm_log = task_dir / "llm_io.log"
+            original_llm_log_file = os.environ.get("LLM_LOG_IO_FILE")
+            os.environ["LLM_LOG_IO_FILE"] = str(task_llm_log)
+            # Reinitialize LLM client with new log path if log_io is enabled
+            if os.getenv("LLM_LOG_IO", "0") in {"1", "true", "True"}:
+                from agent_gem.llm import LLMClient
+                self.llm = LLMClient.from_env()
+
+            sandbox_dir = Path(task_dir, "_sandbox")
             if not request.use_sandbox_fusion:
                 raise RuntimeError("SandboxFusion is required; local sandbox execution is disabled.")
             sandbox = GeneralAgentSandboxFusionExecutor(
@@ -82,38 +92,26 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 self.writer.task_dir(task_id, self.agent_type),
             )
 
-            logger.info("Step 1/7: seeding database from web search and real pages...")
-            records = self._seed_database(request.topic, ctx, sandbox)
-            logger.info("Step 2/7: materializing local data files from harvested records...")
-            self._create_data_files_from_records(records, sandbox, ctx)
+            records: list[dict[str, Any]] | None = None
+            resume_seed = os.getenv("RESUME_SEEDED_DB", "").lower() in {"1", "true", "yes"}
+            if resume_seed:
+                records = self._load_seeded_records(ctx)
+                if records is not None:
+                    logger.info("Step 1/5: resuming from existing seeded database (skip seeding).")
+            if records is None:
+                logger.info("Step 1/5: seeding database from web search and real pages...")
+                records = self._seed_database(request.topic, ctx, sandbox)
 
-            logger.info("Step 3/6: profiling sandbox data sources...")
+            logger.info("Step 2/5: profiling sandbox data sources...")
             data_profile = self._inspect_data_sources(sandbox, ctx)
 
-            logger.info("Step 4/6: synthesizing task-specific tools...")
-            task_tool_specs, tools_code = self._synthesize_task_tools(
+            logger.info("Step 3/5: synthesizing task-specific tools...")
+            task_tool_specs, tools_code, tool_selftest = self._synthesize_task_tools(
                 request.topic, records, ctx, sandbox, data_profile
             )
             self.writer.record_steps(task_id, self.agent_type, ctx.history)
-            self._register_task_tools(task_tool_specs, sandbox, ctx, tools_code=tools_code)
-            tool_selftest = self._self_test_tools(task_tool_specs, sandbox, request.topic, ctx)
 
-            regen_needed, regen_reasons = self._needs_tool_regeneration(tool_selftest)
-            if regen_needed:
-                task_tool_specs, tools_code, tool_selftest = self._regenerate_tools_with_selftest(
-                    request.topic,
-                    records,
-                    ctx,
-                    sandbox,
-                    data_profile,
-                    tool_selftest,
-                    task_tool_specs,
-                    tools_code,
-                )
-                ctx.add_step({"type": "tool_regeneration_triggered", "reasons": regen_reasons})
-                logger.info("Tool regeneration completed to cover missing fields: %s", regen_reasons)
-
-            logger.info("Step 5/6: proposing initial task and code...")
+            logger.info("Step 4/5: proposing initial task and code...")
             package = self._propose_task(
                 task_id,
                 request,
@@ -124,44 +122,31 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 data_profile=data_profile,
                 tool_selftest=tool_selftest,
             )
+            # Check if format-based regeneration is needed
             expected_fields = self._expected_fields_from_format(package.task.submit_result_format)
             if expected_fields:
-                regen_for_format, format_reasons = self._needs_tool_regeneration(
-                    tool_selftest, required_fields=expected_fields
+                task_tool_specs, tools_code, tool_selftest = self._ensure_tools_meet_format_requirements(
+                    request.topic,
+                    records,
+                    ctx,
+                    sandbox,
+                    data_profile,
+                    task_tool_specs,
+                    tools_code,
+                    tool_selftest,
+                    expected_fields,
                 )
-                if regen_for_format:
-                    task_tool_specs, tools_code, tool_selftest = self._regenerate_tools_with_selftest(
-                        request.topic,
-                        records,
-                        ctx,
-                        sandbox,
-                        data_profile,
-                        tool_selftest,
-                        task_tool_specs,
-                        tools_code,
-                        required_fields=expected_fields,
-                    )
-                    package = self._propose_task(
-                        task_id,
-                        request,
-                        records,
-                        task_tool_specs,
-                        ctx,
-                        tools_code=tools_code,
-                        data_profile=data_profile,
-                        tool_selftest=tool_selftest,
-                    )
-                    ctx.add_step(
-                        {
-                            "type": "tool_regeneration_for_format",
-                            "reasons": format_reasons,
-                            "expected_fields": sorted(expected_fields),
-                        }
-                    )
-                    logger.info(
-                        "Tool regeneration for expected submit_result_format fields: %s",
-                        sorted(expected_fields),
-                    )
+                # Re-propose task after regeneration
+                package = self._propose_task(
+                    task_id,
+                    request,
+                    records,
+                    task_tool_specs,
+                    ctx,
+                    tools_code=tools_code,
+                    data_profile=data_profile,
+                    tool_selftest=tool_selftest,
+                )
             if package.metadata is None:
                 package.metadata = {}
             package = package.copy(
@@ -174,7 +159,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 }
             )
             package = self._ensure_substantive_task(task_tool_specs, package, ctx, request)
-            logger.info("Step 6/6: running validation and refinement passes...")
+            logger.info("Step 5/5: running validation and refinement passes...")
             package = self._ensure_valid(
                 request,
                 package,
@@ -239,7 +224,6 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                         category=request.topic or "general task",
                         records=records,
                         packages=validated_packages,
-                        merge=False,
                     )
                 except Exception:
                     logger.debug("Failed to persist quadruple format", exc_info=True)
@@ -248,6 +232,13 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
         except Exception as e:
             logger.error(f"Failed to generate task package: {e}", exc_info=True)
             return None
+        finally:
+            # Restore original LLM_LOG_IO_FILE if it was set
+            if "original_llm_log_file" in locals():
+                if original_llm_log_file is None:
+                    os.environ.pop("LLM_LOG_IO_FILE", None)
+                else:
+                    os.environ["LLM_LOG_IO_FILE"] = original_llm_log_file
 
     def _record_tool_call(self, record: Any, ctx: TaskContext) -> None:
         try:

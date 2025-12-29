@@ -88,7 +88,6 @@ class SearchTool(BaseTool):
                     )
 
             results = self._clean_results(results)
-            results = self._rerank_with_jina(query, results)[:max_results]
             if is_cached:
                 cached[query] = results
                 self._save_cache(cached)
@@ -114,77 +113,6 @@ class SearchTool(BaseTool):
             seen.add(key)
             cleaned.append({"title": title, "url": url, "summary": summary})
         return cleaned
-
-    def _rerank_with_jina(self, query: str, results: list[dict[str, str]]) -> list[dict[str, str]]:
-        api_key = os.environ.get("JINA_API_KEY", "").strip()
-        if not api_key or not results:
-            return results
-        if self.bash_runner is None:
-            return results
-
-        docs = []
-        for item in results:
-            title = str(item.get("title") or "").strip()
-            summary = str(item.get("summary") or "").strip()
-            url = str(item.get("url") or "").strip()
-            doc = " ".join(part for part in [title, summary, url] if part)
-            docs.append(doc or url or title)
-
-        cmd = (
-            "python - <<'PY'\n"
-            "import json, os, urllib.request\n"
-            "query = os.environ.get('RERANK_QUERY', '')\n"
-            "docs = json.loads(os.environ.get('RERANK_DOCS', '[]'))\n"
-            "api_key = os.environ.get('JINA_API_KEY', '')\n"
-            "payload = json.dumps({\n"
-            "  'model': 'jina-rerank-v2-base-multilingual',\n"
-            "  'query': query,\n"
-            "  'documents': docs,\n"
-            "  'top_n': min(20, len(docs))\n"
-            "}).encode('utf-8')\n"
-            "req = urllib.request.Request(\n"
-            "  'https://api.jina.ai/v1/rerank',\n"
-            "  data=payload,\n"
-            "  headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}\n"
-            ")\n"
-            "try:\n"
-            "  with urllib.request.urlopen(req, timeout=15) as resp:\n"
-            "    data = json.loads(resp.read().decode('utf-8', 'replace'))\n"
-            "  print(json.dumps({'data': data.get('data', [])}))\n"
-            "except Exception as e:\n"
-            "  print(json.dumps({'error': str(e)[:100]}))\n"
-            "PY"
-        )
-        env_prefix = (
-            f"JINA_API_KEY={api_key} "
-            f"RERANK_QUERY={json.dumps(query)} "
-            f"RERANK_DOCS={json.dumps(docs)} "
-        )
-        result = self.bash_runner(env_prefix + cmd, None)
-        stdout = (result.get("stdout") or "").strip()
-        try:
-            payload = json.loads(stdout) if stdout else {}
-        except Exception:
-            return results
-        if not isinstance(payload, dict) or payload.get("error"):
-            return results
-        data = payload.get("data")
-        if not isinstance(data, list):
-            return results
-
-        ranked: list[dict[str, str]] = []
-        seen: set[int] = set()
-        for item in sorted(data, key=lambda x: x.get("relevance_score", 0), reverse=True):
-            if not isinstance(item, dict):
-                continue
-            idx = item.get("index")
-            if not isinstance(idx, int):
-                continue
-            if idx < 0 or idx >= len(results) or idx in seen:
-                continue
-            ranked.append(results[idx])
-            seen.add(idx)
-        return ranked or results
 
     def _execute_in_sandbox(self, query: str, max_results: int) -> list[dict[str, str]]:
         cmd = (
@@ -285,7 +213,7 @@ class SearchTool(BaseTool):
 
 
 class VisitTool(BaseTool):
-    """Visit a URL and return the content."""
+    """Visit a URL and return the content using standard HTTP requests."""
 
     def __init__(
         self,
@@ -293,35 +221,35 @@ class VisitTool(BaseTool):
         timeout_s: int = 100,
         name: str = "visit",
         description: str | None = None,
-        api_key: str | None = None,
+        api_key: str | None = None,  # Kept for compatibility, but not used
     ) -> None:
         super().__init__(name=name, description=description)
         self.timeout_s = timeout_s
-        self.api_key = api_key or os.environ.get("JINA_API_KEY")
-        if not self.api_key:
-            raise ValueError(
-                "JINA_API_KEY is not set; please export it (e.g., via run.sh) before using VisitTool."
-            )
 
     def execute(self, url: str, goal: str) -> str:
+        """Fetch webpage content using standard HTTP requests."""
         max_retries = 3
-        base_url = "https://r.jina.ai"
+        
+        # Ensure URL has a scheme
+        if not url.startswith(("http://", "https://")):
+            url = f"https://{url}"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
 
         for attempt in range(max_retries):
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-            }
             try:
-                response = requests.get(f"{base_url}/{url}", headers=headers, timeout=self.timeout_s)
+                response = requests.get(url, headers=headers, timeout=self.timeout_s, allow_redirects=True)
                 if response.status_code == 200:
-                    webpage_content = response.text
-                    return webpage_content
+                    return response.text
                 else:
-                    print(response.text)
-                    raise ValueError("jina readpage error")
+                    return f"[visit] Failed to read page: HTTP {response.status_code}"
             except requests.exceptions.RequestException as e:
-                time.sleep(0.5)
                 if attempt == max_retries - 1:
-                    return "[visit] Failed to read page."
+                    return f"[visit] Failed to read page: {str(e)}"
+                time.sleep(0.5 * (attempt + 1))  # Exponential backoff
 
         return "[visit] Failed to read page."
