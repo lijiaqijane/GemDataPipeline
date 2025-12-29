@@ -45,12 +45,8 @@ class SearchAgent(
         cache_path=Path(os.getenv("SEARCH_CACHE_PATH", "")),
         api_key=os.getenv("SERPER_API_KEY"),
     )
-<<<<<<< HEAD
-    visit_tool = VisitTool()
-=======
     visit_tool = VisitTool(api_key=os.getenv("JINA_API_KEY"))
     wiki_tool = MediaWikiTool()
->>>>>>> 45d5e00cc7ac64236114c6cd4140ef8c5f8e0854
 
     def generate(
         self, request: GenerationRequest, output_file: Optional[str] = None
