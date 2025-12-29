@@ -27,8 +27,14 @@ def add_search_synthesize_subparser(
     search_parser.add_argument(
         "--domain",
         nargs="+",
-        required=True,
+        required=False,
         help="Domain(s) to search for entities (can specify multiple)",
+    )
+    search_parser.add_argument(
+        "--num_domains",
+        type=int,
+        default=10,
+        help="Number of domains to search for entities",
     )
     search_parser.add_argument(
         "--num_entities_each_domain",
@@ -49,22 +55,22 @@ def add_search_synthesize_subparser(
         help="Number of answer agents to use",
     )
     search_parser.add_argument(
-        "--search_depth",
-        type=int,
-        default=1,
-        help="Search depth for each entity",
-    )
-    search_parser.add_argument(
-        "--search_breadth",
-        type=int,
-        default=1,
-        help="Search breadth for each entity",
-    )
-    search_parser.add_argument(
         "--require_all_incorrect",
         action="store_true",
         default=False,
         help="Require all candidates to be incorrect",
+    )
+    search_parser.add_argument(
+        "--search_depth",
+        type=int,
+        default=2,
+        help="Number of expansion iterations for entity sampling and search depth",
+    )
+    search_parser.add_argument(
+        "--search_breadth",
+        type=int,
+        default=2,
+        help="Number of new entities to extract per entity and search breadth",
     )
     search_parser.add_argument(
         "--output",
@@ -88,25 +94,23 @@ def handle_search_synthesize(args: argparse.Namespace) -> None:
         request = GenerationRequest(
             agent_type="search_agent",
             domain=args.domain,
+            num_domains=args.num_domains,
             num_entities_each_domain=args.num_entities_each_domain,
             num_tasks_each_entity=args.num_tasks_each_entity,
             num_answer_agent=args.num_answer_agent,
+            require_all_incorrect=args.require_all_incorrect,
             search_depth=args.search_depth,
             search_breadth=args.search_breadth,
-            require_all_incorrect=args.require_all_incorrect,
         )
 
         logger.info("Starting generation process")
-        results = search_agent.generate(request)
 
-        # Output results
         if args.output:
-            logger.info(f"Writing results to {args.output}")
-            with open(args.output, "w", encoding="utf-8") as f:
-                json.dump(results, f, indent=2, ensure_ascii=False)
-            logger.info(f"Successfully wrote {len(results)} results to {args.output}")
+            logger.info(f"Results will be incrementally saved to {args.output}")
+            results = search_agent.generate(request, output_file=args.output)
+            logger.info(f"Successfully saved {len(results)} results to {args.output}")
         else:
-            # Print to stdout in JSON format for better readability
+            results = search_agent.generate(request)
             print(json.dumps(results, indent=2, ensure_ascii=False))
 
         logger.info(f"Generation completed. Generated {len(results)} question-answer pairs")

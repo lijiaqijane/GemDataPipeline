@@ -30,6 +30,7 @@ class QuestionAnswerPair:
     answer: str
     entity: Entity
     search_context: List[str]
+    all_search_context: List[str]
 
 
 class QuestionConstructorMixin(PromptMixin):
@@ -42,11 +43,10 @@ class QuestionConstructorMixin(PromptMixin):
     def _construct_question(
         self,
         llm: LLMClient,
-        search_tool: SearchTool,
+        tools: List[Dict[str, Any]],
+        tool_call_map: Dict[str, str],
         entity: Entity,
         num_tasks: int = 3,
-        search_depth: int = 1,
-        search_breadth: int = 1,
     ) -> List[QuestionAnswerPair]:
         """Construct multi-hop questions for the given entity.
 
@@ -63,31 +63,27 @@ class QuestionConstructorMixin(PromptMixin):
         """
         tasks: List[QuestionAnswerPair] = []
 
-        for task_idx in range(num_tasks):
-            logger.debug(f"Constructing question {task_idx + 1}/{num_tasks} for entity: {entity.name}")
+        while len(tasks) < num_tasks:
+            logger.debug(f"Constructing question {len(tasks) + 1}/{num_tasks} for entity: {entity.name}")
 
             # Get relevant context for the entity
-            context = self._get_entity_context(llm, search_tool, entity.name, search_depth, search_breadth)
+            context, search_context = self._get_entity_context(llm, tools, tool_call_map, entity.name)
+            if isinstance(context, str):
+                logger.warning(f"No context found for entity: {entity.name}")
+                continue
 
             entity_info = f"Entity: {entity.name}\nDomain: {entity.domain}"
             prompt = self.QUESTION_CONSTRUCTOR_PROMPT.format(
                 entity_name=entity.name,
                 entity_info=entity_info,
-                context=context,
+                context=context.get("obscure_info", ""),
             )
 
             max_retries = 3
             for retry in range(max_retries):
                 try:
                     messages = [
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are an expert Intelligence Analyst and Trivia Designer. "
-                                "Your goal is to create complex, multi-hop reasoning questions "
-                                "based on the provided Entity Context."
-                            ),
-                        },
+                        {"role": "system", "content": self.SYSTEM_PROMPT},
                         {"role": "user", "content": prompt},
                     ]
                     response = llm.chat_completion(
@@ -105,7 +101,8 @@ class QuestionConstructorMixin(PromptMixin):
                                 question=parsed_response["question"],
                                 answer=parsed_response["answer"],
                                 entity=entity,
-                                search_context=[context] if isinstance(context, str) else context,
+                                search_context=context,
+                                all_search_context=search_context,
                             )
                         )
                         logger.debug(f"Successfully generated question for {entity.name}")
@@ -120,59 +117,14 @@ class QuestionConstructorMixin(PromptMixin):
                         f"Error generating QA pair for {entity.name} (retry {retry + 1}/{max_retries}): {e}"
                     )
 
-            if len(tasks) <= task_idx:
-                logger.warning(f"Failed to generate question {task_idx + 1} for entity: {entity.name}")
-
         return tasks
-
-    def _examine_context_relevance(
-        self,
-        llm: LLMClient,
-        context: str,
-        entity: str,
-    ) -> bool:
-        """Examine if the context is relevant to the entity.
-
-        Args:
-            llm: LLM client for relevance checking
-            context: Context text to examine
-            entity: Entity name to check relevance against
-
-        Returns:
-            True if context is relevant to the entity, False otherwise
-        """
-        examine_context_prompt = self.EXAMINE_CONTEXT_RELEVANCE_PROMPT.format(
-            context=context,
-            entity=entity,
-        )
-
-        messages = [
-            {
-                "role": "system",
-                "content": ("You are an expert in examining the relevance of context to an entity."),
-            },
-            {
-                "role": "user",
-                "content": examine_context_prompt,
-            },
-        ]
-
-        max_tokens = getattr(self, "max_tokens", 1000)
-        try:
-            response = llm.chat_completion(messages=messages, temperature=0, max_tokens=max_tokens)
-            data = self._parse_output(response)
-            return data.get("is_relevant", False) if data else False
-        except Exception as e:
-            logger.warning(f"Error examining context relevance for {entity}: {e}")
-            return False
 
     def _get_entity_context(
         self,
         llm: LLMClient,
-        search_tool: SearchTool,
+        tools: List[Dict[str, Any]],
+        tool_call_map: Dict[str, str],
         entity_name: str,
-        search_depth: int = 1,
-        search_breadth: int = 1,
     ) -> str:
         """Get relevant context for the given entity by searching and filtering.
 
@@ -186,25 +138,30 @@ class QuestionConstructorMixin(PromptMixin):
         Returns:
             Formatted context string relevant to the entity
         """
-        context = ""
-        for page in range(search_depth, 0, -1):
-            try:
-                search_result = search_tool.execute(entity_name, max_results=search_breadth, page=page)
-                context = _format_tool_result(search_result)
-
-                if self._examine_context_relevance(llm, context, entity_name):
-                    logger.debug(f"Found relevant context for {entity_name} at page {page}")
-                    return context
-            except Exception as e:
-                logger.warning(f"Error getting context for {entity_name} at page {page}: {e}")
-
-        # Return the last context found if no relevant context was identified
-        if context:
-            logger.debug(f"Using context from last page for {entity_name}")
-        else:
-            logger.warning(f"No context found for entity: {entity_name}")
-
-        return context
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that gets context for a given entity.",
+                },
+                {
+                    "role": "user",
+                    "content": self.RETRIEVE_CONTEXT_PROMPT.format(entity_name=entity_name),
+                },
+            ]
+            response, search_context = llm.chat_with_agent(
+                messages=messages,
+                tools=tools,
+                tool_call_map=tool_call_map,
+                temperature=0.8,
+                max_tokens=2048,
+                max_sub_turns=100,
+            )
+            res = self._parse_output(response)
+            return res, search_context
+        except Exception as e:
+            logger.error(f"Error getting context for {entity_name}: {e}")
+            return "", ""
 
     def _parse_output(self, llm_response: str) -> Optional[Dict[str, Any]]:
         """Parse the JSON string generated by the LLM and return a dictionary.

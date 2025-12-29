@@ -4,7 +4,7 @@ from .docker import DockerTool
 from .python_runner import PythonRunnerTool
 from .records import JsonRecordsQueryTool
 from .sandbox_fusion import SandboxFusionTool
-from .search import SearchTool, VisitTool
+from .search import MediaWikiClient, MediaWikiTool, SearchTool, VisitTool
 
 __all__ = [
     "BaseTool",
@@ -17,4 +17,6 @@ __all__ = [
     "SandboxFusionTool",
     "SearchTool",
     "VisitTool",
+    "MediaWikiTool",
+    "MediaWikiClient",
 ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from typing import List, Tuple
@@ -57,7 +58,7 @@ class VerifierMixin(PromptMixin):
         """
         # Verify ground-truth answer
         gt_result = self._verify_answer(llm, qa_pair.question, qa_pair.answer, qa_pair.search_context)
-        logger.debug(
+        logger.info(
             f"Ground-truth verification result: {gt_result.is_correct} "
             f"for question: {qa_pair.question[:50]}..."
         )
@@ -72,7 +73,7 @@ class VerifierMixin(PromptMixin):
                 qa_pair.search_context,
             )
             candidate_results.append(result)
-            logger.debug(
+            logger.info(
                 f"Candidate answer verification result: {result.is_correct} "
                 f"for config: {candidate.generator_config.name}"
             )
@@ -108,14 +109,14 @@ class VerifierMixin(PromptMixin):
                 verification_evidence=[],
             )
 
-        context = "\n\n".join(search_context)
+        context = json.dumps(search_context)
         prompt = self.VERIFICATION_PROMPT.format(question=question, answer=answer, context=context)
 
         try:
             messages = [
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant that verifies answers.",
+                    "content": self.SYSTEM_PROMPT,
                 },
                 {"role": "user", "content": prompt},
             ]
@@ -150,6 +151,10 @@ class VerifierMixin(PromptMixin):
         if not gt_result.is_correct:
             logger.debug("Ground-truth answer is incorrect, rejecting sample")
             return False
+
+        if len(candidate_results) == 0:
+            logger.debug("No candidate answers, retaining sample")
+            return True
 
         if require_all_incorrect:
             # All candidate answers must be incorrect

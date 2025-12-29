@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import html
 import json
+import logging
 import os
+import re
 import threading
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
@@ -11,6 +15,8 @@ import requests
 
 from agent_gem.core.utils import dump_json
 from agent_gem.tools.base import BaseTool, ToolExecutionError
+
+logger = logging.getLogger(__name__)
 
 
 class SearchTool(BaseTool):
@@ -38,8 +44,8 @@ class SearchTool(BaseTool):
         self.bash_runner = bash_runner
         self._cache_lock = threading.Lock()
 
-    def execute(self, query: str, max_results: int = 5, page: int = 1) -> list[dict[str, str]]:
-        if page != 1:
+    def execute(self, query: str, max_results: int = 5, depth: int = 1) -> list[dict[str, str]]:
+        if depth != 1:
             is_cached = False
         else:
             is_cached = True
@@ -58,7 +64,7 @@ class SearchTool(BaseTool):
                 results = self._execute_in_sandbox(query, max_results)
             else:
                 url = "https://google.serper.dev/search"
-                payload = {"q": query, "page": page}
+                payload = {"q": query, "page": depth}
                 headers = {
                     "X-API-KEY": self.api_key,
                     "Content-Type": "application/json",
@@ -253,3 +259,186 @@ class VisitTool(BaseTool):
                 time.sleep(0.5 * (attempt + 1))  # Exponential backoff
 
         return "[visit] Failed to read page."
+
+
+class MediaWikiClient:
+    """MediaWiki Action API client for Wikipedia content and pageview retrieval."""
+
+    def __init__(
+        self,
+        endpoint: str = "https://en.wikipedia.org/w/api.php",
+        user_agent: str = "MediaWikiClient/1.0 (Educational Purpose)",
+    ):
+        self.endpoint = endpoint
+        self.user_agent = user_agent
+
+    def _request(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Send GET request to MediaWiki API."""
+        base_params = {
+            "format": "json",
+            "formatversion": "2",
+            "redirects": "1",
+        }
+        params.update(base_params)
+        headers = {"User-Agent": self.user_agent}
+        response = requests.get(url=self.endpoint, params=params, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    def _search_pages(self, search_term: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Search for pages using MediaWiki search."""
+        search_params = {
+            "action": "query",
+            "list": "search",
+            "srsearch": search_term,
+            "srlimit": limit,
+            "srprop": "title|pageid",
+        }
+        data = self._request(search_params)
+        results = []
+        if "query" in data and "search" in data["query"]:
+            for item in data["query"]["search"]:
+                results.append({"title": item["title"], "pageid": item["pageid"]})
+        return results
+
+    def _fetch_pageviews_rest(self, title: str, project: str = "en.wikipedia.org", days: int = 180) -> int | None:
+        """Fetch pageviews using Wikimedia Analytics REST API."""
+        end_date = datetime.now() - timedelta(days=1)
+        start_date = end_date - timedelta(days=days - 1)
+        start = start_date.strftime("%Y%m%d")
+        end = end_date.strftime("%Y%m%d")
+        encoded_title = requests.utils.quote(title.replace(" ", "_"))
+        url = (
+            f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
+            f"{project}/all-access/user/{encoded_title}/daily/{start}/{end}"
+        )
+        try:
+            headers = {"User-Agent": self.user_agent}
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                logger.warning(f"Failed to fetch pageviews for {title}: status={response.status_code}")
+                return None
+            data = response.json()
+            total_views = sum(item.get("views", 0) for item in data.get("items", []))
+            return int(total_views)
+        except Exception as e:
+            logger.warning(f"Exception while fetching pageviews for {title}: {e}")
+            return None
+
+    def _fetch_page_data(self, page_title: str) -> dict[str, Any] | None:
+        """Fetch detailed page data and clean HTML content."""
+        parse_params = {
+            "action": "parse",
+            "page": page_title,
+            "prop": "text",
+            "formatversion": "2",
+            "redirects": "1",
+        }
+        try:
+            data = self._request(parse_params)
+            if "error" in data:
+                return None
+            parse_data = data.get("parse")
+            if not parse_data:
+                return None
+            actual_title = parse_data.get("title")
+            page_id = parse_data.get("pageid")
+            html_content = parse_data.get("text", "")
+
+            # Clean HTML noise
+            noise_patterns = [
+                r'<div[^>]*class="[^"]*navbox[^"]*"[^>]*>.*?</div>',
+                r'<table[^>]*class="[^"]*infobox[^"]*"[^>]*>.*?</table>',
+                r'<table[^>]*class="[^"]*ambox[^"]*"[^>]*>.*?</table>',
+                r'<div[^>]*class="[^"]*reflist[^"]*"[^>]*>.*?</div>',
+                r'<div[^>]*class="[^"]*printfooter[^"]*"[^>]*>.*?</div>',
+                r'<div[^>]*class="[^"]*mw-authority-control[^"]*"[^>]*>.*?</div>',
+                r'<div[^>]*id="[^"]*catlinks[^"]*"[^>]*>.*?</div>',
+                r'<div[^>]*class="[^"]*portal[^"]*"[^>]*>.*?</div>',
+                r'<div[^>]*class="[^"]*hatnote[^"]*"[^>]*>.*?</div>',
+                r'<div[^>]*class="[^"]*sidebar[^"]*"[^>]*>.*?</div>',
+            ]
+            for pattern in noise_patterns:
+                html_content = re.sub(pattern, "", html_content, flags=re.DOTALL)
+
+            plain_content = re.sub(r"<[^>]+>", "", html_content)
+            plain_content = html.unescape(plain_content)
+            plain_content = re.sub(r"\[.*?\]", "", plain_content)
+
+            stop_patterns = [
+                r"^See also\s*$",
+                r"^References\s*$",
+                r"^Notes\s*$",
+                r"^External links\s*$",
+                r"^Further reading\s*$",
+                r"^参见\s*$",
+                r"^参考文献\s*$",
+                r"^注释\s*$",
+                r"^外部链接\s*$",
+                r"^相关条目\s*$",
+                r"^Category:.*",
+                r"^Portal:.*",
+                r"^Index of.*",
+                r"^vte.*",
+            ]
+            for pattern in stop_patterns:
+                match = re.search(pattern, plain_content, flags=re.IGNORECASE | re.MULTILINE)
+                if match:
+                    plain_content = plain_content[: match.start()]
+
+            plain_content = re.sub(r"\.mw-parser-output.*\{.*?\}", "", plain_content, flags=re.DOTALL)
+            plain_content = re.sub(r"\d+°\d+′[\d.]+″[NSEW].*?/\s*.*?°[NSEW]\s*[\d.]+°[NSEW]", "", plain_content)
+            plain_content = re.sub(r"http[s]?://\S+", "", plain_content)
+            plain_content = re.sub(r"\n\s*\n", "\n\n", plain_content)
+            plain_content = re.sub(r"\n{3,}", "\n\n", plain_content)
+            plain_content = re.sub(r" +", " ", plain_content)
+            plain_content = plain_content.strip()
+
+            total_pageviews = self._fetch_pageviews_rest(actual_title, days=180)
+            return {
+                "title": actual_title,
+                "pageid": page_id,
+                "content": plain_content,
+                "pageview": total_pageviews,
+            }
+        except Exception:
+            return None
+
+
+class MediaWikiTool(BaseTool):
+    """Tool for fetching Wikipedia entity data with content and pageviews."""
+
+    def __init__(
+        self,
+        *,
+        endpoint: str = "https://en.wikipedia.org/w/api.php",
+        user_agent: str = "MediaWikiClient/1.0 (Educational Purpose)",
+        name: str = "mediawiki",
+        description: str | None = "Fetch Wikipedia entity data with content and pageviews",
+    ):
+        super().__init__(name=name, description=description)
+        self.client = MediaWikiClient(endpoint=endpoint, user_agent=user_agent)
+
+    def execute(self, search_term: str, limit: int = 1) -> list[dict[str, Any]]:
+        """Execute the tool to fetch entity data."""
+        return self.fetch_entity_data(search_term, limit)
+
+    def fetch_entity_data(self, entity: Any, limit: int = 1) -> list[dict[str, Any]]:
+        """Fetch entity data from Wikipedia."""
+        entity_name = entity.name if hasattr(entity, "name") else str(entity)
+        search_results = self.client._search_pages(entity_name, limit=limit)
+        if not search_results:
+            return []
+        entity_data_list = []
+        for result in search_results:
+            page_title = result["title"]
+            page_data = self.client._fetch_page_data(page_title)
+            if page_data:
+                entity_data = {
+                    "name": page_data["title"],
+                    "domain": entity.domain if entity.domain else "",
+                    "description": page_data["content"],
+                    "pageview": page_data["pageview"],
+                }
+                entity_data_list.append(entity_data)
+        return entity_data_list

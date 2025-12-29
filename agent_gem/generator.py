@@ -29,11 +29,12 @@ class GenerationRequest:
     max_tokens: int = 10000  # Maximum tokens for LLM generation
     task_id_prefix: Optional[str] = None  # Optional prefix for task ID (e.g., "category-name-task-1")
     domain: Optional[List[str]] = None
+    num_domains: int = 10
     num_entities_each_domain: int = 1
     num_tasks_each_entity: int = 1
     num_answer_agent: int = 1
-    search_depth: int = 1
-    search_breadth: int = 1
+    search_depth: int = 2
+    search_breadth: int = 2
     require_all_incorrect: bool = False
 
 
