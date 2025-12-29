@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from agent_gem.llm import LLMClient
+
 from .prompt_mixin import PromptMixin
 
 logger = logging.getLogger(__name__)
@@ -78,20 +79,20 @@ class EntitySamplerMixin(PromptMixin):
             domain_entities = self._sample_domain_entities(
                 llm, tools, tool_call_map, domain, num_entities_each_domain
             )
-            if not domain_entities:
+            if domain_entities == []:
                 continue
+
+            # Step 2-4: Iterative entity expansion
+            domain_entities = self._iterative_entity_expansion(
+                domain_entities,
+                num_iterations=num_iterations,
+                entities_per_entity=entities_per_entity,
+            )
+
+            # Step 5: Deduplicate and prioritize long-tail entities
+            domain_entities = self._dedupe_and_sort_long_tail(domain_entities)[:num_entities_each_domain]
             entities.extend(domain_entities)
             logger.info(f"Sampled {len(domain_entities)} entities from domain: {domain}")
-
-        # Step 2-4: Iterative entity expansion
-        entities = self._iterative_entity_expansion(
-            entities,
-            num_iterations=num_iterations,
-            entities_per_entity=entities_per_entity,
-        )
-
-        # Step 5: Deduplicate and prioritize long-tail entities
-        entities = self._dedupe_and_sort_long_tail(entities)
 
         logger.info(f"Total unique entities sampled: {len(entities)}")
 
@@ -117,36 +118,39 @@ class EntitySamplerMixin(PromptMixin):
         Returns:
             List of Entity objects from the specified domain
         """
-        try:
-            messages = [
-                {
-                    "role": "system",
-                    "content": self.SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": self.ENTITY_SAMPLER_PROMPT.format(
-                        num_entities_each_domain=num_entities_each_domain, domain=domain
-                    ),
-                },
-            ]
+        domian_entities: List[Entity] = []
+        entity_names: List[str] = []
+        while len(domian_entities) < num_entities_each_domain:
+            try:
+                messages = [
+                    {
+                        "role": "system",
+                        "content": self.SYSTEM_PROMPT,
+                    },
+                    {
+                        "role": "user",
+                        "content": self.ENTITY_SAMPLER_PROMPT.format(
+                            num_entities_each_domain=1, domain=domain
+                        ),
+                    },
+                ]
 
-            response, search_context = llm.chat_with_agent(
-                messages=messages,
-                tools=tools,
-                tool_call_map=tool_call_map,
-                temperature=0.8,
-                max_tokens=2048,
-            )
+                response = llm.chat_completion(
+                    messages=messages,
+                    temperature=0.8,
+                    max_tokens=2048,
+                )
 
-            # Parse response with proper JSON parsing
-            entities = self._parse_entity_response(response, domain)
-            return entities[:num_entities_each_domain]
-        except Exception as e:
-            logger.error(f"Error sampling entities from domain {domain}: {e}")
-            # Fallback: generate simple placeholder entities
-            logger.warning(f"Using fallback entities for domain: {domain}")
-            return None
+                # Parse response with proper JSON parsing
+                entities = self._parse_entity_response(response, domain)
+                if entities[0].name in entity_names:
+                    continue
+                domian_entities.append(entities[0])
+                entity_names.append(entities[0].name)
+            except Exception as e:
+                logger.error(f"Error sampling entity from domain {domain}: {e}")
+
+        return domian_entities
 
     def _parse_entity_response(self, response: str, domain: str) -> List[Entity]:
         """Parse LLM response into Entity objects.
@@ -167,57 +171,27 @@ class EntitySamplerMixin(PromptMixin):
         # Look for JSON array pattern (may be wrapped in markdown code blocks or text)
         json_match = re.search(r"\[.*\]", response, re.DOTALL)
         if json_match:
-            try:
-                json_str = json_match.group(0)
-                data = json.loads(json_str)
+            json_str = json_match.group(0)
+            data = json.loads(json_str)
 
-                # Parse each entity from JSON
-                for item in data:
-                    if isinstance(item, dict):
-                        name = item.get("name", "").strip()
-                        description = item.get("description", "").strip()
+            # Parse each entity from JSON
+            for item in data:
+                if isinstance(item, dict):
+                    name = item.get("name", "").strip()
+                    description = item.get("description", "").strip()
 
-                        if name:
-                            entities.append(
-                                Entity(
-                                    name=name,  # Limit length to prevent issues
-                                    domain=domain,
-                                    description=description or f"Entity from {domain}",
-                                )
+                    if name:
+                        entities.append(
+                            Entity(
+                                name=name,
+                                domain=domain,
+                                description=description or f"Entity from {domain}",
                             )
-
-                if entities:
-                    logger.debug(f"Successfully parsed {len(entities)} entities from JSON")
-                    return entities
-            except (json.JSONDecodeError, ValueError, KeyError) as e:
-                logger.warning(f"Failed to parse JSON from LLM response: {e}")
-
-        # Fallback: simplified text parsing (legacy behavior)
-        # This should rarely be used if LLM returns proper JSON
-        logger.warning(f"Using fallback text parsing for domain: {domain}")
-        lines = response.split("\n")
-        for line in lines:
-            if "name" in line.lower() or len(line.strip()) > 5:
-                # Extract entity name (simplified)
-                if ":" in line:
-                    name = line.strip().replace('"', "").replace("'", "").split(":")[0]
-                else:
-                    name = line.strip()
-
-                if name and len(name) > 2:
-                    entities.append(
-                        Entity(
-                            name=name[:100],  # Limit length
-                            domain=domain,
-                            description=f"Entity from {domain}",
                         )
-                    )
 
-        if not entities:
-            logger.warning(f"No entities parsed, creating fallback entity for {domain}")
-            entities = [Entity(name=f"{domain}_entity", domain=domain)]
-
-        return entities
+            if entities:
+                logger.debug(f"Successfully parsed {len(entities)} entities from JSON")
+                return entities
 
     def _fetch_wiki_content(self, entity: Entity) -> str:
         """Fetch Wikipedia content for an entity using MediaWiki API or search fallback.
@@ -261,22 +235,14 @@ class EntitySamplerMixin(PromptMixin):
             return entity.description or ""
 
         try:
-            logger.info(
-                f"No wiki content found for: {entity.name}. Falling back to search and visit."
-            )
+            logger.info(f"No wiki content found for: {entity.name}. Falling back to search and visit.")
             # Call search tool to get the first link
             search_results = self.search_tool.execute(entity.name, max_results=1)
 
-            if (
-                search_results
-                and isinstance(search_results, list)
-                and len(search_results) > 0
-            ):
+            if search_results and isinstance(search_results, list) and len(search_results) > 0:
                 first_link = search_results[0].get("url")
                 if first_link:
-                    logger.info(
-                        f"Found link via search: {first_link}. Fetching content via visit tool."
-                    )
+                    logger.info(f"Found link via search: {first_link}. Fetching content via visit tool.")
                     # Call visit tool
                     web_content = self.visit_tool.execute(
                         first_link, goal=f"Fetch information about {entity.name}"
@@ -296,9 +262,7 @@ class EntitySamplerMixin(PromptMixin):
                         )
                         return entity.description
 
-            logger.warning(
-                f"No content found via search/visit fallback for: {entity.name}"
-            )
+            logger.warning(f"No content found via search/visit fallback for: {entity.name}")
             entity.fetched = True
             return entity.description or ""
 
@@ -333,9 +297,7 @@ class EntitySamplerMixin(PromptMixin):
 
             # Phase 2: Remove common noisy HTML containers
             noisy_tags = r"(nav|footer|header|aside|menu|sidebar|widget|banner|advertisement|ad|promo)"
-            text = re.sub(
-                rf"<{noisy_tags}[^>]*>[\s\S]*?<\/\1>", "", text, flags=re.IGNORECASE
-            )
+            text = re.sub(rf"<{noisy_tags}[^>]*>[\s\S]*?<\/\1>", "", text, flags=re.IGNORECASE)
 
             # Phase 3: Strip all remaining HTML tags
             text = re.sub(r"<[^>]+>", "", text)
@@ -460,9 +422,7 @@ class EntitySamplerMixin(PromptMixin):
             return []
 
         try:
-            parent_pv_hint = (
-                f" (approx. {entity.pageview} pageviews)" if entity.pageview else ""
-            )
+            parent_pv_hint = f" (approx. {entity.pageview} pageviews)" if entity.pageview else ""
             prompt = f"""
 Based on the following Wikipedia content about {entity.name}{parent_pv_hint},
 extract {num_entities} related but MORE OBSCURE entities that are mentioned or referenced.
@@ -491,9 +451,7 @@ Guidance / Requirements (to prioritize concrete, low-traffic long-tail entities)
      or a concise descriptor to make the entity verifiable while keeping it long-tail.
 """
 
-            logger.info(
-                f"Extracting {num_entities} entities from wiki content of: {entity.name}"
-            )
+            logger.info(f"Extracting {num_entities} entities from wiki content of: {entity.name}")
 
             response = self.llm.simple_complete(prompt, temperature=0.7, max_tokens=1024)
 
@@ -504,9 +462,7 @@ Guidance / Requirements (to prioritize concrete, low-traffic long-tail entities)
             return new_entities[:num_entities]
 
         except Exception as e:
-            logger.warning(
-                f"Error extracting entities from wiki content of {entity.name}: {e}"
-            )
+            logger.warning(f"Error extracting entities from wiki content of {entity.name}: {e}")
             return []
 
     def _normalize_name(self, name: str) -> str:
@@ -542,7 +498,9 @@ Guidance / Requirements (to prioritize concrete, low-traffic long-tail entities)
         sorted_entities = list(unique.values())
         # Sort by pageview ascending (None/0 first), then by name
         sorted_entities.sort(key=lambda x: (x.pageview or 0, (x.name or "").lower()))
-        logger.info(f"Successfully sampled {len(sorted_entities)} unique entities (prioritized by pageview)")
+        logger.info(
+            f"Successfully sampled {len(sorted_entities)} unique entities (prioritized by pageview)"
+        )
         return sorted_entities
 
     def _iterative_entity_expansion(
@@ -588,9 +546,9 @@ Guidance / Requirements (to prioritize concrete, low-traffic long-tail entities)
                         key = self._normalize_name(child.name or "")
                         if not key:
                             continue
-                        if (
-                            hasattr(self, "_seen_names") and key in self._seen_names
-                        ) or (hasattr(self, "_fetched_names") and key in self._fetched_names):
+                        if (hasattr(self, "_seen_names") and key in self._seen_names) or (
+                            hasattr(self, "_fetched_names") and key in self._fetched_names
+                        ):
                             continue
                         if hasattr(self, "_seen_names"):
                             self._seen_names.add(key)
@@ -617,19 +575,15 @@ Guidance / Requirements (to prioritize concrete, low-traffic long-tail entities)
                     parent_pv = entity.pageview or 0
                     if selected_children:
                         child_pvs = [c.pageview or 0 for c in selected_children]
-                        child_avg_pv = (
-                            sum(child_pvs) / len(child_pvs) if child_pvs else 0
-                        )
+                        child_avg_pv = sum(child_pvs) / len(child_pvs) if child_pvs else 0
 
                         should_keep_parent = (
                             parent_pv < 500  # Already long-tail, keep it
                             or len(selected_children)
                             < entities_per_entity * 0.5  # Insufficient quality children
-                            or child_avg_pv
-                            >= parent_pv * 0.8  # Children not sufficiently lower
+                            or child_avg_pv >= parent_pv * 0.8  # Children not sufficiently lower
                             or (
-                                parent_pv > 0
-                                and (parent_pv - child_avg_pv) / parent_pv < 0.2
+                                parent_pv > 0 and (parent_pv - child_avg_pv) / parent_pv < 0.2
                             )  # Relative decrease < 20%
                         )
 
@@ -656,9 +610,7 @@ Guidance / Requirements (to prioritize concrete, low-traffic long-tail entities)
                 logger.warning(f"No entities generated in iteration {iteration + 1}")
                 break
 
-            logger.info(
-                f"Generated {len(current_entities)} entities in iteration {iteration + 1}"
-            )
+            logger.info(f"Generated {len(current_entities)} entities in iteration {iteration + 1}")
 
         # Ensure all final entities are fetched
         for entity in current_entities:

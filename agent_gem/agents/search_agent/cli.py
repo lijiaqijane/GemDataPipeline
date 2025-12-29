@@ -104,16 +104,13 @@ def handle_search_synthesize(args: argparse.Namespace) -> None:
         )
 
         logger.info("Starting generation process")
-        results = search_agent.generate(request)
 
-        # Output results
         if args.output:
-            logger.info(f"Writing results to {args.output}")
-            with open(args.output, "w", encoding="utf-8") as f:
-                json.dump(results, f, indent=2, ensure_ascii=False)
-            logger.info(f"Successfully wrote {len(results)} results to {args.output}")
+            logger.info(f"Results will be incrementally saved to {args.output}")
+            results = search_agent.generate(request, output_file=args.output)
+            logger.info(f"Successfully saved {len(results)} results to {args.output}")
         else:
-            # Print to stdout in JSON format for better readability
+            results = search_agent.generate(request)
             print(json.dumps(results, indent=2, ensure_ascii=False))
 
         logger.info(f"Generation completed. Generated {len(results)} question-answer pairs")

@@ -48,12 +48,16 @@ class SearchAgent(
     visit_tool = VisitTool(api_key=os.getenv("JINA_API_KEY"))
     wiki_tool = MediaWikiTool()
 
-    def generate(self, request: GenerationRequest) -> List[Dict[str, Any]]:
+    def generate(
+        self, request: GenerationRequest, output_file: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Generate tasks and answers using search tools.
 
         Args:
             request: Generation request containing domain, entity count, task count,
                     search parameters, and verification requirements.
+            output_file: Optional path to JSON file for incremental saving. If provided,
+                        each verified question will be immediately appended to the file.
 
         Returns:
             List of dictionaries containing question-answer pairs with metadata:
@@ -91,7 +95,7 @@ class SearchAgent(
         logger.info(f"Sampled {len(entities)} entities")
 
         # Step 2: Question Construction
-        tasks: Dict[str, List] = {}
+        results: List[Dict[str, Any]] = []
         for entity in entities:
             logger.info(f"Constructing questions for entity: {entity.name}")
             task_list = self._construct_question(
@@ -101,12 +105,10 @@ class SearchAgent(
                 entity=entity,
                 num_tasks=request.num_tasks_each_entity,
             )
-            tasks[entity.name] = task_list
+
             logger.info(f"Generated {len(task_list)} questions for {entity.name}")
 
-        # Step 3: Answer Generation and Verification
-        results: List[Dict[str, Any]] = []
-        for entity_name, task_list in tasks.items():
+            # Step 3: Answer Generation and Verification
             for qa_pair in task_list:
                 logger.info(f"Generating answers for question: {qa_pair.question[:50]}...")
 
@@ -126,21 +128,24 @@ class SearchAgent(
                 )
 
                 if should_retain:
-                    results.append(
-                        {
-                            "question": qa_pair.question,
-                            "answer": qa_pair.answer,
-                            "entity": qa_pair.entity.name,
-                            "domain": qa_pair.entity.domain,
-                            "description": qa_pair.entity.description,
-                            "pageview": qa_pair.entity.pageview,
-                            "parent": qa_pair.entity.parent.name if qa_pair.entity.parent else None,
-                            "search_context": qa_pair.search_context,
-                            "candidates": [candidate.answer for candidate in candidates],
-                            "verification_results": [result.is_correct for result in verification_results],
-                        }
-                    )
-                    logger.info(f"Retained QA pair for entity: {entity_name}")
+                    result_item = {
+                        "question": qa_pair.question,
+                        "answer": qa_pair.answer,
+                        "entity": qa_pair.entity.name,
+                        "domain": qa_pair.entity.domain,
+                        "description": qa_pair.entity.description,
+                        "pageview": qa_pair.entity.pageview,
+                        "parent": qa_pair.entity.parent.name if qa_pair.entity.parent else None,
+                        "search_context": qa_pair.search_context,
+                        "all_search_context": qa_pair.all_search_context,
+                        "candidates": [candidate.answer for candidate in candidates],
+                        "verification_results": [result.is_correct for result in verification_results],
+                    }
+                    results.append(result_item)
+                    logger.info(f"Retained QA pair for entity: {entity.name}")
+
+                    if output_file:
+                        self._append_to_json_file(output_file, result_item)
 
         logger.info(f"Generated {len(results)} verified question-answer pairs")
         return results
@@ -250,8 +255,35 @@ class SearchAgent(
         ]
         domains = []
         while len(domains) < num_domains:
-            response = self.llm.chat_completion(messages=messages, temperature=1.0)
+            response = self.llm.chat_completion(messages=messages, temperature=1.2)
             domain = json.loads(response)[0]
             if domain not in domains:
                 domains.append(domain)
         return domains
+
+    def _append_to_json_file(self, file_path: str, new_item: Dict[str, Any]) -> None:
+        """Append a new item to a JSON array file.
+
+        Args:
+            file_path: Path to the JSON file
+            new_item: New item to append to the array
+        """
+        file_path_obj = Path(file_path)
+
+        if file_path_obj.exists():
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    existing_data = json.load(f)
+                    if not isinstance(existing_data, list):
+                        existing_data = []
+            except (json.JSONDecodeError, IOError):
+                existing_data = []
+        else:
+            existing_data = []
+
+        existing_data.append(new_item)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(existing_data, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"Appended result to {file_path}")

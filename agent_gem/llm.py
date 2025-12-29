@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import random
 import time
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from openai import AsyncOpenAI, OpenAI, APIError, RateLimitError, APITimeoutError
+from openai import APIError, APITimeoutError, AsyncOpenAI, OpenAI, RateLimitError
 
 from .config import LLMConfig
 
@@ -48,7 +48,7 @@ class RetryConfig:
 
         # Retry on specific HTTP status codes
         if isinstance(exception, APIError):
-            status_code = getattr(exception, 'status_code', None)
+            status_code = getattr(exception, "status_code", None)
             # Retry on server errors (5xx) and some client errors (429 is rate limit, handled above)
             if status_code and 500 <= status_code < 600:
                 return True
@@ -60,7 +60,7 @@ class RetryConfig:
 
     def get_delay(self, attempt: int) -> float:
         """Calculate delay for the given attempt using exponential backoff with optional jitter."""
-        delay = min(self.base_delay * (self.backoff_factor ** attempt), self.max_delay)
+        delay = min(self.base_delay * (self.backoff_factor**attempt), self.max_delay)
 
         if self.jitter:
             # Add random jitter up to 25% of the delay
@@ -72,6 +72,7 @@ class RetryConfig:
 
 def retry_with_backoff(retry_config: RetryConfig):
     """Decorator to add exponential backoff retry logic to functions."""
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             last_exception = None
@@ -81,11 +82,7 @@ def retry_with_backoff(retry_config: RetryConfig):
                 except Exception as e:
                     last_exception = e
                     if not retry_config.should_retry(e, attempt):
-                        logger.warning(
-                            "LLM request failed after %d attempts: %s",
-                            attempt + 1,
-                            str(e)
-                        )
+                        logger.warning("LLM request failed after %d attempts: %s", attempt + 1, str(e))
                         raise e
 
                     delay = retry_config.get_delay(attempt)
@@ -94,13 +91,15 @@ def retry_with_backoff(retry_config: RetryConfig):
                         attempt + 1,
                         retry_config.max_retries + 1,
                         str(e),
-                        delay
+                        delay,
                     )
                     time.sleep(delay)
 
             # This should never be reached, but just in case
             raise last_exception
+
         return wrapper
+
     return decorator
 
 
@@ -165,7 +164,15 @@ class LLMClient:
             self.config.model,
             len(messages),
         )
-        self._log_io_payload("prompt", {"model": self.config.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens})
+        self._log_io_payload(
+            "prompt",
+            {
+                "model": self.config.model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+        )
 
         last_exception = None
         for attempt in range(self.retry_config.max_retries + 1):
@@ -187,11 +194,7 @@ class LLMClient:
             except Exception as e:
                 last_exception = e
                 if not self.retry_config.should_retry(e, attempt):
-                    logger.warning(
-                        "LLM request failed after %d attempts: %s",
-                        attempt + 1,
-                        str(e)
-                    )
+                    logger.warning("LLM request failed after %d attempts: %s", attempt + 1, str(e))
                     raise e
 
                 if attempt < self.retry_config.max_retries:
@@ -201,7 +204,7 @@ class LLMClient:
                         attempt + 1,
                         self.retry_config.max_retries + 1,
                         str(e),
-                        delay
+                        delay,
                     )
                     time.sleep(delay)
 
@@ -221,7 +224,15 @@ class LLMClient:
             self.config.model,
             len(messages),
         )
-        self._log_io_payload("prompt_async", {"model": self.config.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens})
+        self._log_io_payload(
+            "prompt_async",
+            {
+                "model": self.config.model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+        )
 
         last_exception = None
         for attempt in range(self.retry_config.max_retries + 1):
@@ -243,11 +254,7 @@ class LLMClient:
             except Exception as e:
                 last_exception = e
                 if not self.retry_config.should_retry(e, attempt):
-                    logger.warning(
-                        "LLM async request failed after %d attempts: %s",
-                        attempt + 1,
-                        str(e)
-                    )
+                    logger.warning("LLM async request failed after %d attempts: %s", attempt + 1, str(e))
                     raise e
 
                 if attempt < self.retry_config.max_retries:
@@ -257,7 +264,7 @@ class LLMClient:
                         attempt + 1,
                         self.retry_config.max_retries + 1,
                         str(e),
-                        delay
+                        delay,
                     )
                     await asyncio.sleep(delay)
 
@@ -338,7 +345,7 @@ class LLMClient:
             content = response.choices[0].message.content
             tool_calls = response.choices[0].message.tool_calls
 
-            print(f"Turn {sub_turn}\n{reasoning_content=}\n{content=}\n{tool_calls=}")
+            # print(f"Turn {sub_turn}\n{reasoning_content=}\n{content=}\n{tool_calls=}")
 
             if tool_calls is None or sub_turn >= max_sub_turns:
                 break
