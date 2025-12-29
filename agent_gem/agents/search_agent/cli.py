@@ -78,6 +78,24 @@ def add_search_synthesize_subparser(
         default=None,
         help="Output file path for results (JSON format). If not specified, prints to stdout",
     )
+    search_parser.add_argument(
+        "--embedding_path",
+        type=str,
+        default=None,
+        help="Embedding model to use for search agent",
+    )
+    search_parser.add_argument(
+        "--faiss_index_path",
+        type=str,
+        default=None,
+        help="Faiss index to use for search agent",
+    )
+    search_parser.add_argument(
+        "--text_mapping_path",
+        type=str,
+        default=None,
+        help="Text mapping to use for search agent",
+    )
 
 
 def handle_search_synthesize(args: argparse.Namespace) -> None:
@@ -101,6 +119,9 @@ def handle_search_synthesize(args: argparse.Namespace) -> None:
             require_all_incorrect=args.require_all_incorrect,
             search_depth=args.search_depth,
             search_breadth=args.search_breadth,
+            embedding_path=args.embedding_path,
+            faiss_index_path=args.faiss_index_path,
+            text_mapping_path=args.text_mapping_path,
         )
 
         logger.info("Starting generation process")

@@ -1,0 +1,653 @@
+{
+  "Bayesian Case Model (BCM) for mammography interpretation": [
+    {
+      "title": "A Bayesian network for mammography - PubMed - NIH",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/11079854/",
+      "summary": "We have created a Bayesian belief network to integrate the findings on a mammogram, based on the standardized lexicon developed for mammography, the Breast ..."
+    }
+  ],
+  "Probabilistic expert system for mammographic-histologic correlation": [
+    {
+      "title": "A probabilistic expert system that provides automated ... - PubMed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/14736686/",
+      "summary": "Our probabilistic expert system has the potential to help radiologists in identifying breast biopsy results that are discordant with mammographic findings ..."
+    }
+  ],
+  "Observer variability in BI-RADS lesion description": [
+    {
+      "title": "Breast imaging reporting and data system standardized ...",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/8610547/",
+      "summary": "by JA Baker · 1996 · Cited by 254 — The objective of this study was to measure inter- and intraobserver variabilities of radiologists' descriptions of mammographic lesions with the BI-RADS ..."
+    }
+  ],
+  "Concept Activation Vectors (CAVs) in Histopathology": [
+    {
+      "title": "Explaining Explainability: Understanding Concept Activation Vectors",
+      "url": "https://arxiv.org/html/2404.03713v1",
+      "summary": "CAVs may be: (1) inconsistent between layers, (2) entangled with different concepts, and (3) spatially dependent. Each property provides both ..."
+    }
+  ],
+  "Shapley Additive exPlanations (SHAP) for Electronic Health Record (EHR) Models": [
+    {
+      "title": "Practical guide to SHAP analysis: Explaining model predictions",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11513550/",
+      "summary": "This tutorial provides a practical guide to one of the most popular feature‐based ML interpretability methods: SHapley Additive exPlanations (SHAP) analysis."
+    }
+  ],
+  "Local Interpretable Model-agnostic Explanations for Medical Imaging (LIME-MI)": [
+    {
+      "title": "Local interpretable model-agnostic explanation approach ...",
+      "url": "https://www.sciencedirect.com/science/article/pii/S0010482524016548",
+      "summary": "by SU Hassan · 2025 · Cited by 44 — LIME uses interpretable models to produce localized explanations based on particular predictions. These explanations provide insight into the elements that go ..."
+    }
+  ],
+  "Temporal Saliency Rescaling (TSR) for Clinical Time Series": [
+    {
+      "title": "WinTSR: A Windowed Temporal Saliency Rescaling Method ... - arXiv",
+      "url": "https://arxiv.org/html/2412.04532v1",
+      "summary": "WinTSR explicitly captures temporal dependencies among the past time steps and efficiently scales the feature importance with this time ..."
+    }
+  ],
+  "SHAP-TreeExplainer for Random Forest in Diabetic Retinopathy Detection": [
+    {
+      "title": "A machine learning-based prediction of diabetic retinopathy ... - NIH",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12163237/",
+      "summary": "This study aimed to develop and compare machine learning algorithms for predicting DR without fundus image."
+    }
+  ],
+  "Non-mydriatic fundus camera grading per Early Treatment Diabetic Retinopathy Study (ETDRS) severity scale": [
+    {
+      "title": "Assessment of Diabetic Retinopathy Using Nonmydriatic Ultra ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3507573/",
+      "summary": "by M Kernt · 2012 · Cited by 153 — A highly substantial agreement between both Optomap DR and CSME grading and ETDRS 7-field photography existed with κ = 0.79 for DR and 0.73 for CSME for grader ..."
+    }
+  ],
+  "Model performance metrics: AUC 0.748 (95% CI 0.705–0.790), sensitivity 0.669, specificity 0.729": [
+    {
+      "title": "A machine learning-based prediction of diabetic ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12163237/",
+      "summary": "by MS Kim · 2025 · Cited by 1 — The random forest model, using 16 variables, achieved the highest AUC of 0.748 (95% confidence interval, 0.705–0.790) with a sensitivity 0.669, ..."
+    }
+  ],
+  "Bayesian network for BI-RADS descriptor linkage": [
+    {
+      "title": "Bayesian Networks in Radiology - PMC - NIH",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10698603/",
+      "summary": "A Bayesian network is a graphical model that uses probability theory to represent relationships among its variables. The model is a directed acyclic graph ..."
+    }
+  ],
+  "Rita E. Sohlich (radiology researcher)": [
+    {
+      "title": "Dr. Rita Sohlich, MD | Palo Alto, CA | Radiologist - Health",
+      "url": "https://health.usnews.com/doctors/rita-sohlich-500494",
+      "summary": "Dr. Rita Sohlich is a radiologist in Palo Alto, California and is affiliated with multiple hospitals in the area, including El Camino Health-Mountain View ..."
+    }
+  ],
+  "BI-RADS standardized leicon": [
+    {
+      "title": "ACR Breast Imaging Reporting & Data System (BI-RADS®)",
+      "url": "https://www.acr.org/Clinical-Resources/Clinical-Tools-and-Reference/Reporting-and-Data-Systems/BI-RADS",
+      "summary": "The BI-RADS manual provides standardized breast imaging terminology, report organization, assessment structure and a classification system for mammography, ..."
+    }
+  ],
+  "Intraobserver variability in BI-RADS description": [
+    {
+      "title": "BI-RADS lexicon for US and mammography: interobserver ...",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/16569780/",
+      "summary": "by E Lazarus · 2006 · Cited by 691 — Interobserver variability was assessed with the Cohen kappa statistic. A pathologic diagnosis was available for all 94 lesions; 30 (32%) were malignant and 64 ( ..."
+    }
+  ],
+  "A probabilistic expert system for mammographic-histologic correlation": [
+    {
+      "title": "A probabilistic expert system that provides automated ...",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/14736686/",
+      "summary": "by ES Burnside · 2004 · Cited by 37 — Our probabilistic expert system has the potential to help radiologists in identifying breast biopsy results that are discordant with mammographic findings ..."
+    }
+  ],
+  "Testing with CAVs (TCAV)": [
+    {
+      "title": "Quantitative Testing with Concept Activation Vectors (TCAV) - arXiv",
+      "url": "https://arxiv.org/abs/1711.11279",
+      "summary": "We show how to use CAVs as part of a technique, Testing with CAVs (TCAV), that uses directional derivatives to quantify the degree to which ..."
+    }
+  ],
+  "DeepLIFT (Deep Learning Important FeaTures)": [
+    {
+      "title": "Learning Important Features Through Propagating Activation ... - arXiv",
+      "url": "https://arxiv.org/abs/1704.02685",
+      "summary": "Here we present DeepLIFT (Deep Learning Important FeaTures), a method for decomposing the output prediction of a neural network on a specific input."
+    }
+  ],
+  "DLinear (Time Series Model)": [
+    {
+      "title": "vivva/DLinear: This is an official implementation for \"Are ... - GitHub",
+      "url": "https://github.com/vivva/DLinear",
+      "summary": "In Multivariate long sequence time-series forecasting(left table), DLinear outperforms FEDformer by over 40% on Exchange rate, around 30% on Traffic, ..."
+    }
+  ],
+  "SegRNN (Time Series Model)": [
+    {
+      "title": "SegRNN: Segment Recurrent Neural Network for Long-Term Time ...",
+      "url": "https://arxiv.org/abs/2308.11200",
+      "summary": "SegRNN significantly reduce the required recurrent iterations for LTSF, resulting in notable improvements in forecast accuracy and inference speed."
+    }
+  ],
+  "Optomap Panoramic 200 SLO": [
+    {
+      "title": "Panoramic 200: A New Protocol for Dilation",
+      "url": "https://www.reviewofoptometry.com/article/panoramic-200-a-new-protocol-for-dilation",
+      "summary": "SLO technology consists of a low-powered laser beam that scans over the retina. It uses red and green frequencies of laser light. Once the light ..."
+    }
+  ],
+  "ETDRS 7-field stereo photography": [
+    {
+      "title": "Comparison of montage with conventional stereoscopic seven-field ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6909536/",
+      "summary": "The ETDRS stereoscopic seven-field (7F) has been a standard imaging and grading protocol for assessment of diabetic retinopathy (DR) severity ..."
+    }
+  ],
+  "Early Treatment Diabetic Retinopathy Study (ETDRS) severity scale": [
+    {
+      "title": "Early Treatment Diabetic Retinopathy Study design and ...",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/2062510/",
+      "summary": "Designed to assess whether argon laser photocoagulation or aspirin treatment can reduce the risk of visual loss or slow the progression of diabetic retinopathy."
+    }
+  ],
+  "Feature importance determinants: HbA1c, fasting glucose, diabetes duration, and BMI": [
+    {
+      "title": "Detection of diabetic patients in people with normal fasting glucose ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10483877/",
+      "summary": "This study aimed to investigate whether common physical examination indexes for diabetes can be used to identify the diabetes individuals from the populations ..."
+    }
+  ],
+  "Variational Quantum Eigensolver for Binding Affinity Prediction (VQE-BAP)": [
+    {
+      "title": "Variational Quantum Regression for Binding Affinity ...",
+      "url": "https://www.preprints.org/frontend/manuscript/267c35a415acfbe27492dda9cbbee8ab/download_pub",
+      "summary": "We introduce a hybrid quantum-classical framework combining molecular descriptors with variational quantum circuits for interpretable binding ..."
+    }
+  ],
+  "RDKit's Z-score normalization for quantum encoding": [
+    {
+      "title": "QKDTI A quantum kernel based machine learning model ...",
+      "url": "https://www.nature.com/articles/s41598-025-07303-z",
+      "summary": "by G Pallavi · 2025 · Cited by 1 — In addition, Z-score normalization ensured that the molecular descriptors had a zero mean and unit variance before encoding them into quantum ..."
+    }
+  ],
+  "Quantum-Assisted Singular Value Decomposition (QSVD) for Binding Affinity Prediction": [
+    {
+      "title": "Characterizing protein-ligand binding using atomistic simulation and ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7771725/",
+      "summary": "Principal component analysis (PCA) and its formulation using the singular value decomposition (SVD) represent venerable strategies for dimensionality reduction ..."
+    }
+  ],
+  "Quasiharmonic Analysis of Protein Trajectories": [
+    {
+      "title": "QAARM: quasi-anharmonic autoregressive model reveals ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3117343/",
+      "summary": "by AJ Savol · 2011 · Cited by 24 — Motivation: Molecular dynamics (MD) simulations have dramatically improved the atomistic understanding of protein motions, energetics and function."
+    }
+  ],
+  "Mean Protein-Inhibitor van der Waals Energies as Thermodynamic Observables": [
+    {
+      "title": "Characterizing protein-ligand binding using atomistic simulation and ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7771725/",
+      "summary": "The corresponding matrices of thermodynamic observables that are considered include mean per-residue ligand-protease van der Waals interactions, DLJ (computed ..."
+    }
+  ],
+  "Quantum Approximate Optimization Algorithm for Ligand Docking (QAOA-LD)": [
+    {
+      "title": "Molecular docking via quantum approximate optimization algorithm",
+      "url": "https://link.aps.org/doi/10.1103/PhysRevApplied.21.034036",
+      "summary": "Here, we introduce a potential alternative solution to this problem using a quantum approximate optimization algorithm (QAOA) based algorithm."
+    }
+  ],
+  "Variational Quantum Eigensolver for Protein-Ligand Binding Affinity Prediction": [
+    {
+      "title": "A Quantum Framework for Protein Binding‐Site Structure ...",
+      "url": "https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202513641",
+      "summary": "This study presents a hybrid quantum-classical framework for accurate prediction of protein structures on utility-level quantum processors."
+    }
+  ],
+  "Quantum Kernel Alignment for Binding Pocket Similarity": [
+    {
+      "title": "Estimating the Similarity between Protein Pockets - MDPI",
+      "url": "https://www.mdpi.com/1422-0067/23/20/12462",
+      "summary": "Almost all alignment-based geometric matching methods aim at minimizing the root mean square deviation (RMSD) of superposition candidates or ..."
+    }
+  ],
+  "The Tsubame-KFC Supercomputer Benchmark for Quantum Docking Simulations": [
+    {
+      "title": "[PDF] TSUBAME-KFC : the Greenest Supercomputer in the World With ...",
+      "url": "https://www.gsic.titech.ac.jp/sites/default/files/TSUBAME_ESJ_11en_0.pdf",
+      "summary": "In this study, we develop the FD code for the multi GPU simulation and examine the performance tests on TSUBAME which is one of the Japanese ..."
+    }
+  ],
+  "Discrete Truncated Wigner Approximation for Quantum Molecular Dynamics in Docking": [
+    {
+      "title": "Generalized Discrete Truncated Wigner Approximation for ... - arXiv",
+      "url": "https://arxiv.org/abs/2104.07139",
+      "summary": "Here, we introduce a linearized semiclassical method, the generalized discrete truncated Wigner approximation (GDTWA), which is well-established ..."
+    }
+  ],
+  "Quantum Approximate Optimization Algorithm (QAOA) for Molecular Docking": [
+    {
+      "title": "Quantum Approximate Optimization Algorithms for Molecular Docking",
+      "url": "https://arxiv.org/abs/2503.04239",
+      "summary": "This paper presents a Digitized Counterdiabatic QAOA (DC-QAOA) approach to molecular docking. Simulated quantum runs were conducted on a GPU cluster."
+    }
+  ],
+  "Variational Quantum Deflation (VQD) for Excited State Energy Landscapes": [
+    {
+      "title": "Efficient charge-preserving excited state preparation with variational ...",
+      "url": "https://arxiv.org/html/2410.14357v1",
+      "summary": "Low-depth quantum algorithms, such as the Variational Quantum Eigensolver (VQE) and its variants, can be used to determine the ground-state ..."
+    }
+  ],
+  "Quantum Approximate Optimization Algorithm (QAOA) for Protein-Ligand Docking": [
+    {
+      "title": "Molecular docking via quantum approximate optimization ...",
+      "url": "https://link.aps.org/doi/10.1103/PhysRevApplied.21.034036",
+      "summary": "by QM Ding · 2024 · Cited by 33 — In this section, we focus on the practical implementation of the QAOA-based algorithms in tackling three protein-ligand docking problems. The ..."
+    }
+  ],
+  "Variational Quantum Eigensolver (VQE) for Molecular Docking": [
+    {
+      "title": "Fragment molecular orbital-based variational quantum eigensolver ...",
+      "url": "https://www.nature.com/articles/s41598-024-52926-3",
+      "summary": "This method combines the fragment molecular orbital (FMO) approach with VQE and efficiently utilizes qubits for quantum chemistry simulations."
+    }
+  ],
+  "Quantum Subgraph Isomorphism for Pharmacophore Mapping": [
+    {
+      "title": "Molecular docking via weighted subgraph isomorphism on quantum ...",
+      "url": "https://iopscience.iop.org/article/10.1088/2058-9565/ae0890",
+      "summary": "We propose a problem formulation as a weighted subgraph isomorphism between the ligand graph and the grid of the target protein pocket. In ..."
+    }
+  ],
+  "RY and RZ-based quantum circuits for feature embedding": [
+    {
+      "title": "[PDF] arXiv:2504.07273v1 [quant-ph] 9 Apr 2025",
+      "url": "https://arxiv.org/pdf/2504.07273",
+      "summary": "Variational quantum circuits. (VQCs) offer a promising alternative: they leverage quantum mechanics to capture intricate relationships and ..."
+    }
+  ],
+  "Binding DB dataset in quantum DTI studies": [
+    {
+      "title": "QKDTI A quantum kernel based machine learning model for drug ...",
+      "url": "https://www.nature.com/articles/s41598-025-07303-z",
+      "summary": "QKDTI was evaluated on benchmark datasets - Davis and KIBA, and validated independently on BindingDB. This model achieves 94.21% accuracy on ..."
+    }
+  ],
+  "BindingDB-derived dataset with three major target classes (kinases, GPCRs, proteases)": [
+    {
+      "title": "BindingDB: a web-accessible database of experimentally ... - NIH",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1751547/",
+      "summary": "BindingDB currently holds ∼20 000 binding data for ∼11 000 different small molecule ligands and 110 different drug-targets; or 74 targets when mutants and ..."
+    }
+  ],
+  "Seven physicochemical descriptors for quantum encoding (MW, logP, TPSA, HBD, HBA, nRotB, nArom)": [
+    {
+      "title": "Variational Quantum Regression for Binding Affinity ...",
+      "url": "https://www.preprints.org/manuscript/202510.1031",
+      "summary": "Seven physicochemical descriptors (MW, logP, TPSA, HBD/HBA, rotatable bonds, aromatic rings) were encoded into 6-qubit variational circuits ..."
+    }
+  ],
+  "Eternal validation set from ChEMBL (SRC, JAK2, H1, M3, Elastase, Cathepsin)": [
+    {
+      "title": "u87 cell lines: Topics by Science.gov",
+      "url": "https://www.science.gov/topicpages/u/u87+cell+lines",
+      "summary": "Newly synthesized cathepsin G and neutrophil elastase rapidly became resistant to endoglycosidase H, indicating transport through the medial and trans ..."
+    }
+  ],
+  "Quasi-anharmonic analysis (QAA)": [
+    {
+      "title": "QAARM: quasi-anharmonic autoregressive model reveals ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3117343/",
+      "summary": "by AJ Savol · 2011 · Cited by 24 — We recently put forward a low-dimensional representation of protein motions at long timescales using a novel technique, quasi-anharmonic analysis (QAA; ..."
+    }
+  ],
+  "Quasiharmonic analysis (applied to protein dynamics)": [
+    {
+      "title": "Quasiharmonic analysis of protein energy landscapes from ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5942443/",
+      "summary": "by JM Rodgers · 2017 · Cited by 9 — Positional fluctuations of an atom in a protein can be described as motion in an effective local energy minimum created by the surrounding protein atoms."
+    }
+  ],
+  "Regularized regression (supervised ML for thermodynamic observables)": [
+    {
+      "title": "Supervised Machine Learning Approach to Estimating the ...",
+      "url": "https://www.sciencedirect.com/science/article/pii/S2666202725004227",
+      "summary": "The ML regression algorithms were evaluated using different metrics to determine their prediction accuracy. In the current study, the mean ..."
+    }
+  ],
+  "Quasiharmonic Analysis (QHA) for Protein Dynamics": [
+    {
+      "title": "Quasi‐harmonic method for studying very low frequency modes in ...",
+      "url": "https://onlinelibrary.wiley.com/doi/abs/10.1002/bip.360230610",
+      "summary": "A quasi-harmonic approximation is described for studying very low frequency vibrations and flexible paths in proteins."
+    }
+  ],
+  "Regularized Regression on Thermodynamic Observables": [
+    {
+      "title": "Regularized Regression Techniques for Model Reduction in ...",
+      "url": "https://arc.aiaa.org/doi/10.2514/1.A36105",
+      "summary": "by T Nishikawa · 2025 — It introduces a novel model construction technique using Lasso regression for data preprocessing and feature engineering within thermal analysis contexts."
+    }
+  ],
+  "Cα–Cα Distance as a Thermodynamic Observable in MD Analysis": [
+    {
+      "title": "Thermodynamic coupling between activation and inactivation gating ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3226968/",
+      "summary": "In the closed state (1K4C), the Cα-Cα distance between Phe103 and Ala73 is 9.2 Å, and it is 8.3 Å between Phe103 and Thr74. In contrast, those distances are ..."
+    }
+  ],
+  "Kepler Fluid Cooling (KFC)": [
+    {
+      "title": "[PDF] TSUBAME-KFC: a Modern Liquid Submersion Cooling Prototype ...",
+      "url": "http://www.el.gsic.titech.ac.jp/endo/publication/endo-icpads14.pdf",
+      "summary": "Section 1, called TSUBAME-KFC (Kepler Fluid Cooling). TSUBAME-KFC was designed and built in collaboration with NEC, NVIDIA, and most ..."
+    }
+  ],
+  "Variational Quantum Eigensolver for Protein-Ligand Binding Affinity": [
+    {
+      "title": "A Quantum Framework for Protein Binding‐Site Structure Prediction ...",
+      "url": "https://advanced.onlinelibrary.wiley.com/doi/10.1002/advs.202513641",
+      "summary": "This study presents a hybrid quantum-classical framework for accurate prediction of protein structures on utility-level quantum processors."
+    }
+  ],
+  "Coherent Ising Machine for Conformational Sampling": [
+    {
+      "title": "Efficient sampling of ground and low-energy Ising spin ...",
+      "url": "https://link.aps.org/doi/10.1103/PhysRevResearch.4.013009",
+      "summary": "The authors develop a coherent Ising machine model to study sampling problems and explore additional effects, like quantum fluctuations."
+    }
+  ],
+  "Pauli Basis Tomography for Molecular Hamiltonian Compression": [
+    {
+      "title": "Variational quantum Hamiltonian engineering - APS Journals",
+      "url": "https://link.aps.org/doi/10.1103/PhysRevResearch.7.023123",
+      "summary": "by B Zhao · 2025 · Cited by 1 — We propose a variational quantum algorithm called variational quantum Hamiltonian engineering (VQHE) to minimize the Pauli norm of a Hamiltonian."
+    }
+  ],
+  "Digitized Counterdiabatic QAOA (DC-QAOA)": [
+    {
+      "title": "Digitized-counterdiabatic quantum approximate optimization algorithm",
+      "url": "https://link.aps.org/doi/10.1103/PhysRevResearch.4.013141",
+      "summary": "We propose a digitized version of the QAOA enhanced via the use of shortcuts to adiabaticity. Specifically, we use a counterdiabatic (CD) driving term to ..."
+    }
+  ],
+  "Christos Papalitsas": [
+    {
+      "title": "‪Christos Papalitsas‬ - ‪Google Scholar‬",
+      "url": "https://scholar.google.com/citations?user=FdMYu3UAAAAJ&hl=en",
+      "summary": "Pfizer Inc. - ‪‪Cited by 400‬‬ - ‪Optimization‬ - ‪Quantum Computing‬ - ‪Metaheuristics‬ - ‪High Performance Computing‬"
+    }
+  ],
+  "arXiv:2503.04239": [
+    {
+      "title": "Quantum Approximate Optimization Algorithms for Molecular Docking",
+      "url": "https://arxiv.org/abs/2503.04239",
+      "summary": "This paper presents a Digitized Counterdiabatic QAOA (DC-QAOA) approach to molecular docking. Simulated quantum runs were conducted on a GPU cluster."
+    }
+  ],
+  "Charge-preserving VQD (CPVQD)": [
+    {
+      "title": "Efficient charge-preserving excited state preparation with variational ...",
+      "url": "https://arxiv.org/abs/2410.14357",
+      "summary": "In this study, we introduce a charge-preserving VQD (CPVQD) algorithm, designed to incorporate symmetry and the corresponding conserved charge into the VQD ..."
+    }
+  ],
+  "Variational Quantum Deflation (VQD) for Excited State Calculations": [
+    {
+      "title": "Variational Quantum Deflation for excited states - InQuanto 5.1.2",
+      "url": "https://docs.quantinuum.com/inquanto/tutorials/InQ_tut_vqd.html",
+      "summary": "In this file, we will introduce the methodology for finding electronic excited state energies using the Variational Quantum Deflation (VQD) approach in InQuanto ..."
+    }
+  ],
+  "Orbital-Optimized VQE (OO-VQE)": [
+    {
+      "title": "Orbital-optimized pair-correlated electron simulations on trapped-ion ...",
+      "url": "https://www.nature.com/articles/s41534-023-00730-8",
+      "summary": "The VQE algorithm allows the user to select the form of the parameterized circuit. This flexibility allows one to adjust the circuit depth based ..."
+    }
+  ],
+  "Adaptive Derivative-Assembled Pseudo-Trotter (ADAPT)-VQE": [
+    {
+      "title": "Study of Adaptative Derivative-Assemble Pseudo-Trotter Ansatzes in ...",
+      "url": "https://arxiv.org/abs/2210.15438",
+      "summary": "The key point of ADAPT-VQE is to grow the ansatz at every step, by adding operators chosen from a pre-determined pool of operators one-at-a-time."
+    }
+  ],
+  "Unitary Coupled-Cluster Singles and Doubles (UCCSD) ansatz": [
+    {
+      "title": "Qubit coupled cluster singles and doubles variational quantum ...",
+      "url": "https://arxiv.org/abs/2005.08451",
+      "summary": "Among all proposed VQE algorithms, the unitary coupled cluster singles and doubles excitations (UCCSD) VQE ansatz has achieved high accuracy and ..."
+    }
+  ],
+  "Quantum Subspace Expansion (QSE)": [
+    {
+      "title": "Quantum Subspace Expansion AlgorithmQSE",
+      "url": "https://docs.quantinuum.com/inquanto/manual/algorithms/algorithms_qse.html",
+      "summary": "AlgorithmQSE is a high level interface of InQuanto to run the QSE algorithm for given qubit operator and ansatz with optimal parameters to evaluate the ..."
+    }
+  ],
+  "Unitary Coupled Cluster with Singles and Doubles (UCCSD) ansatz": [
+    {
+      "title": "Qubit coupled cluster singles and doubles variational quantum ...",
+      "url": "https://arxiv.org/abs/2005.08451",
+      "summary": "Among all proposed VQE algorithms, the unitary coupled cluster singles and doubles excitations (UCCSD) VQE ansatz has achieved high accuracy and ..."
+    }
+  ],
+  "Quantum Imaginary Time Evolution (QITE)": [
+    {
+      "title": "Quantum Imaginary Time Evolution (QITE) Algorithm – AQT",
+      "url": "https://aqt.lbl.gov/aqt-research/quantum-computation-simulation/quantum-imaginary-time-evolution-qite-algorithm/",
+      "summary": "The QITE algorithm works differently because such an ansatz is not needed. At each timestep (which is computed from the results of the previous one), the ..."
+    }
+  ],
+  "Quantum Phase Estimation (QPE) for binding affinity calculation": [
+    {
+      "title": "Quantum Sundays |10   Quantum Phase Estimation and Its Industrial ...",
+      "url": "https://medium.com/@adnanmasood/quantum-sundays-10-quantum-phase-estimation-and-its-industrial-viability-7bfb7617784b",
+      "summary": "QPE is a cornerstone algorithm in quantum computing that enables the extraction of eigenvalues (phases) of unitary operators with high precision."
+    }
+  ],
+  "Quantum circuit ansatz for molecular conformation": [
+    {
+      "title": "Quantum Information Driven Ansatz (QIDA): Shallow-Depth ...",
+      "url": "https://pubs.acs.org/doi/10.1021/acs.jpca.4c03756",
+      "summary": "A novel approach to constructing a starting point for variational quantum circuits, leveraging quantum mutual information from classical quantum chemistry ..."
+    }
+  ],
+  "The Penn Treebank II bracketing guidelines": [
+    {
+      "title": "[PDF] Bracketing Guidelines for Treebank II Style - LDC Catalog",
+      "url": "https://catalog.ldc.upenn.edu/docs/LDC99T42/prsguid1.pdf",
+      "summary": "Bracketing Guidelines for Treebank II Style. Penn Treebank Project 1. Principal ... Part-of-Speech Tagging Guidelines for the Penn Treebank Project. (3rd ..."
+    }
+  ],
+  "prsguid1.pdf": [
+    {
+      "title": "[PDF] Bracketing Guidelines for Treebank II Style - LDC Catalog",
+      "url": "https://catalog.ldc.upenn.edu/docs/LDC99T42/prsguid1.pdf",
+      "summary": "Beatrice Santorini wrote the previous manual, upon which much of our policy is still based. Finally, we would like to thank a set of people too numerous to ..."
+    }
+  ],
+  "Linguistic Data Consortium (LDC) catalog number LDC99T42": [
+    {
+      "title": "Treebank-3 - Linguistic Data Consortium - LDC Catalog",
+      "url": "https://catalog.ldc.upenn.edu/LDC99T42",
+      "summary": "Item Name: Treebank-3 ; Author(s):, Mitchell P. Marcus, Beatrice Santorini, Mary Ann Marcinkiewicz, Ann Taylor ; LDC Catalog No.: LDC99T42 ; ISBN: 1-58563-163-9."
+    }
+  ],
+  "The PASCAL Recognising Textual Entailment (RTE) Challenges": [
+    {
+      "title": "The PASCAL Recognising Textual Entailment Challenge",
+      "url": "https://link.springer.com/chapter/10.1007/11736790_9",
+      "summary": "by I Dagan · 2005 · Cited by 2994 — The RTE task is defined as recognizing, given two text fragments, whether the meaning of one text can be inferred (entailed) from the other."
+    }
+  ],
+  "ICoS-3 (The third workshop on inference in computational semantics)": [
+    {
+      "title": "Inference in Computational Semantics - Inria",
+      "url": "https://inria.hal.science/inria-00100514/",
+      "summary": "by P Blackburn · 2001 · Cited by 126 — The Third Workshop on Inference in Computational Seamntics (ICoS-3) continues to pursue the aims of its predecessors (ICoS-1, held in Amsterdam, ..."
+    }
+  ],
+  "MLCW 2005 (Machine Learning Challenges Workshop)": [
+    {
+      "title": "Machine Learning Challenges - Springer Link",
+      "url": "https://link.springer.com/book/10.1007/11736790",
+      "summary": "by J Quiñonero-Candela · Cited by 24 — Included in the following conference series: MLCW: Machine Learning Challenges Workshop. Conference proceedings info: MLCW 2005. 65k Accesses."
+    }
+  ],
+  "Technical document versioning (prsguid1.pdf)": [
+    {
+      "title": "Parser FAQ - CoreNLP",
+      "url": "https://stanfordnlp.github.io/CoreNLP/tools_parser_faq.html",
+      "summary": "There is an online copy of its documentation; in particular, see TAGGUID1.PDF (POS tagging guide) and PRSGUID1.PDF (phrase structure bracketing guide) and a ( ..."
+    }
+  ],
+  "LDC93T3 ATIPSTER Complete": [
+    {
+      "title": "TIPSTER Complete - Linguistic Data Consortium - LDC Catalog",
+      "url": "https://catalog.ldc.upenn.edu/LDC93T3A",
+      "summary": "The test collection consists of three CD-ROMs of SGML encoded documents distributed by LDC plus queries and answers (relevant documents) distributed by NIST."
+    }
+  ],
+  "LDC2002T07 RST Discourse Treebank": [
+    {
+      "title": "RST Discourse Treebank - Linguistic Data Consortium",
+      "url": "https://catalog.ldc.upenn.edu/LDC2002T07",
+      "summary": "Item Name: RST Discourse Treebank ; Author(s):, Lynn Carlson, Daniel Marcu, Mary Ellen Okurowski ; LDC Catalog No.: LDC2002T07 ; ISBN: 1-58563-223-6 ; ISLRN: 299- ..."
+    }
+  ],
+  "LDC2008T23 NomBank v1.0": [
+    {
+      "title": "LDC Catalog by Year - University of Pennsylvania",
+      "url": "https://catalog.ldc.upenn.edu/byyear",
+      "summary": "ACE Time Normalization (TERN) 2004 English Evaluation Data V1.0. LDC2010T13 ... NomBank v 1.0. LDC2008T15, North American News Text, Complete. LDC2008T16 ..."
+    }
+  ],
+  "LDC2015T08 Coordination Annotation for the Penn Treebank": [
+    {
+      "title": "Coordination Annotation for the Penn Treebank - LDC Catalog",
+      "url": "https://catalog.ldc.upenn.edu/LDC2015T08",
+      "summary": "Coordination Annotation for the Penn Treebank is a stand-off annotation for the Wall Street Journal portion of Treebank-3 (PTB3) (LDC99T42) ..."
+    }
+  ],
+  "Codemeta.json": [
+    {
+      "title": "CodeMeta user guide",
+      "url": "https://codemeta.github.io/user-guide/",
+      "summary": "A CodeMeta instance file describes the metadata associated with a software object using JSON's linked data (JSON-LD) notation."
+    }
+  ],
+  "Hopf bifurcation condition in FHN model": [
+    {
+      "title": "Hopf Bifurcation in the Delayed Fitzhugh–Nagumo Model With ...",
+      "url": "https://onlinelibrary.wiley.com/doi/10.1002/mma.11023",
+      "summary": "In this paper, we explore the dynamical behavior of the time-delayed FitzHugh–Nagumo (FHN) model within quasi-Laplacian networks."
+    }
+  ],
+  "The Brain Gene Expression Map (BGEM) project": [
+    {
+      "title": "BGEM: An In Situ Hybridization Database of Gene Expression in the ...",
+      "url": "https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.0040086",
+      "summary": "BGEM contains more than 30,000 images, representing expression data obtained from more than 2,400 unique probes hybridized to more than 129,000 ..."
+    }
+  ],
+  "St. Jude Brain Gene Expression Map (BGEM) tissue-blocking system": [
+    {
+      "title": "BGEM: An In Situ Hybridization Database of Gene Expression ... - NIH",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1413568/",
+      "summary": "Toward this goal, we have developed a publicly available database of gene expression patterns, the St. Jude Brain Gene Expression Map (BGEM)."
+    }
+  ],
+  "NINDS GENSAT Contract N01-NS-0-2331": [
+    {
+      "title": "GENSAT Project at Rockefeller University",
+      "url": "http://www.gensat.org/tutorial/index.html",
+      "summary": "NINDS GENSAT BAC TRANSGENIC PROJECT Supported by NINDS Contract #NO1-NS-0-2331. Tutorial. Welcome to the Gensat tutorial."
+    }
+  ],
+  "Bifurcation Analysis of the Dopamine-Acetylcholine Oscillator Model in Striatal Interneurons": [
+    {
+      "title": "A detailed look at striatal acetylcholine, dopamine, and their ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11621726/",
+      "summary": "This study provides needed clarity on the dynamics of the neuromodulatory milieu in which striatal circuits exist during motivated behavior."
+    }
+  ],
+  "Region-specific burst–pause–burst sequences in DLS CINs": [
+    {
+      "title": "A detailed look at striatal acetylcholine, dopamine, and their ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11621726/",
+      "summary": "At the Go! cue, a majority of DLS CINs showed the characteristic short-latency burst–pause–burst sequence originally described in TANs (2, 3)."
+    }
+  ],
+  "Insensitivity of CIN activity to reward prediction errors": [
+    {
+      "title": "A mismatch between striatal cholinergic pauses and dopaminergic ...",
+      "url": "https://www.pnas.org/doi/10.1073/pnas.2410828121",
+      "summary": "CINs are thought to pause firing when pulses of dopamine signal reward prediction errors (RPEs), jointly gating synaptic plasticity and thereby learning."
+    }
+  ],
+  "BAC Transgenic Project methodology (GENSAT)": [
+    {
+      "title": "ninds gensat bac transgenic project",
+      "url": "http://www.gensat.org/BACProtocol.pdf",
+      "summary": "Prepare DNA by standard alkaline method and digest with unique restriction enzymes. Compare the resulting pattern with those from wild-type BAC and shuttle ..."
+    }
+  ],
+  "N01-NS-0-2331": [
+    {
+      "title": "GENSAT Project at Rockefeller University",
+      "url": "http://www.gensat.org/tutorial/index.html",
+      "summary": "Supported by NINDS Contract #NO1-NS-0-2331. Tutorial. Welcome to the Gensat tutorial. Our images of mouse brain are organized by gene and age. Information ..."
+    }
+  ],
+  "Lyapunov function (in backstepping context)": [
+    {
+      "title": "Backstepping-Based Lyapunov Function Construction ...",
+      "url": "https://ieeexplore.ieee.org/document/7495009/",
+      "summary": "by Z Wang · 2016 · Cited by 51 — Through backstepping technique, the control Lyapunov function (CLF) of the full system is constructed finally making use of the strict-feedback ..."
+    }
+  ],
+  "Dorsomedial striatum (DMS) CIN pause response to Go cues": [
+    {
+      "title": "A detailed look at striatal acetylcholine, dopamine, and their ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11621726/",
+      "summary": "... CIN firing across the striatum. In DMS, for instance, CIN pauses often arose before Go! cue-evoked DA increases, and DA bursts were not ..."
+    }
+  ],
+  "Striatal cholinergic interneurons (CINs)": [
+    {
+      "title": "Striatal Cholinergic Interneurons: How to Elucidate Their Function in ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6923719/",
+      "summary": "Striatal cholinergic interneurons (CINs) are the main source of acetylcholine in the striatum and are believed to play an important role in basal ganglia ..."
+    }
+  ],
+  "Opto-tagging using Cre-dependent viral transduction in transgenic rats": [
+    {
+      "title": "A toolbox of Cre-dependent optogenetic transgenic mice for light ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3337962/",
+      "summary": "Here we present a toolbox of 4 knock-in mouse lines engineered for strong, Cre-dependent expression of channelrhodopsins ChR2-tdTomato and ChR2-EYFP."
+    }
+  ],
+  "Region-specific burst-pause-burst sequence in dorsolateral striatum CINs": [
+    {
+      "title": "A detailed look at striatal acetylcholine, dopamine, and their ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11621726/",
+      "summary": "Region-specific responses were also observed to reward “clicks”: DLS CINs again showed a burst–pause–burst response, but CINs in the DMS and VS ..."
+    }
+  ],
+  "Insensitivity of CIN activity patterns to motivation or reward expectation": [
+    {
+      "title": "A detailed look at striatal acetylcholine, dopamine, and their ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11621726/",
+      "summary": "For example, the authors observed that the activity patterns of CINs are largely insensitive to changes in motivation or reward expectation."
+    }
+  ]
+}

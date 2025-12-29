@@ -36,6 +36,9 @@ class GenerationRequest:
     search_depth: int = 2
     search_breadth: int = 2
     require_all_incorrect: bool = False
+    embedding_path: Optional[str] = None
+    faiss_index_path: Optional[str] = None
+    text_mapping_path: Optional[str] = None
 
 
 class EnvironmentGenerator:

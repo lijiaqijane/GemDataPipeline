@@ -62,24 +62,29 @@ class QuestionConstructorMixin(PromptMixin):
             List of QuestionAnswerPair objects
         """
         tasks: List[QuestionAnswerPair] = []
+        max_retries = 3
 
-        while len(tasks) < num_tasks:
-            logger.debug(f"Constructing question {len(tasks) + 1}/{num_tasks} for entity: {entity.name}")
+        for task_idx in range(num_tasks):
+            logger.debug(f"Constructing question {task_idx + 1}/{num_tasks} for entity: {entity.name}")
 
-            # Get relevant context for the entity
-            context, search_context = self._get_entity_context(llm, tools, tool_call_map, entity.name)
-            if isinstance(context, str):
-                logger.warning(f"No context found for entity: {entity.name}")
+            for retry in range(max_retries):
+                # Get relevant context for the entity
+                context, search_context = self._get_entity_context(llm, tools, tool_call_map, entity.name)
+                obscure_info = context.get("obscure_info", "") if isinstance(context, dict) else ""
+                if obscure_info != "":
+                    break
+
+            if obscure_info == "":
+                logger.warning(f"No obscure info found for entity: {entity.name}")
                 continue
 
             entity_info = f"Entity: {entity.name}\nDomain: {entity.domain}"
             prompt = self.QUESTION_CONSTRUCTOR_PROMPT.format(
                 entity_name=entity.name,
                 entity_info=entity_info,
-                context=context.get("obscure_info", ""),
+                context=obscure_info,
             )
 
-            max_retries = 3
             for retry in range(max_retries):
                 try:
                     messages = [
