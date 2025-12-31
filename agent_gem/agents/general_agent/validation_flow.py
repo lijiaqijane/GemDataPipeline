@@ -11,9 +11,9 @@ from agent_gem.core.validation import CodeValidator
 from agent_gem.sandbox import SandboxFusionExecutor
 
 from ..base import TaskContext
-from .sandbox import GeneralAgentSandboxExecutor, GeneralAgentSandboxFusionExecutor
+from .sandbox import GeneralAgentSandboxFusionExecutor
 
-SandboxType = GeneralAgentSandboxExecutor | GeneralAgentSandboxFusionExecutor
+SandboxType = GeneralAgentSandboxFusionExecutor
 
 if TYPE_CHECKING:  # pragma: no cover
     from agent_gem.generator import GenerationRequest  # noqa: F401
@@ -59,6 +59,26 @@ class ValidationMixin:
                 "syntax error",
             )
         )
+
+    @staticmethod
+    def _tool_selftest_missing_or_empty(tool_selftest: dict[str, Any] | None) -> bool:
+        if not tool_selftest:
+            return True
+        saw_ok = False
+        any_ok = False
+        any_fields = False
+        for info in tool_selftest.values():
+            if not isinstance(info, dict):
+                continue
+            if "ok" in info:
+                saw_ok = True
+                if info.get("ok") is True:
+                    any_ok = True
+            if info.get("fields"):
+                any_fields = True
+        if saw_ok:
+            return not any_ok
+        return not any_fields
 
     def _choose_repair_target(
         self,
@@ -186,18 +206,6 @@ class ValidationMixin:
                     "verification calls tools not in the declared tool_set; "
                     f"missing={sorted(verify_missing)} allowed={sorted(allowed_tools)}"
                 )
-                package = self._repair_package(
-                    request,
-                    package,
-                    ctx,
-                    error=last_error,
-                    records=records,
-                    repair_target="verification",
-                )
-                continue
-            verify_data_tools = sorted(set(verify_called_tools) - {submit_tool})
-            if not verify_data_tools:
-                last_error = "verification must call at least one data tool to cross-check outputs"
                 package = self._repair_package(
                     request,
                     package,
@@ -356,9 +364,7 @@ class ValidationMixin:
                     metadata_profile = data_profile
                 except Exception:
                     data_profile, tool_selftest = {}, {}
-                if not tool_selftest or all(
-                    not v.get("fields") for v in tool_selftest.values() if isinstance(v, dict)
-                ):
+                if self._tool_selftest_missing_or_empty(tool_selftest):
                     refreshed_selftest: dict[str, Any] = {}
                     try:
                         refreshed_selftest = self._self_test_tools(
@@ -417,9 +423,7 @@ class ValidationMixin:
                             records=records,
                         )
                         continue
-                if not tool_selftest or all(
-                    not v.get("fields") for v in tool_selftest.values() if isinstance(v, dict)
-                ):
+                if self._tool_selftest_missing_or_empty(tool_selftest):
                     last_error = "tool_selftest_missing_or_empty; skipping tool resynthesis; verify/solution must use existing tools"
                     package = self._repair_package(
                         request,

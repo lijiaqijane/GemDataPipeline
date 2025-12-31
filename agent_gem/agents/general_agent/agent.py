@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from agent_gem.core.task_schema import TaskPackage
-from agent_gem.sandbox import SandboxExecutor, SandboxFusionExecutor
-from agent_gem.tools import BashTool, PythonRunnerTool, SearchTool
+from agent_gem.sandbox import SandboxExecutor
+from agent_gem.tools import SearchTool
 
 from ..base import BaseAgent, TaskContext
 from .data_pipeline import DataPipelineMixin
@@ -30,8 +30,6 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
     description = "Automatic environment-synthesis agent that creates diverse, verifiable tasks with a growing toolset."
 
     def _configure_sandbox(self, sandbox: SandboxExecutor):
-        if not isinstance(sandbox, SandboxFusionExecutor):
-            sandbox.register_tool(BashTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s))
         try:
             sandbox.register_tool(
                 SearchTool(
@@ -42,11 +40,8 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
         except ValueError as exc:
             logger.error("Search tool configuration failed: %s", exc)
             raise
-        if not isinstance(sandbox, SandboxFusionExecutor):
-            sandbox.register_tool(
-                PythonRunnerTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s)
-            )
         sandbox.set_tool_call_callback(self._record_tool_call)
+        sandbox.set_tool_call_allowlist(set())
 
     def generate(self, request: GenerationRequest) -> Optional[TaskPackage]:
         try:
@@ -106,7 +101,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             data_profile = self._inspect_data_sources(sandbox, ctx)
 
             logger.info("Step 3/5: synthesizing task-specific tools...")
-            task_tool_specs, tools_code, tool_selftest = self._synthesize_task_tools(
+            task_tool_specs, tools_code, tool_selftest = self._synthesize_task_tools_with_retry(
                 request.topic, records, ctx, sandbox, data_profile
             )
             self.writer.record_steps(task_id, self.agent_type, ctx.history)

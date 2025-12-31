@@ -20,11 +20,13 @@ class CodeValidator:
         "enumerate",
         "float",
         "int",
+        "iter",
         "isinstance",
         "len",
         "list",
         "max",
         "min",
+        "next",
         "range",
         "round",
         "set",
@@ -191,6 +193,84 @@ class CodeValidator:
                 return False, f"Solution code cannot call '{call_checker.invalid_call}'; only tools and safe builtins are allowed"
             if not call_checker.has_tool_call:
                 return False, "Solution code must call at least one tool function via tools[...] or tools.name(...)"
+
+            def _is_stringish(expr: ast.AST) -> bool:
+                if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
+                    return True
+                if isinstance(expr, ast.JoinedStr):
+                    return True
+                if isinstance(expr, ast.Call):
+                    func = expr.func
+                    if isinstance(func, ast.Name) and func.id in {"str", "repr"}:
+                        return True
+                    if isinstance(func, ast.Attribute):
+                        if isinstance(func.value, ast.Name) and func.value.id == "json" and func.attr in {"dumps", "dump"}:
+                            return True
+                return False
+
+            def _is_submit_result_call(node: ast.Call) -> bool:
+                func = node.func
+                if isinstance(func, ast.Attribute):
+                    return isinstance(func.value, ast.Name) and func.value.id == "tools" and func.attr == "submit_result"
+                if isinstance(func, ast.Subscript):
+                    if isinstance(func.value, ast.Name) and func.value.id == "tools":
+                        if isinstance(func.slice, ast.Constant) and func.slice.value == "submit_result":
+                            return True
+                        if isinstance(func.slice, ast.Str) and func.slice.s == "submit_result":
+                            return True
+                return False
+
+            class SubmitResultArgChecker(ast.NodeVisitor):
+                def __init__(self) -> None:
+                    self.invalid_reason: str | None = None
+
+                def visit_Call(self, node: ast.Call) -> None:
+                    if self.invalid_reason:
+                        return
+                    if _is_submit_result_call(node):
+                        if not node.args and not node.keywords:
+                            self.invalid_reason = "submit_result must receive the answer dict (no empty call)"
+                            return
+                        for expr in list(node.args) + [kw.value for kw in node.keywords]:
+                            if _is_stringish(expr):
+                                self.invalid_reason = (
+                                    "submit_result must receive a dict answer; do not use str/repr/json dumps or f-strings"
+                                )
+                                return
+                    self.generic_visit(node)
+
+            class AnswerAssignmentChecker(ast.NodeVisitor):
+                def __init__(self) -> None:
+                    self.invalid_reason: str | None = None
+
+                def visit_Assign(self, node: ast.Assign) -> None:
+                    if self.invalid_reason:
+                        return
+                    for target in node.targets:
+                        if isinstance(target, ast.Name) and target.id == "answer":
+                            if _is_stringish(node.value):
+                                self.invalid_reason = "answer must be a dict, not a stringified value"
+                                return
+                    self.generic_visit(node)
+
+                def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+                    if self.invalid_reason:
+                        return
+                    if isinstance(node.target, ast.Name) and node.target.id == "answer":
+                        if node.value and _is_stringish(node.value):
+                            self.invalid_reason = "answer must be a dict, not a stringified value"
+                            return
+                    self.generic_visit(node)
+
+            submit_checker = SubmitResultArgChecker()
+            submit_checker.visit(solve_node)
+            if submit_checker.invalid_reason:
+                return False, submit_checker.invalid_reason
+
+            answer_checker = AnswerAssignmentChecker()
+            answer_checker.visit(solve_node)
+            if answer_checker.invalid_reason:
+                return False, answer_checker.invalid_reason
 
         return True, ""
 

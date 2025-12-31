@@ -76,7 +76,16 @@ class TaskBuilderMixin:
         tool_selftest: dict[str, Any] | None,
         max_tokens: int,
     ) -> dict[str, str]:
-        tool_list = [{"name": s.name, "description": s.description} for s in tool_specs]
+        tool_list = [
+            {
+                "name": s.name,
+                "description": s.description,
+                "parameters": s.parameters,
+                "output_schema": s.output_schema,
+                "output_keys": (s.meta or {}).get("output_keys"),
+            }
+            for s in tool_specs
+        ]
         prompt = (
             "You are a debugging assistant. Analyze the failure and propose a prompt addition that forces a different approach.\n"
             "Return ONLY JSON with keys: diagnosis, required_changes, prompt_additions.\n"
@@ -119,28 +128,66 @@ class TaskBuilderMixin:
         repair_error: str | None = None,
         repair_target: str | None = None,
     ) -> tuple[str, str]:
-        """Ask the agent to author solve()/verify() (no framework synthesis), then validate."""
+        """Ask the agent to author solve()/verify() in separate calls, then validate."""
         allowed_tool_names = [s.name for s in tool_specs]
-        data_tool_names = [n for n in allowed_tool_names if n != self._SUBMIT_RESULT_TOOL]
-        tool_list = [{"name": s.name, "description": s.description} for s in tool_specs]
+        tool_list = [
+            {
+                "name": s.name,
+                "description": s.description,
+                "parameters": s.parameters,
+                "output_schema": s.output_schema,
+                "output_keys": (s.meta or {}).get("output_keys"),
+            }
+            for s in tool_specs
+        ]
         max_tokens = getattr(ctx.request, "max_tokens", 10000)
 
-        base_prompt = (
+        common_context = (
+            f"Topic: {request.topic}\n"
+            f"Task content: {task_content}\n"
+            f"Allowed tool names (EXACT): {json.dumps(allowed_tool_names, ensure_ascii=False)}\n"
+            f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
+            f"submit_result_format (JSON): {json.dumps(submit_result_format, ensure_ascii=False)}\n"
+            f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
+            f"Tool self-tests (schemas): {json.dumps(tool_selftest or {}, ensure_ascii=False)[:1200]}\n"
+        )
+
+        solution_base = (
             "You are writing agent-authored Python code for a sandboxed environment.\n"
-            "Return ONLY JSON with keys: solution, verification.\n\n"
+            "Return ONLY JSON with key: solution.\n\n"
             "Rules for `solution`:\n"
             "- Must define exactly: def solve(tools):\n"
             "- No imports, no helper functions, no classes.\n"
+            "- You do NOT have direct database access; rely only on tool outputs.\n"
             "- Must call at least TWO different data tools from the allowed tool names (exclude submit_result).\n"
+            "- Tools are plain Python callables; do NOT pass a single dict positional argument.\n"
+            "  Use keyword arguments: tools['get_vulnerabilities'](project_name=..., security_risk=...).\n"
+            "- Data tools (everything except submit_result) return a dict wrapper with key 'result'.\n"
+            "  Unwrap with out['result'] or out.get('result', out).\n"
+            "- Respect tool output_schema exactly. If a tool returns list[str], treat items as strings (no .get()).\n"
+            "- When mapping tool outputs, use the exact keys returned by the tools; do NOT assume snake_case or raw headers.\n"
+            "  Do NOT invent Title Case keys from raw datasets unless the tool output uses them.\n"
+            "- If the tool list provides output_keys, use those exact keys.\n"
+            "- If tool outputs include nested structures (e.g., matching_excerpts/context), extract usable text fields.\n"
+            "- If a required output list is empty, try alternative queries or another available tool to populate it.\n"
             "- FINAL LINE MUST BE: return tools['submit_result'](answer)\n"
             "  (This ensures solve() returns the answer payload; do NOT omit `return`.)\n"
             "- Must call submit_result exactly once.\n"
             "- Must construct `answer` to match submit_result_format.\n"
+            "- Do NOT convert `answer` to a string (no str/repr/json.dumps/f-strings). Pass the dict directly.\n"
+            "- Use tool parameters exactly as defined in the tool schemas; do NOT invent parameter names.\n"
+            "- If a parameter has a default, you may omit it; otherwise pass it explicitly.\n"
             "  NOTE: submit_result_format is a JSON Schema that defines the structure of `answer`.\n"
             "  IMPORTANT: The submit_result tool contains NO validation - it's a simple pass-through wrapper.\n"
             "  It just returns whatever you pass: def submit_result(result: Any) -> Any: return result\n"
             "  Workflow: (1) Query data using data tools, (2) Transform results into answer dict matching submit_result_format, "
             "(3) Call tools['submit_result'](answer) to submit (no validation happens here), (4) Return the result.\n\n"
+            f"{common_context}"
+        )
+
+        verification_base = (
+            "You are writing agent-authored Python code for a sandboxed environment.\n"
+            "Return ONLY JSON with key: verification.\n\n"
             "Rules for `verification`:\n"
             "- Must define: def verify(tools, answer):\n"
             "- Deterministic; may import json, re.\n"
@@ -150,31 +197,25 @@ class TaskBuilderMixin:
             "- Must ALWAYS return a boolean OR a dict with keys like {passed: bool, message: str, details: ...}.\n"
             "- If returning a dict, include a short failure message to help repairs.\n"
             "- If answer is wrapped by submit_result (keys like status/message/submitted_data or status/message/data), verify the wrapped payload.\n"
-            "- Must call at least ONE data tool (exclude submit_result) to cross-check outputs.\n"
+            "- May call data tools (exclude submit_result) to cross-check outputs, but it is not required.\n"
+            "- Do not assume anything about the solution logic; validate using schema and tool outputs only.\n"
+            "- Tools are plain Python callables; do NOT pass a single dict positional argument.\n"
+            "  Use keyword arguments: tools['get_vulnerabilities'](project_name=..., security_risk=...).\n"
+            "- Data tools (everything except submit_result) return a dict wrapper with key 'result'.\n"
+            "  Unwrap with out['result'] or out.get('result', out).\n"
+            "- Respect tool output_schema exactly. If a tool returns list[str], treat items as strings (no .get()).\n"
+            "- When checking fields derived from tool outputs, use the keys actually returned by the tools; do NOT assume snake_case or raw headers.\n"
+            "- If the tool list provides output_keys, use those exact keys.\n"
+            "- Use tool parameters exactly as defined in the tool schemas; do NOT invent parameter names.\n"
             "- Should verify `answer` matches submit_result_format STRUCTURE and is consistent with tool outputs.\n"
             "  NOTE: submit_result_format is a JSON Schema. Verify that answer has all required fields, correct types, "
             "and that the data values are consistent with what the data tools returned.\n"
             "  IMPORTANT: The submit_result tool does NOT validate format - it contains NO validation logic at all.\n"
             "  All format validation is YOUR responsibility in verify(). The submit_result tool is just a pass-through wrapper.\n\n"
-            f"Topic: {request.topic}\n"
-            f"Task content: {task_content}\n"
-            f"Allowed tool names (EXACT): {json.dumps(allowed_tool_names, ensure_ascii=False)}\n"
-            f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
-            f"submit_result_format (JSON): {json.dumps(submit_result_format, ensure_ascii=False)}\n"
-            f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
-            f"Tool self-tests (schemas): {json.dumps(tool_selftest or {}, ensure_ascii=False)[:1200]}\n"
+            f"{common_context}"
         )
         repair_guidance: dict[str, str] | None = None
         if repair_error:
-            base_prompt += (
-                "\nYou are REPAIRING a previously generated package.\n"
-                f"Repair target: {repair_target or 'solution'}\n"
-                f"Observed error: {repair_error[:1200]}\n"
-                "Fix the issue and return updated code.\n"
-                "- If repairing verification, keep the solution logic unchanged unless strictly necessary.\n"
-                "- If repairing solution, ensure answer matches submit_result_format and still call submit_result exactly once.\n"
-                "- If repairing both, rewrite both solve() and verify(); do not reuse the previous logic.\n"
-            )
             try:
                 repair_guidance = self._generate_repair_guidance(
                     request=request,
@@ -193,100 +234,141 @@ class TaskBuilderMixin:
             except Exception:
                 repair_guidance = None
 
-        last_err = ""
-        for attempt in range(1, 4):
-            prompt = base_prompt
-            if previous_solution and previous_verification:
-                prompt += (
-                    "\nPrevious code (may be improved but keep constraints):\n"
-                    f"SOLUTION:\n{previous_solution[:1200]}\n"
-                    f"VERIFICATION:\n{previous_verification[:1200]}\n"
-                )
-            if repair_guidance:
-                prompt += (
-                    "\nRepair guidance (must follow):\n"
-                    f"Diagnosis: {repair_guidance.get('diagnosis', '')}\n"
-                    f"Required changes: {repair_guidance.get('required_changes', '')}\n"
-                    f"Prompt additions: {repair_guidance.get('prompt_additions', '')}\n"
-                    "Apply the required changes and avoid repeating the previous approach.\n"
-                )
-            if last_err:
-                prompt += f"\nPrevious attempt errors: {last_err}\nFix them and try again.\n"
+        target = (repair_target or "").strip().lower()
+        regen_solution = target in {"", "solution", "both"}
+        regen_verification = target in {"", "verification", "both"}
 
-            raw = self.llm.simple_complete(prompt, temperature=0.6, max_tokens=max_tokens)
-            ctx.add_step({"type": "agent_code_raw", "attempt": attempt, "content": raw})
-            extracted = self._extract_json(raw) or {}
-            sol_code = self._sanitize_python_code(extracted.get("solution"))
-            ver_code = self._sanitize_python_code(extracted.get("verification"))
+        solution_code = (previous_solution or "").strip()
+        verification_code = (previous_verification or "").strip()
 
-            sol_ok, sol_err = CodeValidator.validate_solution_code(sol_code)
-            ver_ok, ver_err = CodeValidator.validate_verification_code(ver_code)
-            if not sol_ok or not ver_ok:
-                last_err = f"solution_ok={sol_ok} solution_err={sol_err}; verification_ok={ver_ok} verification_err={ver_err}"
-                ctx.add_step({"type": "agent_code_validation_failed", "attempt": attempt, "error": last_err})
-                continue
-
-            verify_called = CodeValidator.extract_tool_calls(ver_code)
-            verify_used_data = sorted(set(verify_called) - {self._SUBMIT_RESULT_TOOL})
-            if not verify_used_data:
-                last_err = "verification must call at least one data tool"
-                ctx.add_step({"type": "agent_code_validation_failed", "attempt": attempt, "error": last_err})
-                continue
-            invented_ver = sorted(set(verify_called) - set(allowed_tool_names))
-            if invented_ver:
-                last_err = f"verification calls tools not in allowed list: {invented_ver}"
-                ctx.add_step({"type": "agent_code_validation_failed", "attempt": attempt, "error": last_err})
-                continue
-
-            called = CodeValidator.extract_tool_calls(sol_code)
-            if self._SUBMIT_RESULT_TOOL not in called:
-                last_err = "solution must call submit_result"
-                ctx.add_step({"type": "agent_code_validation_failed", "attempt": attempt, "error": last_err})
-                continue
-            used_data = sorted(set(called) - {self._SUBMIT_RESULT_TOOL})
-            if len(used_data) < 2:
-                last_err = f"solution must call >=2 different data tools; used={used_data}"
-                ctx.add_step({"type": "agent_code_validation_failed", "attempt": attempt, "error": last_err})
-                continue
-            # Ensure no invented tools.
-            invented = sorted(set(called) - set(allowed_tool_names))
-            if invented:
-                last_err = f"solution calls tools not in allowed list: {invented}"
-                ctx.add_step({"type": "agent_code_validation_failed", "attempt": attempt, "error": last_err})
-                continue
-
-            # Ensure solve() returns the submitted payload (avoid answer=None).
-            if "return tools['submit_result']" not in sol_code and 'return tools["submit_result"]' not in sol_code:
-                last_err = "solution must end with: return tools['submit_result'](answer)"
-                ctx.add_step({"type": "agent_code_validation_failed", "attempt": attempt, "error": last_err})
-                continue
-            try:
-                tree = ast.parse(sol_code)
-                solve_fn = None
-                for node in tree.body:
-                    if isinstance(node, ast.FunctionDef) and node.name == "solve":
-                        solve_fn = node
-                    break
-                if solve_fn is None or not solve_fn.body:
-                    raise ValueError("missing solve() body")
-                last_stmt = solve_fn.body[-1]
-                if not isinstance(last_stmt, ast.Return):
-                    raise ValueError("last statement in solve() must be a return")
-            except Exception as exc:
-                last_err = f"solution must end with a return of submit_result call (parse_check_failed: {exc})"
-                ctx.add_step({"type": "agent_code_validation_failed", "attempt": attempt, "error": last_err})
-                continue
-
-            ctx.add_step(
-                {
-                    "type": "agent_code_validated",
-                    "attempt": attempt,
-                    "tools_used": used_data,
-                }
+        def _repair_context(label: str) -> str:
+            if not repair_error:
+                return ""
+            if target and label not in {target, "both"}:
+                return ""
+            return (
+                "\nYou are REPAIRING a previously generated package.\n"
+                f"Repair target: {repair_target or label}\n"
+                f"Observed error: {repair_error[:1200]}\n"
+                "Fix the issue and return updated code.\n"
+                "- If repairing verification, keep the solution logic unchanged unless strictly necessary.\n"
+                "- If repairing solution, ensure answer matches submit_result_format and still call submit_result exactly once.\n"
+                "- If repairing both, rewrite both solve() and verify(); do not reuse the previous logic.\n"
             )
-            return sol_code, ver_code
 
-        raise RuntimeError(f"Agent failed to generate valid solution/verification after retries: {last_err}")
+        def _repair_guidance_block(label: str) -> str:
+            if not repair_guidance:
+                return ""
+            if target and label not in {target, "both"}:
+                return ""
+            return (
+                "\nRepair guidance (must follow):\n"
+                f"Diagnosis: {repair_guidance.get('diagnosis', '')}\n"
+                f"Required changes: {repair_guidance.get('required_changes', '')}\n"
+                f"Prompt additions: {repair_guidance.get('prompt_additions', '')}\n"
+                "Apply the required changes and avoid repeating the previous approach.\n"
+            )
+
+        if regen_solution or not solution_code:
+            last_err = ""
+            for attempt in range(1, 4):
+                prompt = solution_base
+                prompt += _repair_context("solution")
+                if previous_solution:
+                    prompt += f"\nPrevious solution snippet:\n{previous_solution[:1200]}\n"
+                prompt += _repair_guidance_block("solution")
+                if last_err:
+                    prompt += f"\nPrevious attempt errors: {last_err}\nFix them and try again.\n"
+
+                raw = self.llm.simple_complete(prompt, temperature=0.6, max_tokens=max_tokens)
+                ctx.add_step({"type": "agent_solution_raw", "attempt": attempt, "content": raw})
+                extracted = self._extract_json(raw) or {}
+                sol_code = self._sanitize_python_code(extracted.get("solution"))
+
+                sol_ok, sol_err = CodeValidator.validate_solution_code(sol_code)
+                if not sol_ok:
+                    last_err = f"solution_ok={sol_ok} solution_err={sol_err}"
+                    ctx.add_step({"type": "agent_solution_validation_failed", "attempt": attempt, "error": last_err})
+                    continue
+
+                called = CodeValidator.extract_tool_calls(sol_code)
+                if self._SUBMIT_RESULT_TOOL not in called:
+                    last_err = "solution must call submit_result"
+                    ctx.add_step({"type": "agent_solution_validation_failed", "attempt": attempt, "error": last_err})
+                    continue
+                used_data = sorted(set(called) - {self._SUBMIT_RESULT_TOOL})
+                if len(used_data) < 2:
+                    last_err = f"solution must call >=2 different data tools; used={used_data}"
+                    ctx.add_step({"type": "agent_solution_validation_failed", "attempt": attempt, "error": last_err})
+                    continue
+                invented = sorted(set(called) - set(allowed_tool_names))
+                if invented:
+                    last_err = f"solution calls tools not in allowed list: {invented}"
+                    ctx.add_step({"type": "agent_solution_validation_failed", "attempt": attempt, "error": last_err})
+                    continue
+
+                if "return tools['submit_result']" not in sol_code and 'return tools["submit_result"]' not in sol_code:
+                    last_err = "solution must end with: return tools['submit_result'](answer)"
+                    ctx.add_step({"type": "agent_solution_validation_failed", "attempt": attempt, "error": last_err})
+                    continue
+                try:
+                    tree = ast.parse(sol_code)
+                    solve_fn = None
+                    for node in tree.body:
+                        if isinstance(node, ast.FunctionDef) and node.name == "solve":
+                            solve_fn = node
+                        break
+                    if solve_fn is None or not solve_fn.body:
+                        raise ValueError("missing solve() body")
+                    last_stmt = solve_fn.body[-1]
+                    if not isinstance(last_stmt, ast.Return):
+                        raise ValueError("last statement in solve() must be a return")
+                except Exception as exc:
+                    last_err = f"solution must end with a return of submit_result call (parse_check_failed: {exc})"
+                    ctx.add_step({"type": "agent_solution_validation_failed", "attempt": attempt, "error": last_err})
+                    continue
+
+                ctx.add_step(
+                    {
+                        "type": "agent_solution_validated",
+                        "attempt": attempt,
+                        "tools_used": used_data,
+                    }
+                )
+                solution_code = sol_code
+                break
+            if not solution_code:
+                raise RuntimeError(f"Agent failed to generate valid solution after retries: {last_err}")
+
+        if regen_verification or not verification_code:
+            last_err = ""
+            for attempt in range(1, 4):
+                prompt = verification_base
+                prompt += _repair_context("verification")
+                if previous_verification:
+                    prompt += f"\nPrevious verification snippet:\n{previous_verification[:1200]}\n"
+                prompt += _repair_guidance_block("verification")
+                if last_err:
+                    prompt += f"\nPrevious attempt errors: {last_err}\nFix them and try again.\n"
+
+                raw = self.llm.simple_complete(prompt, temperature=0.6, max_tokens=max_tokens)
+                ctx.add_step({"type": "agent_verification_raw", "attempt": attempt, "content": raw})
+                extracted = self._extract_json(raw) or {}
+                ver_code = self._sanitize_python_code(extracted.get("verification"))
+
+                ver_ok, ver_err = CodeValidator.validate_verification_code(ver_code)
+                if not ver_ok:
+                    last_err = f"verification_ok={ver_ok} verification_err={ver_err}"
+                    ctx.add_step({"type": "agent_verification_validation_failed", "attempt": attempt, "error": last_err})
+                    continue
+
+                ctx.add_step({"type": "agent_verification_validated", "attempt": attempt})
+                verification_code = ver_code
+                break
+            if not verification_code:
+                raise RuntimeError(f"Agent failed to generate valid verification after retries: {last_err}")
+
+        return solution_code, verification_code
 
     def _ensure_task_content(
         self,
@@ -348,6 +430,8 @@ class TaskBuilderMixin:
                 "name": spec.name,
                 "description": spec.description,
                 "parameters": spec.parameters,
+                "output_schema": spec.output_schema,
+                "output_keys": (spec.meta or {}).get("output_keys"),
             }
             for spec in tool_specs
             if spec.name != self._SUBMIT_RESULT_TOOL
@@ -375,6 +459,7 @@ class TaskBuilderMixin:
             "- Must reference specific tool names and explain how they should be used together.\n"
             "- Must include concrete examples of what fields/values to look for in the data.\n"
             "- Must specify any data quality requirements (e.g., exclude nulls, filter by date ranges).\n"
+            "- If you suggest specific search queries, they MUST appear in the provided data samples or tool outputs.\n"
             "- Write in clear, actionable language that leaves no ambiguity about the task requirements.\n\n"
             f"Topic: {request.topic}\n"
             f"Tool list (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
@@ -497,8 +582,7 @@ class TaskBuilderMixin:
         tool_list = [{"name": spec.name, "description": spec.description} for spec in tool_specs]
         prompt = (
             "Increase the task difficulty while keeping it verifiable.\n"
-            "Return ONLY JSON with keys: task_content, submit_result_format, difficulty_level, solution, verification.\n"
-            "Keep solve(tools) / verify(tools, answer) signatures unchanged.\n"
+            "Return ONLY JSON with keys: task_content, submit_result_format, difficulty_level.\n"
             "Do not introduce new tools; only use tools from the provided list.\n"
             f"Target difficulty_level: {target_difficulty}\n"
             f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
@@ -521,35 +605,17 @@ class TaskBuilderMixin:
             tool_names,
         )
 
-        # Prefer agent-provided solution/verification from the refinement JSON; validate strictly.
-        candidate_solution = self._sanitize_python_code(extracted.get("solution"))
-        candidate_verification = self._sanitize_python_code(extracted.get("verification"))
-        sol_ok, sol_err = CodeValidator.validate_solution_code(candidate_solution)
-        ver_ok, ver_err = CodeValidator.validate_verification_code(candidate_verification)
-        if sol_ok and ver_ok:
-            solution = candidate_solution
-            verification = candidate_verification
-        else:
-            ctx.add_step(
-                {
-                    "type": "refine_code_invalid",
-                    "solution_ok": sol_ok,
-                    "solution_err": sol_err,
-                    "verification_ok": ver_ok,
-                    "verification_err": ver_err,
-                }
-            )
-            solution, verification = self._generate_agent_solution_and_verification(
-                request=ctx.request,
-                ctx=ctx,
-                task_content=task_content,
-                submit_result_format=submit_result_format,
-                tool_specs=tool_specs,
-                records=records,
-                tool_selftest=None,
-                previous_solution=previous.solution or "",
-                previous_verification=previous.verification or "",
-            )
+        solution, verification = self._generate_agent_solution_and_verification(
+            request=ctx.request,
+            ctx=ctx,
+            task_content=task_content,
+            submit_result_format=submit_result_format,
+            tool_specs=tool_specs,
+            records=records,
+            tool_selftest=None,
+            previous_solution=previous.solution or "",
+            previous_verification=previous.verification or "",
+        )
 
         pkg = TaskPackage(
             task=TaskDefinition(

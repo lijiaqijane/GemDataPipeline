@@ -18,58 +18,6 @@ from agent_gem.sandbox.executor import TaskRunRecord
 logger = logging.getLogger(__name__)
 
 
-def _load_submitted_result(sandbox_dir: Path) -> Any | None:
-    submitted = sandbox_dir / "submitted_result.json"
-    if not submitted.exists():
-        return None
-    try:
-        return json.loads(submitted.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-
-
-def _should_use_submitted_result(answer: Any) -> bool:
-    if answer is None:
-        return True
-    if isinstance(answer, str):
-        lowered = answer.lower()
-        return any(
-            token in lowered
-            for token in (
-                "submitted_result.json",
-                "result submitted",
-                "result saved",
-                "submitted successfully",
-                "saved to submitted_result",
-            )
-        )
-    if isinstance(answer, dict):
-        # Check if this is a submit_result tool response
-        status = answer.get("status")
-        message = answer.get("message", "").lower()
-        file_path = answer.get("file_path", "").lower()
-        return (
-            status == "success" and
-            any(token in message for token in ("submitted", "saved")) and
-            "submitted_result.json" in file_path
-        )
-    return False
-
-
-def _unwrap_submitted_result(answer: Any) -> Any:
-    if not isinstance(answer, dict):
-        return answer
-    status = answer.get("status")
-    message = answer.get("message")
-    if not (isinstance(status, str) or isinstance(message, str)):
-        return answer
-    if "submitted_data" in answer:
-        return answer.get("submitted_data")
-    if "data" in answer:
-        return answer.get("data")
-    return answer
-
-
 def _persist_verified_result(sandbox: SandboxExecutor, run_group: str) -> None:
     source = sandbox.sandbox_dir / "submitted_result.json"
     if not source.exists():
@@ -82,77 +30,10 @@ def _persist_verified_result(sandbox: SandboxExecutor, run_group: str) -> None:
         pass
 
 
-class GeneralAgentSandboxExecutor(SandboxExecutor):
-    def _process_solution_answer(self, answer: Any) -> Any:
-        if _should_use_submitted_result(answer):
-            submitted_payload = _load_submitted_result(self.sandbox_dir)
-            if submitted_payload is not None:
-                answer = submitted_payload
-        return _unwrap_submitted_result(answer)
-
-    def run_task(
-        self,
-        package: TaskPackage,
-        *,
-        tools: Optional[Dict[str, Callable[..., Any]]] = None,
-        run_group: str = "default",
-    ) -> TaskRunRecord:
-        run_id = uuid.uuid4().hex
-        started = time.time()
-        tool_proxy = self.as_tools(extra=tools, cache_calls=True)
-        group_dir = self._run_group_dir(run_group)
-        self._record_run_code(run_id, package, group_dir=group_dir)
-
-        raw_answer: Any = None
-        processed_answer: Any = None
-        verified: Optional[bool] = None
-        verification_score: Optional[float] = None
-        verification_details: Any = None
-        verification_message: Optional[str] = None
-        error: Optional[str] = None
-        verification_error: Optional[str] = None
-        try:
-            raw_answer = package.run_solution(tool_proxy)
-            processed_answer = self._process_solution_answer(raw_answer)
-            verified, verification_score, verification_details, verification_message = package.verify_with_meta(
-                tool_proxy, processed_answer
-            )
-        except Exception:
-            error = traceback.format_exc()
-        else:
-            if verified is False:
-                verification_error = verification_message or "verification returned False"
-            elif verified is None:
-                verification_error = verification_message or "verification returned no boolean result"
-
-        ended = time.time()
-        record = TaskRunRecord(
-            run_id=run_id,
-            task_id=package.task.task_id,
-            task_title=package.task.task_title,
-            run_group=run_group,
-            started_at=started,
-            ended_at=ended,
-            duration_s=ended - started,
-            answer=self._to_jsonable(raw_answer),
-            verified=verified,
-            verification_score=verification_score,
-            verification_details=self._to_jsonable(verification_details),
-            error=error,
-            verification_error=verification_error,
-        )
-        group_dir.mkdir(parents=True, exist_ok=True)
-        dump_json(group_dir / f"{record.run_id}.json", record.model_dump())
-        logger.debug("Saved task run record: %s.json in %s", record.run_id, group_dir)
-        return record
-
-    def persist_verified_result(self, run_group: str) -> None:
-        _persist_verified_result(self, run_group)
-
-
 class GeneralAgentSandboxFusionExecutor(SandboxFusionExecutor):
-    def _extra_runner_helpers(self) -> str:
-        return """
+    def _extra_runner_helpers(self, run_id: str) -> str:
+        run_line = f"RUN_ID = {json.dumps(run_id)}\n"
+        return run_line + """
 def _load_submitted_result():
     submitted_path = Path("submitted_result.json")
     if not submitted_path.exists():
@@ -177,6 +58,15 @@ def _should_use_submitted_result(value):
                 "saved to submitted_result",
             )
         )
+    if isinstance(value, dict):
+        status = value.get("status")
+        message = value.get("message", "").lower()
+        file_path = value.get("file_path", "").lower()
+        return (
+            status == "success" and
+            any(token in message for token in ("submitted", "saved")) and
+            ("submitted_result.json" in file_path or "submitted_result.json" in message)
+        )
     return False
 
 def _unwrap_answer(value):
@@ -186,11 +76,38 @@ def _unwrap_answer(value):
     message = value.get("message")
     if not (isinstance(status, str) or isinstance(message, str)):
         return value
+    if "saved_data" in value:
+        saved = value.get("saved_data")
+        if isinstance(saved, dict) and "result" in saved:
+            return saved.get("result")
+        return saved
+    if "result" in value:
+        return value.get("result")
     if "submitted_data" in value:
         return value.get("submitted_data")
     if "data" in value:
         return value.get("data")
     return value
+
+def _log_tool_call(name, args, kwargs, output, error, started_at, ended_at, cache_hit):
+    try:
+        path = Path("logs") / "tool_calls.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "run_id": RUN_ID,
+            "tool": name,
+            "tool_input": {"args": list(args), "kwargs": kwargs},
+            "tool_output": output,
+            "error": error,
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "duration_s": ended_at - started_at,
+            "cache_hit": cache_hit,
+        }
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False, default=str) + "\\n")
+    except Exception:
+        pass
 """
 
     def _answer_postprocess_snippet(self) -> str:
@@ -202,12 +119,12 @@ if _should_use_submitted_result(answer):
 answer = _unwrap_answer(answer)
 """
 
-    def _build_runner_code(self, package: TaskPackage) -> str:
+    def _build_runner_code(self, package: TaskPackage, run_id: str) -> str:
         solution_code = package.solution or ""
         verification_code = package.verification or ""
         required_tools = [spec.name for spec in package.task.tool_set]
 
-        extra_helpers = textwrap.dedent(self._extra_runner_helpers() or "").strip("\n")
+        extra_helpers = textwrap.dedent(self._extra_runner_helpers(run_id) or "").strip("\n")
         if extra_helpers:
             extra_helpers = extra_helpers + "\n"
 
@@ -219,8 +136,12 @@ answer = _unwrap_answer(answer)
             f'''
 import json
 import importlib.util
+import inspect
+import time
 import traceback
+from enum import Enum
 from pathlib import Path
+from typing import get_args, get_origin, get_type_hints
 class ToolProxy(dict):
     def __getattr__(self, name):
         if name in self:
@@ -258,13 +179,95 @@ def _cache_key(args, kwargs):
     except Exception:
         return repr(payload)
 
+def _enum_from_annotation(annotation):
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return annotation
+    origin = get_origin(annotation)
+    if origin is None:
+        return None
+    for arg in get_args(annotation):
+        enum_type = _enum_from_annotation(arg)
+        if enum_type is not None:
+            return enum_type
+    return None
+
+def _coerce_enum_value(value, enum_type):
+    if value is None or isinstance(value, enum_type):
+        return value
+    if isinstance(value, str):
+        try:
+            return enum_type(value)
+        except Exception:
+            try:
+                return enum_type[value]
+            except Exception:
+                return value
+    return value
+
+def _coerce_enum_args(fn, args, kwargs):
+    try:
+        type_hints = get_type_hints(fn, globalns=getattr(fn, "__globals__", None), localns=None)
+    except Exception:
+        type_hints = {{}}
+    try:
+        signature = inspect.signature(fn)
+    except Exception:
+        return args, kwargs
+    coerced_args = list(args)
+    for idx, (name, param) in enumerate(signature.parameters.items()):
+        if idx >= len(coerced_args):
+            break
+        if param.kind not in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD):
+            continue
+        annotation = type_hints.get(name, param.annotation)
+        enum_type = _enum_from_annotation(annotation)
+        if enum_type is not None:
+            coerced_args[idx] = _coerce_enum_value(coerced_args[idx], enum_type)
+    coerced_kwargs = dict(kwargs)
+    for name, value in kwargs.items():
+        if name not in signature.parameters:
+            continue
+        annotation = type_hints.get(name, signature.parameters[name].annotation)
+        enum_type = _enum_from_annotation(annotation)
+        if enum_type is not None:
+            coerced_kwargs[name] = _coerce_enum_value(value, enum_type)
+    return tuple(coerced_args), coerced_kwargs
+
 def _wrap_tool(name, fn):
     def _call(*args, **kwargs):
-        cache_key = name + ":" + _cache_key(args, kwargs)
+        started_at = time.time()
+        normalized_args = args
+        normalized_kwargs = kwargs
+        if name != "submit_result" and not kwargs and len(args) == 1 and isinstance(args[0], dict):
+            normalized_args = ()
+            normalized_kwargs = args[0]
+        normalized_args, normalized_kwargs = _coerce_enum_args(fn, normalized_args, normalized_kwargs)
+        cache_key = name + ":" + _cache_key(normalized_args, normalized_kwargs)
         if cache_key in tool_cache:
-            return tool_cache[cache_key]
-        result = fn(*args, **kwargs)
+            result = tool_cache[cache_key]
+            ended_at = time.time()
+            _log_tool_call(name, normalized_args, normalized_kwargs, result, None, started_at, ended_at, True)
+            return result
+        try:
+            result = fn(*normalized_args, **normalized_kwargs)
+            if name != "submit_result":
+                result = {{"result": result}}
+        except Exception as exc:
+            ended_at = time.time()
+            _log_tool_call(
+                name,
+                normalized_args,
+                normalized_kwargs,
+                {{"error": "exception", "message": str(exc)}},
+                "exception",
+                started_at,
+                ended_at,
+                False,
+            )
+            raise
         tool_cache[cache_key] = result
+        ended_at = time.time()
+        _log_tool_call(name, normalized_args, normalized_kwargs, result, None, started_at, ended_at, False)
         return result
     return _call
 
@@ -343,7 +346,7 @@ except Exception:
         started = time.time()
         group_dir = self._run_group_dir(run_group)
         self._record_run_code(run_id, package, group_dir=group_dir)
-        runner = self._build_runner_code(package)
+        runner = self._build_runner_code(package, run_id)
         exec_result = self.execute_python(runner, timeout_s=self.timeout_s)
         answer: Any = None
         verified: Optional[bool] = None

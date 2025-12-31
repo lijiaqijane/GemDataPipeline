@@ -15,7 +15,8 @@ from pathlib import Path
 import requests
 import shutil
 import tarfile
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, get_args, get_origin, get_type_hints
+from enum import Enum
 
 from pydantic import BaseModel, Field
 from sandbox_fusion import set_endpoint, run_code, RunCodeRequest
@@ -129,6 +130,7 @@ class ToolCallRecord(BaseModel):
     """Structured record of a single tool invocation."""
 
     call_id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    run_id: Optional[str] = None
     tool: str
     tool_input: Dict[str, Any] = Field(default_factory=dict)
     tool_output: Any = None
@@ -197,6 +199,10 @@ class SandboxExecutor:
         self._tools: Dict[str, BaseTool] = {}
         self._tool_calls_lock = threading.Lock()
         self._on_tool_call: Callable[[ToolCallRecord], None] | None = None
+        self._tool_call_allowlist: set[str] | None = None
+        self._current_run_id: str | None = None
+        self._tool_call_allowlist: set[str] | None = None
+        self._current_run_id: str | None = None
 
     @classmethod
     def for_package(cls, package: TaskPackage, root: Path | str) -> "SandboxExecutor":
@@ -321,6 +327,85 @@ class SandboxExecutor:
     ) -> None:
         self._on_tool_call = callback
 
+    def set_tool_call_allowlist(self, names: Iterable[str] | None) -> None:
+        if names is None:
+            self._tool_call_allowlist = None
+            return
+        self._tool_call_allowlist = set(names)
+
+    def _should_log_tool_call(self, tool_name: str) -> bool:
+        allowlist = self._tool_call_allowlist
+        if allowlist is None:
+            return True
+        return tool_name in allowlist
+
+    @staticmethod
+    def _enum_from_annotation(annotation: Any) -> type[Enum] | None:
+        if isinstance(annotation, type) and issubclass(annotation, Enum):
+            return annotation
+        origin = get_origin(annotation)
+        if origin is None:
+            return None
+        for arg in get_args(annotation):
+            enum_type = SandboxExecutor._enum_from_annotation(arg)
+            if enum_type is not None:
+                return enum_type
+        return None
+
+    @staticmethod
+    def _coerce_enum_value(value: Any, enum_type: type[Enum]) -> Any:
+        if value is None or isinstance(value, enum_type):
+            return value
+        if isinstance(value, str):
+            try:
+                return enum_type(value)
+            except Exception:
+                try:
+                    return enum_type[value]
+                except Exception:
+                    return value
+        return value
+
+    def _coerce_enum_args(
+        self,
+        handler: Callable[..., Any],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> tuple[tuple[Any, ...], dict[str, Any]]:
+        try:
+            type_hints = get_type_hints(handler, globalns=handler.__globals__, localns=None)
+        except Exception:
+            type_hints = {}
+        try:
+            signature = inspect.signature(handler)
+        except Exception:
+            return args, kwargs
+
+        coerced_args = list(args)
+        for idx, (name, param) in enumerate(signature.parameters.items()):
+            if idx >= len(coerced_args):
+                break
+            if param.kind not in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            ):
+                continue
+            annotation = type_hints.get(name, param.annotation)
+            enum_type = self._enum_from_annotation(annotation)
+            if enum_type is not None:
+                coerced_args[idx] = self._coerce_enum_value(coerced_args[idx], enum_type)
+
+        coerced_kwargs = dict(kwargs)
+        for name, value in kwargs.items():
+            if name not in signature.parameters:
+                continue
+            annotation = type_hints.get(name, signature.parameters[name].annotation)
+            enum_type = self._enum_from_annotation(annotation)
+            if enum_type is not None:
+                coerced_kwargs[name] = self._coerce_enum_value(value, enum_type)
+
+        return tuple(coerced_args), coerced_kwargs
+
     def execute(self, tool_name: str, *args: Any, **kwargs: Any) -> Any:
         """Execute a registered tool by name.
 
@@ -341,6 +426,7 @@ class SandboxExecutor:
             ended = time.time()
             record = ToolCallRecord(
                 call_id=call_id,
+                run_id=self._current_run_id,
                 tool=tool_name,
                 tool_input={
                     "args": self._to_jsonable(list(normalized_args)),
@@ -358,6 +444,10 @@ class SandboxExecutor:
         error: Optional[str] = None
         output: Any
         try:
+            if isinstance(tool, CallableTool):
+                normalized_args, normalized_kwargs = self._coerce_enum_args(
+                    tool._handler, normalized_args, normalized_kwargs
+                )
             output = tool.execute(*normalized_args, **normalized_kwargs)
         except ToolExecutionError as exc:
             output = exc.tool_output
@@ -369,6 +459,7 @@ class SandboxExecutor:
         ended = time.time()
         record = ToolCallRecord(
             call_id=call_id,
+            run_id=self._current_run_id,
             tool=tool_name,
             tool_input={
                 "args": self._to_jsonable(list(normalized_args)),
@@ -413,6 +504,7 @@ class SandboxExecutor:
             ended = time.time()
             record = ToolCallRecord(
                 call_id=call_id,
+                run_id=self._current_run_id,
                 tool=tool_name,
                 tool_input={
                     "args": self._to_jsonable(list(normalized_args)),
@@ -493,10 +585,11 @@ class SandboxExecutor:
 
     def _append_tool_call(self, record: ToolCallRecord) -> None:
         line = json.dumps(record.model_dump(), ensure_ascii=False, default=str)
-        self.tool_calls_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._tool_calls_lock:
-            with self.tool_calls_path.open("a", encoding="utf-8") as handle:
-                handle.write(line + "\n")
+        if self._should_log_tool_call(record.tool):
+            self.tool_calls_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._tool_calls_lock:
+                with self.tool_calls_path.open("a", encoding="utf-8") as handle:
+                    handle.write(line + "\n")
         if self._on_tool_call is not None:
             try:
                 self._on_tool_call(record)
@@ -592,6 +685,19 @@ class SandboxFusionExecutor(SandboxExecutor):
             target = self.sandbox_dir / rel
             if path.is_dir():
                 target.mkdir(parents=True, exist_ok=True)
+                continue
+            if rel.as_posix() == "logs/tool_calls.jsonl":
+                try:
+                    content = path.read_text(encoding="utf-8")
+                except Exception:
+                    content = ""
+                if content:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    mode = "a" if target.exists() else "w"
+                    with target.open(mode, encoding="utf-8") as handle:
+                        if not content.endswith("\n"):
+                            content += "\n"
+                        handle.write(content)
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(path), str(target))

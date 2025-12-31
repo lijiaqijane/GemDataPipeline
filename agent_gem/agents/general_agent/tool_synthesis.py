@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import hashlib
 import json
 import logging
 import re
@@ -21,8 +22,9 @@ class ToolSynthesisMixin:
     """Tool generation, compilation, and registration helpers."""
     _SUBMIT_RESULT_TOOL = "submit_result"
     _SUBMITTED_RESULT_FILE = "submitted_result.json"
-    _MAX_REGEN_ATTEMPTS = 3
-    _MAX_DATA_PROFILE_SIZE = 12000
+    _MAX_REGEN_ATTEMPTS = 5
+    _MAX_FIELD_INVENTORY_SIZE = 2600
+    _MAX_FIELD_VALUES = 5
     _FILTERED_TOOL_NAMES = {"bash", "search", "python_runner"}
 
     @staticmethod
@@ -93,7 +95,7 @@ class ToolSynthesisMixin:
                 return True
             if isinstance(func, ast.Attribute):
                 attr = func.attr
-                if attr in {"read_text", "read_bytes", "read_csv", "read_json", "connect"}:
+                if attr in {"read_text", "read_bytes", "read_csv", "read_json", "connect", "open"}:
                     return True
                 if isinstance(func.value, ast.Name):
                     base = func.value.id
@@ -130,6 +132,236 @@ class ToolSynthesisMixin:
                             return True
         return False
 
+    @staticmethod
+    def _tool_code_returns_raw_csv_rows(code: str) -> bool:
+        """Detect appending raw csv.DictReader rows without remapping keys."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return False
+        reader_vars: set[str] = set()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            value = node.value
+            if not isinstance(value, ast.Call):
+                continue
+            func = value.func
+            if (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "csv"
+                and func.attr == "DictReader"
+            ):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        reader_vars.add(target.id)
+        if not reader_vars:
+            return False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.For) and isinstance(node.iter, ast.Name) and node.iter.id in reader_vars:
+                if isinstance(node.target, ast.Name):
+                    row_var = node.target.id
+                else:
+                    continue
+                for child in ast.walk(node):
+                    if not isinstance(child, ast.Call):
+                        continue
+                    func = child.func
+                    if isinstance(func, ast.Attribute) and func.attr == "append" and child.args:
+                        arg = child.args[0]
+                        if isinstance(arg, ast.Name) and arg.id == row_var:
+                            return True
+        return False
+
+    @staticmethod
+    def _tool_code_uses_path_replace(code: str) -> bool:
+        """Detect string replace() called on Path-derived loop variables."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return False
+        path_containers: set[str] = set()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+                continue
+            target = node.targets[0].id
+            value = node.value
+            if isinstance(value, ast.List):
+                for elt in value.elts:
+                    if isinstance(elt, ast.BinOp) and isinstance(elt.op, ast.Div):
+                        path_containers.add(target)
+                        break
+            elif isinstance(value, ast.Dict):
+                for elt in value.values:
+                    if isinstance(elt, ast.BinOp) and isinstance(elt.op, ast.Div):
+                        path_containers.add(target)
+                        break
+        if not path_containers:
+            return False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.For):
+                continue
+            iter_node = node.iter
+            iter_name = None
+            if isinstance(iter_node, ast.Name) and iter_node.id in path_containers:
+                iter_name = iter_node.id
+            elif (
+                isinstance(iter_node, ast.Call)
+                and isinstance(iter_node.func, ast.Attribute)
+                and isinstance(iter_node.func.value, ast.Name)
+                and iter_node.func.value.id in path_containers
+                and iter_node.func.attr == "values"
+            ):
+                iter_name = iter_node.func.value.id
+            if not iter_name or not isinstance(node.target, ast.Name):
+                continue
+            loop_var = node.target.id
+            for child in ast.walk(node):
+                if not isinstance(child, ast.Call):
+                    continue
+                func = child.func
+                if (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "replace"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id == loop_var
+                ):
+                    return True
+        return False
+
+    @classmethod
+    def _truncate_value(cls, value: Any, limit: int = 60) -> str:
+        text = str(value).strip()
+        if len(text) > limit:
+            return text[:limit] + "..."
+        return text
+
+    @classmethod
+    def _collect_sample_values(cls, columns: list[str], rows: list[list[Any]]) -> dict[str, list[str]]:
+        values: dict[str, list[str]] = {col: [] for col in columns}
+        for row in rows:
+            if not isinstance(row, list):
+                continue
+            for idx, col in enumerate(columns):
+                if idx >= len(row):
+                    continue
+                raw = row[idx]
+                if raw is None:
+                    continue
+                text = cls._truncate_value(raw)
+                if not text:
+                    continue
+                bucket = values.get(col)
+                if bucket is None:
+                    continue
+                if text not in bucket:
+                    bucket.append(text)
+                if len(bucket) >= cls._MAX_FIELD_VALUES:
+                    continue
+        # Drop empty buckets
+        return {k: v for k, v in values.items() if v}
+
+    @classmethod
+    def _collect_sample_values_from_dicts(cls, items: list[dict[str, Any]]) -> dict[str, list[str]]:
+        values: dict[str, list[str]] = {}
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            for key, raw in item.items():
+                if raw is None or isinstance(raw, (dict, list)):
+                    continue
+                text = cls._truncate_value(raw)
+                if not text:
+                    continue
+                bucket = values.setdefault(str(key), [])
+                if text not in bucket:
+                    bucket.append(text)
+                if len(bucket) >= cls._MAX_FIELD_VALUES:
+                    continue
+        return values
+
+    def _build_field_inventory(self, data_profile: dict[str, Any]) -> dict[str, Any]:
+        """Build a compact field/value inventory to guide tool parameter design."""
+        inventory: dict[str, Any] = {"csv": [], "json": [], "sqlite": [], "txt": []}
+        for entry in data_profile.get("csv", []):
+            header = entry.get("header") if isinstance(entry.get("header"), list) else []
+            rows = entry.get("sample_rows") if isinstance(entry.get("sample_rows"), list) else []
+            sample_values = self._collect_sample_values([str(h) for h in header], rows)
+            inventory["csv"].append(
+                {
+                    "path": entry.get("path"),
+                    "columns": header,
+                    "sample_values": sample_values,
+                }
+            )
+        for entry in data_profile.get("json", []):
+            items = entry.get("sample_items") if isinstance(entry.get("sample_items"), list) else []
+            dict_items = [item for item in items if isinstance(item, dict)]
+            sample_values = self._collect_sample_values_from_dicts(dict_items)
+            keys = sorted({str(k) for item in dict_items for k in item.keys()})
+            inventory["json"].append(
+                {
+                    "path": entry.get("path"),
+                    "keys": keys,
+                    "sample_values": sample_values,
+                }
+            )
+        for entry in data_profile.get("sqlite", []):
+            tables = entry.get("tables") if isinstance(entry.get("tables"), list) else []
+            table_summaries = []
+            for table in tables:
+                if not isinstance(table, dict):
+                    continue
+                columns = table.get("columns") if isinstance(table.get("columns"), list) else []
+                rows = table.get("rows") if isinstance(table.get("rows"), list) else []
+                sample_values = self._collect_sample_values([str(c) for c in columns], rows)
+                table_summaries.append(
+                    {
+                        "table": table.get("table"),
+                        "columns": columns,
+                        "sample_values": sample_values,
+                    }
+                )
+            inventory["sqlite"].append(
+                {
+                    "path": entry.get("path"),
+                    "tables": table_summaries,
+                }
+            )
+        for entry in data_profile.get("txt", []):
+            inventory["txt"].append(
+                {
+                    "path": entry.get("path"),
+                    "line_count": entry.get("line_count"),
+                }
+            )
+        return inventory
+
+    @staticmethod
+    def _extract_tool_output_keys(code: str) -> dict[str, list[str]]:
+        """Extract literal dict keys used inside each tool function."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return {}
+        keys_by_func: dict[str, set[str]] = {}
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            func_keys: set[str] = set()
+            for child in ast.walk(node):
+                if not isinstance(child, ast.Dict):
+                    continue
+                for key in child.keys:
+                    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                        func_keys.add(key.value)
+            if func_keys:
+                keys_by_func[node.name] = func_keys
+        return {name: sorted(keys) for name, keys in keys_by_func.items()}
+
     @classmethod
     def _validate_tool_code(cls, code: str) -> tuple[bool, list[str]]:
         """Return (ok, reasons). ok means code reads from local data sources."""
@@ -138,6 +370,18 @@ class ToolSynthesisMixin:
         has_mcp = cls._tool_code_has_mcp_binding(code)
         if uses_mcp and not has_mcp:
             reasons.append("missing_mcp_instance")
+            return False, reasons
+        if re.search(r"\bDATA_DIR\s*/\s*BASE_DIR\b", code) or re.search(r"\bBASE_DIR\s*/\s*DATA_DIR\b", code):
+            reasons.append("invalid_path_join_base_dir")
+            return False, reasons
+        if re.search(r"\bBASE_DIR\s*/\s*BASE_DIR\b", code):
+            reasons.append("duplicated_base_dir_in_path")
+            return False, reasons
+        if cls._tool_code_returns_raw_csv_rows(code):
+            reasons.append("raw_csv_rows_returned")
+            return False, reasons
+        if cls._tool_code_uses_path_replace(code):
+            reasons.append("path_replace_on_path")
             return False, reasons
         reads_data = cls._tool_code_reads_data(code)
         embeds_data = cls._tool_code_embeds_dataset(code)
@@ -150,40 +394,286 @@ class ToolSynthesisMixin:
             reasons.append("embedded_dataset_literal")
         return True, reasons
 
-    def _validate_submit_result_tool(
-        self, tools_code: str, specs: list[ToolSpec]
-    ) -> tuple[bool, bool, bool]:
-        """Validate submit_result tool.
-        
-        Returns:
-            (has_submit, not_stubbed, persists) tuple
-        """
-        has_submit = any(spec.name == self._SUBMIT_RESULT_TOOL for spec in specs)
-        submit_stubbed = False
-        submit_persists = bool(tools_code and self._SUBMITTED_RESULT_FILE in tools_code)
-        
-        if tools_code and "def submit_result" in tools_code:
-            try:
-                tree = ast.parse(tools_code)
-                for node in tree.body:
-                    if isinstance(node, ast.FunctionDef) and node.name == self._SUBMIT_RESULT_TOOL:
-                        body = node.body
-                        if (not body) or all(isinstance(stmt, ast.Pass) for stmt in body):
-                            submit_stubbed = True
-                        elif len(body) == 1 and isinstance(body[0], ast.Raise):
-                            submit_stubbed = True
+    @staticmethod
+    def _sanitize_tool_decorators(code: str) -> str:
+        """Normalize tool decorators and drop non-literal args to avoid import-time errors."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return code
+        changed = False
+
+        def is_tool_decorator(dec: ast.AST) -> bool:
+            if isinstance(dec, ast.Call):
+                func = dec.func
+                if isinstance(func, ast.Attribute) and func.attr == "tool":
+                    return True
+                if isinstance(func, ast.Name) and func.id == "tool":
+                    return True
+                return False
+            if isinstance(dec, ast.Attribute) and dec.attr == "tool":
+                return True
+            if isinstance(dec, ast.Name) and dec.id == "tool":
+                return True
+            return False
+
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for idx, dec in enumerate(node.decorator_list):
+                if not is_tool_decorator(dec):
+                    continue
+                if isinstance(dec, (ast.Attribute, ast.Name)):
+                    node.decorator_list[idx] = ast.Call(func=dec, args=[], keywords=[])
+                    dec = node.decorator_list[idx]
+                    changed = True
+                if not isinstance(dec, ast.Call):
+                    continue
+                if dec.args:
+                    first = dec.args[0]
+                    if not (isinstance(first, ast.Constant) and isinstance(first.value, str)):
+                        dec.args = []
+                        changed = True
+                new_keywords: list[ast.keyword] = []
+                for kw in dec.keywords:
+                    if kw.arg in {"description", "name", "title"}:
+                        if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+                            new_keywords.append(kw)
                         else:
-                            # Check for raise statements in function body
-                            for stmt in ast.walk(node):
-                                if isinstance(stmt, ast.Raise):
-                                    submit_stubbed = True
-                                    break
-                        break
-            except Exception:
-                # If parsing fails, treat as invalid
-                submit_stubbed = True
-        
-        return has_submit, not submit_stubbed, submit_persists
+                            changed = True
+                    elif kw.arg == "structured_output":
+                        if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, bool):
+                            new_keywords.append(kw)
+                        else:
+                            changed = True
+                    else:
+                        new_keywords.append(kw)
+                dec.keywords = new_keywords
+
+        if not changed:
+            return code
+        ast.fix_missing_locations(tree)
+        return ast.unparse(tree)
+
+    @staticmethod
+    def _normalize_typeddict_imports(code: str) -> str:
+        """Force TypedDict to come from typing_extensions for Pydantic compatibility."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return code
+
+        typing_aliases: set[str] = set()
+        has_typing_extensions = False
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "typing":
+                        typing_aliases.add(alias.asname or alias.name)
+            elif isinstance(node, ast.ImportFrom) and node.module == "typing_extensions":
+                if any(alias.name == "TypedDict" for alias in node.names):
+                    has_typing_extensions = True
+
+        class Transformer(ast.NodeTransformer):
+            def __init__(self) -> None:
+                self.uses_typeddict = False
+
+            def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.AST | None:
+                if node.module == "typing":
+                    new_names = []
+                    removed = False
+                    for alias in node.names:
+                        if alias.name == "TypedDict":
+                            removed = True
+                            self.uses_typeddict = True
+                        else:
+                            new_names.append(alias)
+                    if removed:
+                        if not new_names:
+                            return None
+                        node.names = new_names
+                    return node
+                return node
+
+            def visit_Name(self, node: ast.Name) -> ast.AST:
+                if node.id == "TypedDict":
+                    self.uses_typeddict = True
+                return node
+
+            def visit_Attribute(self, node: ast.Attribute) -> ast.AST:
+                node = self.generic_visit(node)
+                if isinstance(node, ast.Attribute) and node.attr == "TypedDict":
+                    if isinstance(node.value, ast.Name) and node.value.id in typing_aliases | {"typing"}:
+                        self.uses_typeddict = True
+                        return ast.copy_location(ast.Name(id="TypedDict", ctx=node.ctx), node)
+                return node
+
+        transformer = Transformer()
+        tree = transformer.visit(tree)
+        if tree is None:
+            return code
+
+        if transformer.uses_typeddict and not has_typing_extensions:
+            import_node = ast.ImportFrom(
+                module="typing_extensions",
+                names=[ast.alias(name="TypedDict", asname=None)],
+                level=0,
+            )
+            insert_idx = 0
+            if tree.body:
+                if (
+                    isinstance(tree.body[0], ast.Expr)
+                    and isinstance(tree.body[0].value, ast.Constant)
+                    and isinstance(tree.body[0].value.value, str)
+                ):
+                    insert_idx = 1
+                while (
+                    insert_idx < len(tree.body)
+                    and isinstance(tree.body[insert_idx], ast.ImportFrom)
+                    and tree.body[insert_idx].module == "__future__"
+                ):
+                    insert_idx += 1
+            tree.body.insert(insert_idx, import_node)
+
+        ast.fix_missing_locations(tree)
+        return ast.unparse(tree)
+
+    @staticmethod
+    def _ensure_submit_result_raw(code: str) -> str:
+        """Force submit_result to persist and return raw result without wrappers."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return code
+        submit_node = None
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "submit_result":
+                submit_node = node
+                break
+        canonical_body = ast.parse(
+            "\n".join(
+                [
+                    "output_path = BASE_DIR / \"submitted_result.json\"",
+                    "with open(output_path, 'w', encoding='utf-8') as f:",
+                    "    json.dump(result, f, indent=2, ensure_ascii=False, default=str)",
+                    "return result",
+                ]
+            )
+        ).body
+        if submit_node is None:
+            submit_src = (
+                "@mcp.tool(description=\"Submit and persist a result to submitted_result.json\")\n"
+                "def submit_result(result):\n"
+                "    output_path = BASE_DIR / \"submitted_result.json\"\n"
+                "    with open(output_path, 'w', encoding='utf-8') as f:\n"
+                "        json.dump(result, f, indent=2, ensure_ascii=False, default=str)\n"
+                "    return result\n"
+            )
+            submit_tree = ast.parse(submit_src)
+            tree.body.extend(submit_tree.body)
+        else:
+            submit_node.body = canonical_body
+        return ast.unparse(tree)
+
+    @staticmethod
+    def _summarize_import_error(stdout: str, stderr: str) -> str:
+        """Return a compact import failure message to avoid echoing bad code."""
+        text = f"{stdout}\n{stderr}"
+        if "description" in text and "PosixPath" in text and "string" in text:
+            return "import_failed: tool_description_not_string"
+        if "Tool" in text and "validation error" in text and "description" in text:
+            return "import_failed: tool_description_invalid"
+        return "import_failed: tool_import_error"
+
+    @staticmethod
+    def _collect_annotation_names(code: str) -> set[str]:
+        """Collect typing names used in annotations to ensure typing imports."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return set()
+        wanted = {
+            "List",
+            "Dict",
+            "Optional",
+            "Any",
+            "Literal",
+            "Set",
+            "Tuple",
+            "Union",
+            "Iterable",
+            "Mapping",
+            "Sequence",
+        }
+        found: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                ann_nodes: list[ast.AST] = []
+                for arg in list(node.args.posonlyargs) + list(node.args.args) + list(node.args.kwonlyargs):
+                    if arg.annotation is not None:
+                        ann_nodes.append(arg.annotation)
+                if node.args.vararg is not None and node.args.vararg.annotation is not None:
+                    ann_nodes.append(node.args.vararg.annotation)
+                if node.args.kwarg is not None and node.args.kwarg.annotation is not None:
+                    ann_nodes.append(node.args.kwarg.annotation)
+                if node.returns is not None:
+                    ann_nodes.append(node.returns)
+                for ann in ann_nodes:
+                    for sub in ast.walk(ann):
+                        if isinstance(sub, ast.Name) and sub.id in wanted:
+                            found.add(sub.id)
+                        elif isinstance(sub, ast.Attribute) and isinstance(sub.value, ast.Name):
+                            if sub.value.id == "typing" and sub.attr in wanted:
+                                found.add(sub.attr)
+        return found
+
+    @staticmethod
+    def _validate_tool_output_schema(specs: list[ToolSpec]) -> list[str]:
+        """Validate output shapes based on tool naming conventions."""
+        errors: list[str] = []
+        for spec in specs:
+            if spec.name == ToolSynthesisMixin._SUBMIT_RESULT_TOOL:
+                continue
+            schema = spec.output_schema
+            if not isinstance(schema, dict):
+                errors.append(f"tool_output_schema_missing:{spec.name}")
+                continue
+            schema_type = schema.get("type")
+            if schema_type == "array":
+                if not spec.name.startswith(("list_", "get_", "search_")):
+                    errors.append(f"tool_output_array_disallowed:{spec.name}:{schema_type}")
+            elif schema_type != "object":
+                errors.append(f"tool_output_type_invalid:{spec.name}:{schema_type}")
+        return errors
+
+    @staticmethod
+    def _validate_tool_specs_parameters(specs: list[ToolSpec]) -> list[str]:
+        """Reject generic free-text parameters unless enumerated."""
+        errors: list[str] = []
+        banned_names = {"query", "q", "text", "search", "keyword", "term"}
+        for spec in specs:
+            if spec.name == ToolSynthesisMixin._SUBMIT_RESULT_TOOL:
+                continue
+            params = spec.parameters or {}
+            props = params.get("properties") if isinstance(params, dict) else None
+            if not isinstance(props, dict):
+                continue
+            for param_name, schema in props.items():
+                if param_name not in banned_names:
+                    continue
+                enum_values = None
+                if isinstance(schema, dict):
+                    if isinstance(schema.get("enum"), list):
+                        enum_values = schema.get("enum")
+                    elif isinstance(schema.get("oneOf"), list):
+                        enum_values = [
+                            item.get("const")
+                            for item in schema["oneOf"]
+                            if isinstance(item, dict) and "const" in item
+                        ]
+                if not enum_values:
+                    errors.append(f"free_text_param_disallowed:{spec.name}.{param_name}")
+        return errors
 
     def _ensure_mcp_installed(self, sandbox: SandboxExecutor) -> tuple[bool, str]:
         """Ensure mcp package (FastMCP) is available in the sandbox."""
@@ -251,269 +741,639 @@ class ToolSynthesisMixin:
             return tool_specs
         return tool_specs + [self._submit_result_spec()]
 
-    def _validate_and_register_tools(
-        self,
-        raw: str,
-        topic: str,
-        records: list[dict[str, Any]],
-        ctx: TaskContext,
-        sandbox: SandboxExecutor,
-        data_profile: dict[str, Any],
-        attempt: int,
-    ) -> tuple[bool, list[ToolSpec], str, dict[str, Any], list[str]]:
-        """Validate generated tools and perform all checks (code, import, registration, selftest).
-        
-        Returns:
-            (success, specs, tools_code, tool_selftest, errors) tuple
-            If success is False, errors contains all validation errors
-        """
-        errors: list[str] = []
-        specs = self._extract_mcp_tools(raw)
-        tools_code = self._sanitize_llm_code(raw)
-        
-        # Check if we successfully parsed any tools
-        if not specs:
-            errors.append("no_tools_parsed_from_llm_output")
-            ctx.add_step(
-                {
-                    "type": "tool_synthesis_no_tools_parsed",
-                    "attempt": attempt,
-                    "raw_preview": raw[:500],
-                }
-            )
-            return False, [], "", {}, errors
-        
-        # Validate code
-        code_ok, code_reasons = self._validate_tool_code(tools_code) if tools_code else (False, ["no_tools_code"])
-        if not code_ok:
-            errors.extend(code_reasons)
-        
-        # Validate submit_result
-        has_submit, not_stubbed, submit_persists = self._validate_submit_result_tool(tools_code, specs)
-        if not has_submit:
-            errors.append("missing_submit_result")
-        if not not_stubbed:
-            errors.append("submit_result_stubbed")
-        if not submit_persists:
-            errors.append("submit_result_not_persisting")
-        
-        # If basic validation failed, return early
-        if errors:
-            ctx.add_step(
-                {
-                    "type": "tool_synthesis_validation_failed",
-                    "attempt": attempt,
-                    "errors": errors,
-                    "has_submit_result": bool(has_submit),
-                    "submit_stubbed": not not_stubbed,
-                    "submit_persists": bool(submit_persists),
-                    "tool_code_valid": bool(code_ok),
-                }
-            )
-            return False, specs, tools_code, {}, errors
-        
-        # Ensure mcp is installed
-        mcp_installed, mcp_error = self._ensure_mcp_installed(sandbox)
-        if not mcp_installed:
-            error_msg = f"mcp_installation_failed: {mcp_error}" if mcp_error else "mcp_installation_failed"
-            errors.append(error_msg)
-            ctx.add_step(
-                {
-                    "type": "mcp_installation_failed",
-                    "attempt": attempt,
-                    "error": mcp_error,
-                }
-            )
-            return False, specs, tools_code, {}, errors
-        
-        # Filter and prepare specs
-        seen: set[str] = set()
-        filtered: list[ToolSpec] = []
-        for spec in specs:
-            if spec.name in self._FILTERED_TOOL_NAMES:
+    def _iter_data_entries(self, data_profile: dict[str, Any]) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        for kind in ("csv", "json", "sqlite", "txt"):
+            items = data_profile.get(kind, [])
+            if not isinstance(items, list):
                 continue
-            if spec.name in seen:
-                continue
-            seen.add(spec.name)
-            filtered.append(
-                spec.copy(
-                    update={
-                        "description": spec.description
-                        or f"Query curated records about {topic}",
-                        "meta": (spec.meta or {}) | {"topic": topic},
-                    }
-                )
-            )
-        filtered = self._ensure_submit_result_tool(filtered)
-        
-        # Write tools.py and test import
-        tools_path = sandbox.sandbox_dir / "tools.py"
+            for entry in items:
+                if not isinstance(entry, dict):
+                    continue
+                path = entry.get("path")
+                if isinstance(path, str) and path.strip():
+                    entries.append({"kind": kind, "path": path, "entry": entry})
+        log_items = data_profile.get("logs", [])
+        if isinstance(log_items, list):
+            for entry in log_items:
+                if not isinstance(entry, dict):
+                    continue
+                path = entry.get("path")
+                if isinstance(path, str) and path.strip():
+                    entries.append({"kind": "txt", "path": path, "entry": {"path": path}})
+        entries.sort(key=lambda item: item["path"])
+        return entries
+
+    @staticmethod
+    def _tool_prefix_from_path(path: str) -> str:
+        parts = Path(path).with_suffix("").as_posix().split("/")
+        if parts and parts[0] == "data":
+            parts = parts[1:]
+        if not parts:
+            parts = ["data"]
+        parts = parts[-2:] if len(parts) >= 2 else parts
+        prefix = "_".join(parts)
+        prefix = re.sub(r"[^a-zA-Z0-9_]", "_", prefix)
+        prefix = re.sub(r"_+", "_", prefix).strip("_").lower()
+        if not prefix:
+            prefix = "data"
+        if prefix[0].isdigit():
+            prefix = f"data_{prefix}"
+        return prefix
+
+    @staticmethod
+    def _namespace_for_path(path: str) -> str:
+        base = ToolSynthesisMixin._tool_prefix_from_path(path)
+        digest = hashlib.sha1(path.encode("utf-8")).hexdigest()[:8]
+        return f"{base}_{digest}"
+
+    @staticmethod
+    def _unique_tool_names(prefix: str, used: set[str]) -> tuple[str, str]:
+        base_list = f"list_{prefix}_options"
+        base_tool = f"get_{prefix}_records"
+        list_name = base_list
+        tool_name = base_tool
+        suffix = 2
+        while list_name in used or tool_name in used:
+            list_name = f"{base_list}_{suffix}"
+            tool_name = f"{base_tool}_{suffix}"
+            suffix += 1
+        return list_name, tool_name
+
+    @staticmethod
+    def _collect_module_imports(code: str) -> list[str]:
         try:
-            implemented_code = self._generate_tool_implementations(
-                tools_code=tools_code,
-                sandbox_dir=sandbox.sandbox_dir,
-                tool_specs=filtered,
-                topic=topic,
-                data_profile=data_profile,
-                sandbox=sandbox,
-            )
-            tools_path.write_text(implemented_code, encoding="utf-8")
-            
-            # Test import
-            import_result = sandbox.execute_bash('python -c "import tools; print(\'TOOLS_IMPORT_OK\')"')
-            stderr = (import_result.get("stderr") or "").strip()
-            stdout = (import_result.get("stdout") or "").strip()
-            import_ok = import_result.get("returncode") == 0 or "TOOLS_IMPORT_OK" in stdout
-            if not import_ok:
-                detail = (
-                    f"stdout={stdout[:1000]!r} stderr={stderr[:1000]!r}"
-                    if (stdout or stderr)
-                    else "stdout/stderr empty"
-                )
-                errors.append(f"import_failed: {detail}")
-                ctx.add_step(
-                    {
-                        "type": "tool_import_test_failed",
-                        "returncode": import_result.get("returncode"),
-                        "stderr": stderr[:2000],
-                        "stdout": stdout[:2000],
-                        "attempt": attempt,
-                    }
-                )
-                return False, filtered, tools_code, {}, errors
-        except Exception as exc:
-            errors.append(f"import_test_exception: {str(exc)[:200]}")
-            ctx.add_step(
-                {
-                    "type": "tool_import_test_exception",
-                    "error": str(exc)[:500],
-                    "attempt": attempt,
-                }
-            )
-            return False, filtered, tools_code, {}, errors
-        
-        # Register tools
-        registration_ok, registration_errors = self._register_task_tools(filtered, sandbox, ctx, tools_code=tools_code)
-        if not registration_ok:
-            errors.extend(registration_errors)
-            ctx.add_step(
-                {
-                    "type": "tool_registration_failed",
-                    "errors": registration_errors,
-                    "attempt": attempt,
-                }
-            )
-            return False, filtered, tools_code, {}, errors
-        
-        # Self-test
-        tool_selftest = self._self_test_tools(filtered, sandbox, topic, ctx, data_profile)
-        
-        # Check if selftest indicates regeneration is needed
-        regen_needed, regen_reasons = self._needs_tool_regeneration(tool_selftest)
-        if regen_needed:
-            errors.extend([f"Self-test issue: {reason}" for reason in regen_reasons])
-            ctx.add_step(
-                {
-                    "type": "tool_selftest_failed",
-                    "reasons": regen_reasons,
-                    "attempt": attempt,
-                }
-            )
-            return False, filtered, tools_code, tool_selftest, errors
-        
-        # All validations passed
-        return True, filtered, tools_code, tool_selftest, []
+            tree = ast.parse(code)
+        except Exception:
+            return []
+        imports: list[str] = []
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+                    continue
+                imports.append(ast.unparse(node))
+        return imports
 
-    def _build_base_tool_rules(self, include_examples: bool = True) -> str:
-        """Build the base rules for tool generation that should be included in all prompts.
-        
-        Args:
-            include_examples: If True, include example code snippets for file paths.
-        """
-        rules = (
-            "- IMPORTANT: decorators execute at import-time. Use @mcp.tool() on a FastMCP instance.\n"
-            "  Add `from mcp.server.fastmcp import FastMCP` and `mcp = FastMCP(\"Tools\")` near the top.\n"
-            "  Do NOT call mcp.run() or start any server.\n"
-            "  Do NOT implement tool logic in the framework; all tool bodies must be yours.\n"
-        )
-        
-        if include_examples:
-            rules += (
-                "- CRITICAL: File paths must be absolute. Use `Path(__file__).parent` to get the directory containing this tools.py file.\n"
-                "  Example: `from pathlib import Path; BASE_DIR = Path(__file__).parent; csv_path = BASE_DIR / \"data\" / \"file.csv\"`\n"
-                "  NEVER use relative paths like `\"data/file.csv\"` - they will fail if the working directory changes.\n"
-            )
-        else:
-            rules += (
-                "- CRITICAL: File paths must be absolute. Use `Path(__file__).parent` to get the directory containing this tools.py file.\n"
-            )
-        
-        rules += (
-            "- NO network, NO external APIs. Only read the listed local files (CSV/JSON/TXT/SQLite).\n"
-            "- Deterministic: set random.seed(0) if randomness is used.\n"
-            "- RECOMMENDED: Tools should accept (query: str, max_results: int = 5) and return list[dict] for consistency.\n"
-            "  However, you may use different signatures if the tool's purpose requires it (e.g., submit_result).\n"
-            "- Implement the body to actually parse the data sources; do not stub/raise.\n"
-            "- Read from the local files (CSV/JSON/TXT/SQLite) shown in the data profile; do NOT hardcode sample records.\n"
-            f"- You MUST define a tool named submit_result with signature submit_result(result) that returns `result`.\n"
-            f"  submit_result MUST be implemented (no pass/raise) and MUST persist the payload to {self._SUBMITTED_RESULT_FILE}\n"
-            f"  in the directory containing tools.py (use `Path(__file__).parent / \"{self._SUBMITTED_RESULT_FILE}\"`).\n"
-            "- If fields are insufficient, add additional tools or extend returned dicts to cover likely needs.\n"
-            f"- Prefer descriptive snake_case names; avoid {', '.join(repr(name) for name in self._FILTERED_TOOL_NAMES)}.\n"
-        )
-        return rules
+    @staticmethod
+    def _string_literals_in_code(code: str) -> set[str]:
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return set()
+        literals: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if node.value:
+                    literals.add(node.value)
+            elif isinstance(node, ast.JoinedStr):
+                parts = []
+                for value in node.values:
+                    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                        parts.append(value.value)
+                if parts:
+                    literals.add("".join(parts))
+        return literals
 
-    def _generate_tool_code(
+    @classmethod
+    def _path_literals_ok(cls, code: str, rel_path: str) -> bool:
+        literals = cls._string_literals_in_code(code)
+        if not literals:
+            return False
+        normalized = rel_path.replace("\\", "/")
+        parts = [part for part in normalized.split("/") if part]
+        if normalized in literals:
+            return True
+        return all(part in literals for part in parts)
+
+    @staticmethod
+    def _extract_decorated_tool_functions(code: str) -> tuple[list[dict[str, Any]], ast.Module | None]:
+        normalized = re.sub(r"@mcp\.tool\s*(?=\n)", "@mcp.tool()", code)
+        try:
+            tree = ast.parse(normalized)
+        except Exception:
+            return [], None
+        lines = normalized.splitlines()
+        funcs: list[dict[str, Any]] = []
+
+        def is_tool_decorator(dec: ast.AST) -> bool:
+            if isinstance(dec, ast.Call):
+                func = dec.func
+                if isinstance(func, ast.Attribute) and func.attr == "tool":
+                    return True
+                if isinstance(func, ast.Name) and func.id == "tool":
+                    return True
+            if isinstance(dec, ast.Attribute) and dec.attr == "tool":
+                return True
+            if isinstance(dec, ast.Name) and dec.id == "tool":
+                return True
+            return False
+
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not any(is_tool_decorator(dec) for dec in node.decorator_list):
+                continue
+            decorator_lines = [dec.lineno for dec in node.decorator_list if getattr(dec, "lineno", None)]
+            start_line = min(decorator_lines) if decorator_lines else node.lineno or 1
+            end_line = node.end_lineno or node.lineno or start_line
+            block = "\n".join(lines[start_line - 1 : end_line]).strip()
+            funcs.append({"name": node.name, "node": node, "block": block})
+        return funcs, tree
+
+    @staticmethod
+    def _function_body_has_logic(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+        body = list(node.body)
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            body = body[1:]
+        for stmt in body:
+            if isinstance(stmt, ast.Pass):
+                continue
+            if isinstance(stmt, ast.Raise):
+                continue
+            if (
+                isinstance(stmt, ast.Expr)
+                and isinstance(stmt.value, ast.Constant)
+                and stmt.value.value is Ellipsis
+            ):
+                continue
+            return True
+        return False
+
+    @staticmethod
+    def _demote_extra_tool_decorators(code: str, keep_names: set[str]) -> str:
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return code
+
+        def is_tool_decorator(dec: ast.AST) -> bool:
+            if isinstance(dec, ast.Call):
+                func = dec.func
+                if isinstance(func, ast.Attribute) and func.attr == "tool":
+                    return True
+                if isinstance(func, ast.Name) and func.id == "tool":
+                    return True
+            if isinstance(dec, ast.Attribute) and dec.attr == "tool":
+                return True
+            if isinstance(dec, ast.Name) and dec.id == "tool":
+                return True
+            return False
+
+        changed = False
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name in keep_names:
+                continue
+            if not node.decorator_list:
+                continue
+            new_decorators = [dec for dec in node.decorator_list if not is_tool_decorator(dec)]
+            if len(new_decorators) != len(node.decorator_list):
+                node.decorator_list = new_decorators
+                changed = True
+
+        if not changed:
+            return code
+        return ast.unparse(tree)
+
+    @staticmethod
+    def _strip_module_imports_and_globals(code: str) -> str:
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return code
+
+        def _is_docstring(stmt: ast.stmt) -> bool:
+            return (
+                isinstance(stmt, ast.Expr)
+                and isinstance(stmt.value, ast.Constant)
+                and isinstance(stmt.value.value, str)
+            )
+
+        def _is_random_seed(stmt: ast.stmt) -> bool:
+            if not isinstance(stmt, ast.Expr) or not isinstance(stmt.value, ast.Call):
+                return False
+            call = stmt.value
+            func = call.func
+            return (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "random"
+                and func.attr == "seed"
+            )
+
+        def _is_main_guard(stmt: ast.stmt) -> bool:
+            if not isinstance(stmt, ast.If):
+                return False
+            test = stmt.test
+            if not isinstance(test, ast.Compare):
+                return False
+            if not isinstance(test.left, ast.Name) or test.left.id != "__name__":
+                return False
+            if len(test.ops) != 1 or not isinstance(test.ops[0], ast.Eq):
+                return False
+            if len(test.comparators) != 1:
+                return False
+            comp = test.comparators[0]
+            return isinstance(comp, ast.Constant) and comp.value == "__main__"
+
+        stripped: list[ast.stmt] = []
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = []
+                if isinstance(node, ast.Assign):
+                    targets = node.targets
+                elif isinstance(node, ast.AnnAssign):
+                    targets = [node.target]
+                names = {
+                    t.id
+                    for t in targets
+                    if isinstance(t, ast.Name)
+                }
+                if {"BASE_DIR", "mcp"} & names:
+                    continue
+            if _is_docstring(node):
+                continue
+            if _is_main_guard(node):
+                continue
+            if isinstance(node, ast.Expr) and not _is_random_seed(node):
+                continue
+            stripped.append(node)
+
+        module = ast.Module(body=stripped, type_ignores=[])
+        return ast.unparse(module)
+
+    @staticmethod
+    def _namespace_fragment(code: str, namespace: str, keep_names: set[str]) -> str:
+        """Rename module-level symbols to avoid cross-fragment collisions."""
+        if not namespace:
+            return code
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return code
+
+        mapping: dict[str, str] = {}
+
+        def should_rename(name: str) -> bool:
+            if name in keep_names:
+                return False
+            if name.startswith("__") and name.endswith("__"):
+                return False
+            return True
+
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                if should_rename(node.name):
+                    mapping.setdefault(node.name, f"{namespace}_{node.name}")
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = []
+                if isinstance(node, ast.Assign):
+                    targets = node.targets
+                else:
+                    targets = [node.target]
+                for target in targets:
+                    if isinstance(target, ast.Name) and should_rename(target.id):
+                        mapping.setdefault(target.id, f"{namespace}_{target.id}")
+
+        if not mapping:
+            return code
+
+        class Renamer(ast.NodeTransformer):
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST:
+                if node.name in mapping:
+                    node.name = mapping[node.name]
+                self.generic_visit(node)
+                return node
+
+            def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> ast.AST:
+                if node.name in mapping:
+                    node.name = mapping[node.name]
+                self.generic_visit(node)
+                return node
+
+            def visit_ClassDef(self, node: ast.ClassDef) -> ast.AST:
+                if node.name in mapping:
+                    node.name = mapping[node.name]
+                self.generic_visit(node)
+                return node
+
+            def visit_Name(self, node: ast.Name) -> ast.AST:
+                if node.id in mapping:
+                    node.id = mapping[node.id]
+                return node
+
+        renamer = Renamer()
+        tree = renamer.visit(tree)
+        if tree is None:
+            return code
+        ast.fix_missing_locations(tree)
+        return ast.unparse(tree)
+
+    @staticmethod
+    def _detect_global_name_collisions(code: str) -> list[str]:
+        """Return duplicated top-level symbols (functions/classes/constants)."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return []
+        counts: dict[str, int] = {}
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                name = node.name
+                counts[name] = counts.get(name, 0) + 1
+                continue
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        name = target.id
+                        counts[name] = counts.get(name, 0) + 1
+                continue
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                name = node.target.id
+                counts[name] = counts.get(name, 0) + 1
+        return sorted(name for name, count in counts.items() if count > 1)
+
+    def _build_file_tool_prompt(
         self,
+        *,
         topic: str,
-        records: list[dict[str, Any]],
-        ctx: TaskContext,
-        data_profile: dict[str, Any],
-        data_profile_json: str,
+        file_kind: str,
+        rel_path: str,
+        entry_json: str,
+        field_inventory_json: str,
+        list_tool_name: str,
+        main_tool_name: str,
+        required_fields: set[str] | None = None,
         all_errors: list[str] | None = None,
     ) -> str:
-        """Generate tool code using LLM. Returns raw LLM output."""
-        max_tokens = getattr(ctx.request, "max_tokens", 10000)
-        
+        error_context = ""
         if all_errors:
-            # Regeneration prompt with error context - use full base rules
             error_context = (
                 "Previous attempts encountered the following issues:\n"
                 + "\n".join(f"- {error}" for error in all_errors)
                 + "\n\n"
             )
-            base_rules = self._build_base_tool_rules(include_examples=False)
-            prompt = (
-                f"{error_context}"
-                "Regenerate an executable toolset to fix the issues above.\n"
-                "Hard rules:\n"
-                f"{base_rules}"
-                f"Topic: {topic}\n"
-                f"Data profile: {data_profile_json}\n"
-                "Output ONLY one Python code block defining the tools (including imports).\n"
-                "Do NOT include prose. Ensure each function has the @mcp.tool() decorator."
+        required_hint = ""
+        if required_fields:
+            required_hint = f"Required output fields (use if applicable): {sorted(required_fields)}\n"
+        rules = (
+            "- Output ONLY one Python code block.\n"
+            f"- Define tools with @mcp.tool() for `{list_tool_name}` and `{main_tool_name}`.\n"
+            "- You MAY define helper functions/classes/constants and imports.\n"
+            "- Avoid adding extra @mcp.tool-decorated functions; they will be ignored.\n"
+            "- Do NOT define mcp, FastMCP, or BASE_DIR; those are provided by the framework.\n"
+            f"- Use BASE_DIR and the exact path parts for this file: {rel_path}.\n"
+            "- Each tool function must read the local file and must not be empty (no pass/raise).\n"
+            f"- `{list_tool_name}` returns a list of allowed values for a filter parameter used by `{main_tool_name}`.\n"
+            f"- `{main_tool_name}` accepts only those values (enum), and returns list[dict] or a dict summary.\n"
+            "- Add type hints for all parameters and returns; list tools should return list[str].\n"
+            "- Do NOT name parameters query/q/text/search/keyword/term.\n"
+            "- Avoid free-text parameters; use explicit, data-driven filters.\n"
+            "- Deterministic: set random.seed(0) if randomness is used.\n"
+            "- Tool descriptions must be plain string literals.\n"
+            "- Return JSON-serializable shapes with stable keys.\n"
+        )
+        prompt = (
+            f"{error_context}"
+            "Generate tools for exactly ONE local data file.\n"
+            "Hard rules:\n"
+            f"{rules}\n"
+            f"Topic: {topic}\n"
+            f"File type: {file_kind}\n"
+            f"File profile (JSON): {entry_json}\n"
+            f"Field inventory (JSON): {field_inventory_json}\n"
+            f"{required_hint}"
+            "Output ONLY one Python code block defining the two tools. No prose."
+        )
+        return prompt
+
+    def _synthesize_file_tools(
+        self,
+        *,
+        topic: str,
+        entry: dict[str, Any],
+        list_tool_name: str,
+        main_tool_name: str,
+        ctx: TaskContext,
+        required_fields: set[str] | None = None,
+        all_errors: list[str] | None = None,
+    ) -> tuple[str, list[ToolSpec], list[str]]:
+        file_profile: dict[str, Any] = {"csv": [], "json": [], "sqlite": [], "txt": []}
+        file_profile[entry["kind"]] = [entry["entry"]]
+        field_inventory = self._build_field_inventory(file_profile)
+        field_inventory_json = json.dumps(field_inventory, ensure_ascii=True)
+        if len(field_inventory_json) > self._MAX_FIELD_INVENTORY_SIZE:
+            field_inventory_json = field_inventory_json[:self._MAX_FIELD_INVENTORY_SIZE] + "..."
+        entry_json = json.dumps(entry["entry"], ensure_ascii=False)
+        if len(entry_json) > 2000:
+            entry_json = entry_json[:2000] + "..."
+
+        max_tokens = getattr(ctx.request, "max_tokens", 10000)
+        attempt_errors = list(all_errors or [])
+        for attempt in range(1, self._MAX_REGEN_ATTEMPTS + 1):
+            prompt = self._build_file_tool_prompt(
+                topic=topic,
+                file_kind=entry["kind"],
+                rel_path=entry["path"],
+                entry_json=entry_json,
+                field_inventory_json=field_inventory_json,
+                list_tool_name=list_tool_name,
+                main_tool_name=main_tool_name,
+                required_fields=required_fields,
+                all_errors=attempt_errors or None,
             )
             raw = self.llm.simple_complete(prompt, temperature=0.55, max_tokens=max_tokens)
-            ctx.add_step({"type": "tool_regeneration", "content": raw})
-        else:
-            # Initial generation prompt
-            base_rules = self._build_base_tool_rules(include_examples=True)
-            prompt = (
-                "You are designing a deterministic toolset for a sandboxed RL agent.\n"
-                "Goal: generate 3-5 @mcp.tool() functions tailored to the AVAILABLE local data sources.\n"
-                "Hard rules:\n"
-                f"{base_rules}"
-                "Data sources (JSON, sampled schemas):\n"
-                f"{data_profile_json}\n"
-                f"Topic: {topic}\n"
-                f"Curated records sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
-                "Output ONLY one Python code block defining the tools (including imports).\n"
-                "Do NOT include prose. Ensure each function has the @mcp.tool() decorator."
+            ctx.add_step(
+                {
+                    "type": "tool_synthesis_file",
+                    "path": entry["path"],
+                    "attempt": attempt,
+                    "content": raw,
+                }
             )
-            raw = self.llm.simple_complete(prompt, temperature=0.6, max_tokens=max_tokens)
-            ctx.add_step({"type": "tool_synthesis", "content": raw, "attempt": 1})
-        
-        return raw
+            code = self._sanitize_llm_code(raw)
+            code = self._sanitize_tool_decorators(code)
+            errors: list[str] = []
+            if not code:
+                errors.append("empty_tool_code")
+            imports = self._collect_module_imports(code)
+            funcs, tree = self._extract_decorated_tool_functions(code)
+            if tree is None:
+                errors.append("parse_failed")
+            names = {func["name"] for func in funcs}
+            missing = {list_tool_name, main_tool_name} - names
+            if missing:
+                errors.append("tool_names_missing")
+            if "submit_result" in names or "def submit_result" in code:
+                errors.append("submit_result_disallowed")
+            for func in funcs:
+                node = func["node"]
+                if not self._function_body_has_logic(node):
+                    errors.append(f"empty_body:{func['name']}")
+            if not self._path_literals_ok(code, entry["path"]):
+                errors.append("path_missing_or_mismatch")
+
+            if errors:
+                logger.info(
+                    "Tool synthesis retry for file %s (attempt %s/%s): %s",
+                    entry["path"],
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    errors,
+                )
+                ctx.add_step(
+                    {
+                        "type": "tool_synthesis_file_validation_failed",
+                        "path": entry["path"],
+                        "attempt": attempt,
+                        "errors": errors,
+                    }
+                )
+                attempt_errors = errors
+                continue
+
+            keep_names = {list_tool_name, main_tool_name}
+            demoted = self._demote_extra_tool_decorators(code, keep_names)
+            fragment = self._strip_module_imports_and_globals(demoted).strip()
+            namespace = self._namespace_for_path(entry["path"])
+            fragment = self._namespace_fragment(fragment, namespace, keep_names).strip()
+            if not fragment:
+                errors = ["empty_tool_code"]
+                logger.info(
+                    "Tool synthesis retry for file %s (attempt %s/%s): %s",
+                    entry["path"],
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    errors,
+                )
+                ctx.add_step(
+                    {
+                        "type": "tool_synthesis_file_validation_failed",
+                        "path": entry["path"],
+                        "attempt": attempt,
+                        "errors": errors,
+                    }
+                )
+                attempt_errors = errors
+                continue
+            specs = self._extract_mcp_tools_from_python(fragment)
+            spec_names = {spec.name for spec in specs}
+            missing_specs = {list_tool_name, main_tool_name} - spec_names
+            if missing_specs:
+                errors = ["tool_spec_name_mismatch"]
+            else:
+                return fragment, specs, imports
+            if errors:
+                logger.info(
+                    "Tool synthesis retry for file %s (attempt %s/%s): %s",
+                    entry["path"],
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    errors,
+                )
+                ctx.add_step(
+                    {
+                        "type": "tool_synthesis_file_validation_failed",
+                        "path": entry["path"],
+                        "attempt": attempt,
+                        "errors": errors,
+                    }
+                )
+                attempt_errors = errors
+                continue
+
+        raise RuntimeError(
+            f"Tool synthesis failed for {entry['path']} after {self._MAX_REGEN_ATTEMPTS} attempts."
+        )
+
+    def _assemble_tools_module(
+        self,
+        *,
+        fragments: list[str],
+        import_lines: list[str],
+        data_profile: dict[str, Any],
+    ) -> str:
+        body = "\n\n".join(fragment.strip() for fragment in fragments if fragment.strip()).strip()
+        body = self._sanitize_tool_decorators(body)
+        known_paths: set[str] = set()
+        for key in ("csv", "json", "sqlite", "txt"):
+            for entry in data_profile.get(key, []):
+                path = entry.get("path")
+                if isinstance(path, str):
+                    known_paths.add(path)
+        known_basenames = {Path(path).name for path in known_paths}
+        body = self._fix_file_paths(
+            body,
+            known_basenames=known_basenames,
+            add_imports=False,
+            add_base_dir=False,
+        )
+
+        typing_names = self._collect_annotation_names(body)
+        header_lines: list[str] = []
+        seen: set[str] = set()
+
+        def add_import(line: str) -> None:
+            if line not in seen:
+                header_lines.append(line)
+                seen.add(line)
+
+        add_import("from __future__ import annotations")
+        for line in import_lines:
+            if line.startswith("from __future__ import"):
+                continue
+            if "mcp.server.fastmcp" in line or line.startswith("import mcp") or line.startswith("from mcp"):
+                continue
+            add_import(line)
+        if typing_names:
+            add_import("from typing import " + ", ".join(sorted(typing_names)))
+        if "typing." in body and not any(line.startswith("import typing") for line in header_lines):
+            add_import("import typing")
+        if re.search(r"\bEnum\b", body) and not any("from enum import Enum" in line for line in header_lines):
+            add_import("from enum import Enum")
+        add_import("import json")
+        add_import("from pathlib import Path")
+        add_import("from mcp.server.fastmcp import FastMCP")
+        if "csv." in body and not any("import csv" in line for line in header_lines):
+            add_import("import csv")
+        if "sqlite3." in body and not any("import sqlite3" in line for line in header_lines):
+            add_import("import sqlite3")
+        if "random." in body and not any("import random" in line for line in header_lines):
+            add_import("import random")
+        if "re." in body and not any("import re" in line for line in header_lines):
+            add_import("import re")
+        if "os." in body and not any(line.startswith(("import os", "from os")) for line in header_lines):
+            add_import("import os")
+
+        header = "\n".join(header_lines).strip()
+        module_code = "\n".join(
+            [
+                header,
+                "",
+                "BASE_DIR = Path(__file__).parent",
+                "mcp = FastMCP(\"Tools\")",
+                "",
+                body,
+            ]
+        ).strip()
+        module_code = self._ensure_submit_result_raw(module_code)
+        module_code = self._normalize_typeddict_imports(module_code)
+        return module_code.strip() + "\n"
+
+    def _validate_paths_in_module(self, code: str, entries: list[dict[str, Any]]) -> list[str]:
+        errors: list[str] = []
+        for entry in entries:
+            if not self._path_literals_ok(code, entry["path"]):
+                errors.append(f"path_missing:{entry['path']}")
+        return errors
 
     def _synthesize_task_tools(
         self,
@@ -522,49 +1382,197 @@ class ToolSynthesisMixin:
         ctx: TaskContext,
         sandbox: SandboxExecutor,
         data_profile: dict[str, Any],
+        required_fields: set[str] | None = None,
+        all_errors: list[str] | None = None,
     ) -> tuple[list[ToolSpec], str, dict[str, Any]]:
         """Generate task-specific tools using detected data sources.
         
         Returns:
             (tool_specs, tools_code, tool_selftest) tuple
         """
-        data_profile_json = json.dumps(self._compact_data_profile(data_profile), ensure_ascii=False)
-        if len(data_profile_json) > self._MAX_DATA_PROFILE_SIZE:
-            data_profile_json = data_profile_json[:self._MAX_DATA_PROFILE_SIZE] + "..."
-        
-        # Main generation and validation loop
-        all_errors: list[str] | None = None
-        for attempt in range(1, self._MAX_REGEN_ATTEMPTS + 1):
-            if attempt > 1:
-                logger.warning("Tool synthesis retrying (attempt %s/%s).", attempt, self._MAX_REGEN_ATTEMPTS)
-            
-            # Generate code
-            raw = self._generate_tool_code(topic, records, ctx, data_profile, data_profile_json, all_errors)
-            
-            # Validate and register (does all validation steps)
-            success, specs, tools_code, tool_selftest, errors = self._validate_and_register_tools(
-                raw, topic, records, ctx, sandbox, data_profile, attempt
+        entries = self._iter_data_entries(data_profile)
+        if not entries:
+            raise RuntimeError("Tool synthesis failed: no usable data files found.")
+
+        fragments: list[str] = []
+        import_lines: list[str] = []
+        tool_specs: list[ToolSpec] = []
+        used_tool_names: set[str] = set()
+
+        for entry in entries:
+            prefix = self._tool_prefix_from_path(entry["path"])
+            list_name, main_name = self._unique_tool_names(prefix, used_tool_names)
+            fragment, specs, imports = self._synthesize_file_tools(
+                topic=topic,
+                entry=entry,
+                list_tool_name=list_name,
+                main_tool_name=main_name,
+                ctx=ctx,
+                required_fields=required_fields,
+                all_errors=all_errors,
             )
-            
-            if success:
-                # All validations passed
-                ctx.add_step(
-                    {
-                        "type": "tool_synthesis",
-                        "tool_count": len(specs),
-                        "tools": [spec.model_dump() for spec in specs],
+            fragments.append(fragment)
+            import_lines.extend(imports)
+            for spec in specs:
+                used_tool_names.add(spec.name)
+            tool_specs.extend(specs)
+
+        tools_code = self._assemble_tools_module(
+            fragments=fragments,
+            import_lines=import_lines,
+            data_profile=data_profile,
+        )
+
+        path_errors = self._validate_paths_in_module(tools_code, entries)
+        if path_errors:
+            raise RuntimeError(f"tools.py path validation failed: {path_errors}")
+
+        # Filter and prepare specs
+        seen: set[str] = set()
+        filtered: list[ToolSpec] = []
+        for spec in tool_specs:
+            if spec.name in self._FILTERED_TOOL_NAMES:
+                continue
+            if spec.name in seen:
+                continue
+            seen.add(spec.name)
+            filtered.append(
+                spec.copy(
+                    update={
+                        "description": spec.description or f"Query curated records about {topic}",
+                        "meta": (spec.meta or {}) | {"topic": topic},
                     }
                 )
-                return specs, tools_code, tool_selftest
-            
-            # Validation failed, collect errors for next attempt
-            all_errors = errors
-        
-        # All attempts failed
-        raise RuntimeError(
-            f"Tool synthesis failed after {self._MAX_REGEN_ATTEMPTS} attempts. "
-            f"Last errors: {', '.join(all_errors) if all_errors else 'unknown'}"
+            )
+
+        output_keys = self._extract_tool_output_keys(tools_code)
+        if output_keys:
+            enriched: list[ToolSpec] = []
+            for spec in filtered:
+                if spec.name == self._SUBMIT_RESULT_TOOL:
+                    enriched.append(spec)
+                    continue
+                meta = dict(spec.meta or {})
+                keys = output_keys.get(spec.name)
+                if keys:
+                    meta["output_keys"] = keys
+                enriched.append(spec.copy(update={"meta": meta}))
+            filtered = enriched
+
+        param_errors = self._validate_tool_specs_parameters(filtered)
+        if param_errors:
+            raise RuntimeError(f"tools.py parameter validation failed: {param_errors}")
+
+        non_submit = [spec for spec in filtered if spec.name != self._SUBMIT_RESULT_TOOL]
+        if len(non_submit) < 2:
+            raise RuntimeError("tools.py validation failed: too_few_data_tools")
+        if not any(spec.name.startswith("list_") for spec in non_submit):
+            raise RuntimeError("tools.py validation failed: missing_list_discovery_tool")
+
+        output_errors = self._validate_tool_output_schema(filtered)
+        if output_errors:
+            raise RuntimeError(f"tools.py output schema validation failed: {output_errors}")
+
+        filtered = self._ensure_submit_result_tool(filtered)
+
+        # Ensure mcp is installed before import test
+        mcp_installed, mcp_error = self._ensure_mcp_installed(sandbox)
+        if not mcp_installed:
+            raise RuntimeError(f"mcp_installation_failed: {mcp_error}")
+
+        # Write tools.py and test import
+        tools_path = sandbox.sandbox_dir / "tools.py"
+        implemented_code = self._generate_tool_implementations(
+            tools_code=tools_code,
+            sandbox_dir=sandbox.sandbox_dir,
+            tool_specs=filtered,
+            topic=topic,
+            data_profile=data_profile,
+            sandbox=sandbox,
         )
+        collision_names = self._detect_global_name_collisions(implemented_code)
+        if collision_names:
+            raise RuntimeError(f"tools.py global name collisions: {collision_names}")
+        tools_path.write_text(implemented_code, encoding="utf-8")
+
+        import_result = sandbox.execute_bash('python -c "import tools; print(\'TOOLS_IMPORT_OK\')"')
+        stderr = (import_result.get("stderr") or "").strip()
+        stdout = (import_result.get("stdout") or "").strip()
+        import_ok = import_result.get("returncode") == 0 or "TOOLS_IMPORT_OK" in stdout
+        if not import_ok:
+            raise RuntimeError(self._summarize_import_error(stdout, stderr))
+
+        registration_ok, registration_errors = self._register_task_tools(
+            filtered, sandbox, ctx, tools_code=tools_code
+        )
+        if not registration_ok:
+            raise RuntimeError(f"tool_registration_failed: {registration_errors}")
+
+        tool_selftest = self._self_test_tools(filtered, sandbox, topic, ctx, data_profile)
+        regen_needed, regen_reasons = self._needs_tool_regeneration(tool_selftest)
+        if regen_needed:
+            raise RuntimeError(f"tool_selftest_failed: {regen_reasons}")
+
+        ctx.add_step(
+            {
+                "type": "tool_synthesis",
+                "tool_count": len(filtered),
+                "tools": [spec.model_dump() for spec in filtered],
+            }
+        )
+        return filtered, tools_code, tool_selftest
+
+    @staticmethod
+    def _is_retryable_tool_synthesis_error(message: str) -> bool:
+        non_retryable_prefixes = ("mcp_installation_failed",)
+        non_retryable_substrings = ("no usable data files found",)
+        if any(message.startswith(prefix) for prefix in non_retryable_prefixes):
+            return False
+        if any(text in message for text in non_retryable_substrings):
+            return False
+        return True
+
+    def _synthesize_task_tools_with_retry(
+        self,
+        topic: str,
+        records: list[dict[str, Any]],
+        ctx: TaskContext,
+        sandbox: SandboxExecutor,
+        data_profile: dict[str, Any],
+        required_fields: set[str] | None = None,
+        all_errors: list[str] | None = None,
+    ) -> tuple[list[ToolSpec], str, dict[str, Any]]:
+        attempt_errors = list(all_errors or [])
+        for attempt in range(1, self._MAX_REGEN_ATTEMPTS + 1):
+            try:
+                return self._synthesize_task_tools(
+                    topic,
+                    records,
+                    ctx,
+                    sandbox,
+                    data_profile,
+                    required_fields=required_fields,
+                    all_errors=attempt_errors,
+                )
+            except RuntimeError as exc:
+                message = str(exc)
+                ctx.add_step(
+                    {
+                        "type": "tool_synthesis_retry",
+                        "attempt": attempt,
+                        "error": message,
+                    }
+                )
+                logger.warning(
+                    "Tool synthesis retry for tools.py (attempt %s/%s): %s",
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    message,
+                )
+                if not self._is_retryable_tool_synthesis_error(message) or attempt >= self._MAX_REGEN_ATTEMPTS:
+                    raise
+                attempt_errors = [message]
+        raise RuntimeError("tool_synthesis_failed_after_retries")
 
     def _ensure_tools_meet_format_requirements(
         self,
@@ -602,15 +1610,12 @@ class ToolSynthesisMixin:
             all_errors = [f"Format requirement issue: {reason}" for reason in regen_reasons] if regen_reasons else None
             if expected_fields:
                 all_errors = (all_errors or []) + [f"Missing required fields: {sorted(expected_fields)}"]
-            tool_specs, tools_code, tool_selftest = self._regenerate_tools_with_selftest(
+            tool_specs, tools_code, tool_selftest = self._synthesize_task_tools_with_retry(
                 topic,
                 records,
                 ctx,
                 sandbox,
                 data_profile,
-                tool_selftest,
-                tool_specs,
-                tools_code,
                 required_fields=expected_fields,
                 all_errors=all_errors,
             )
@@ -624,38 +1629,6 @@ class ToolSynthesisMixin:
             )
         
         return tool_specs, tools_code, tool_selftest
-
-    def _compact_data_profile(self, data_profile: dict[str, Any]) -> dict[str, Any]:
-        """Trim large samples to keep prompts within limits."""
-        compact: dict[str, Any] = {}
-        for key, items in data_profile.items():
-            if not isinstance(items, list):
-                compact[key] = items
-                continue
-            trimmed = []
-            for item in items[:5]:
-                if not isinstance(item, dict):
-                    trimmed.append(item)
-                    continue
-                small = dict(item)
-                if "sample_rows" in small and isinstance(small["sample_rows"], list):
-                    small["sample_rows"] = small["sample_rows"][:2]
-                if "sample_items" in small and isinstance(small["sample_items"], list):
-                    small["sample_items"] = small["sample_items"][:2]
-                if "tables" in small and isinstance(small["tables"], list):
-                    tables = []
-                    for t in small["tables"][:4]:
-                        if isinstance(t, dict):
-                            t = dict(t)
-                            if "rows" in t and isinstance(t["rows"], list):
-                                t["rows"] = t["rows"][:2]
-                            tables.append(t)
-                        else:
-                            tables.append(t)
-                    small["tables"] = tables
-                trimmed.append(small)
-            compact[key] = trimmed
-        return compact
 
     def _generate_tool_implementations(
         self,
@@ -676,9 +1649,6 @@ class ToolSynthesisMixin:
         if not code:
             raise RuntimeError("tools.py generation failed: empty tools code")
 
-        # Fix file paths: convert relative paths to absolute paths based on __file__
-        code = self._fix_file_paths(code)
-        
         # Validate: tool code must be data-driven (read local files) and avoid embedding datasets.
         code_ok, reasons = self._validate_tool_code(code)
         if not code_ok:
@@ -708,7 +1678,13 @@ class ToolSynthesisMixin:
         return code + ("\n" if not code.endswith("\n") else "")
     
     @staticmethod
-    def _fix_file_paths(code: str) -> str:
+    def _fix_file_paths(
+        code: str,
+        known_basenames: set[str] | None = None,
+        *,
+        add_imports: bool = True,
+        add_base_dir: bool = True,
+    ) -> str:
         """Convert relative file paths to absolute paths based on __file__.
         
         This ensures tools can find data files regardless of the current working directory.
@@ -719,46 +1695,48 @@ class ToolSynthesisMixin:
         lines = code.splitlines()
         
         # Step 1: Add Path import if missing
-        has_pathlib = any(
-            "from pathlib import Path" in line or 
-            ("import pathlib" in line and "Path" in line)
-            for line in lines
-        )
-        
-        if not has_pathlib:
-            # Find insertion point (after other imports)
-            insert_idx = 0
-            for i, line in enumerate(lines):
-                stripped = line.strip()
-                if stripped.startswith(("import ", "from ")):
-                    insert_idx = i + 1
-                elif stripped and not stripped.startswith("#") and insert_idx > 0:
-                    break
-            lines.insert(insert_idx, "from pathlib import Path")
+        if add_imports:
+            has_pathlib = any(
+                "from pathlib import Path" in line
+                or ("import pathlib" in line and "Path" in line)
+                for line in lines
+            )
+            
+            if not has_pathlib:
+                # Find insertion point (after other imports)
+                insert_idx = 0
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    if stripped.startswith(("import ", "from ")):
+                        insert_idx = i + 1
+                    elif stripped and not stripped.startswith("#") and insert_idx > 0:
+                        break
+                lines.insert(insert_idx, "from pathlib import Path")
         
         # Step 2: Add BASE_DIR definition if missing
-        has_base_dir = any("BASE_DIR" in line and "=" in line for line in lines)
-        
-        if not has_base_dir:
-            # Find insertion point (after imports, before first function/class)
-            insert_idx = 0
-            for i, line in enumerate(lines):
-                stripped = line.strip()
-                if stripped.startswith(("import ", "from ")):
-                    insert_idx = i + 1
-                elif stripped and not stripped.startswith("#") and insert_idx > 0:
-                    # Check if this is a function/class definition
-                    if not (stripped.startswith(("def ", "class ", "@"))):
-                        insert_idx = i
-                    break
-            lines.insert(insert_idx, "BASE_DIR = Path(__file__).parent")
+        if add_base_dir:
+            has_base_dir = any("BASE_DIR" in line and "=" in line for line in lines)
+            
+            if not has_base_dir:
+                # Find insertion point (after imports, before first function/class)
+                insert_idx = 0
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    if stripped.startswith(("import ", "from ")):
+                        insert_idx = i + 1
+                    elif stripped and not stripped.startswith("#") and insert_idx > 0:
+                        # Check if this is a function/class definition
+                        if not (stripped.startswith(("def ", "class ", "@"))):
+                            insert_idx = i
+                        break
+                lines.insert(insert_idx, "BASE_DIR = Path(__file__).parent")
         
         code = "\n".join(lines)
         
         # Step 3: Replace relative file paths with BASE_DIR / path
         # Match patterns like: "data/file.csv", 'data/file.csv', "records.json"
         # But avoid replacing if already using BASE_DIR or absolute paths
-        file_ext_pattern = r'\.(csv|json|sqlite|db|txt|parquet)'
+        file_ext_pattern = r'\.(csv|tsv|json|jsonl|ndjson|sqlite|sqlite3|db|txt|log|parquet)'
         
         def replace_file_path(match):
             full_match = match.group(0)
@@ -767,6 +1745,8 @@ class ToolSynthesisMixin:
             
             # Skip if already using BASE_DIR
             if "BASE_DIR" in code[max(0, match.start()-50):match.end()+50]:
+                return full_match
+            if "DATA_DIR" in code[max(0, match.start()-50):match.end()+50]:
                 return full_match
             
             # Skip absolute paths
@@ -787,6 +1767,8 @@ class ToolSynthesisMixin:
                 return f'BASE_DIR / {path_expr}'
             else:
                 # Single filename
+                if known_basenames and path in known_basenames:
+                    return f'BASE_DIR / {quote_char}data{quote_char} / {quote_char}{path}{quote_char}'
                 return f'BASE_DIR / {quote_char}{path}{quote_char}'
         
         # Pattern: matches quoted strings that look like file paths
@@ -841,7 +1823,7 @@ class ToolSynthesisMixin:
         sandbox: SandboxExecutor,
         topic: str,
         ctx: TaskContext,
-        data_profile: dict[str, Any],
+        data_profile: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Lightweight tool smoke-test: ensure tool functions exist and are non-empty."""
         tools_path = sandbox.sandbox_dir / "tools.py"
@@ -953,102 +1935,6 @@ class ToolSynthesisMixin:
             reasons.append("missing_required_fields")
         return bool(reasons), reasons
 
-    def _generate_regeneration_code(
-        self,
-        topic: str,
-        ctx: TaskContext,
-        data_profile: dict[str, Any],
-        tool_selftest: dict[str, Any],
-        existing_specs: list[ToolSpec],
-        previous_code: str = "",
-        required_fields: set[str] | None = None,
-        all_errors: list[str] | None = None,
-    ) -> str:
-        """Generate tool code for regeneration with additional context (selftest, existing tools, etc.).
-        
-        Returns:
-            Raw LLM output containing tool code
-        """
-        max_tokens = getattr(ctx.request, "max_tokens", 10000)
-        
-        # Build error context if errors are provided
-        error_context = ""
-        if all_errors:
-            error_context = (
-                "Previous attempts encountered the following issues:\n"
-                + "\n".join(f"- {error}" for error in all_errors)
-                + "\n\n"
-            )
-        
-        data_profile_json = json.dumps(self._compact_data_profile(data_profile), ensure_ascii=False)
-        if len(data_profile_json) > self._MAX_DATA_PROFILE_SIZE:
-            data_profile_json = data_profile_json[:self._MAX_DATA_PROFILE_SIZE] + "..."
-        
-        # Use the same base rules as initial generation, ensuring all requirements are included
-        base_rules = self._build_base_tool_rules(include_examples=False)
-        
-        prompt = (
-            f"{error_context}"
-            "Regenerate an executable toolset to fix the issues above.\n"
-            "Hard rules:\n"
-            f"{base_rules}"
-            "- Keep existing tool names when possible; you may add up to 2 new tools to expose missing fields.\n"
-            f"Topic: {topic}\n"
-            f"Data profile: {data_profile_json}\n"
-            f"Self-test report: {json.dumps(self._convert_paths_to_strings(tool_selftest), ensure_ascii=False)[:1200]}\n"
-            f"Existing tools: {json.dumps([s.model_dump() for s in existing_specs], ensure_ascii=False)[:1200]}\n"
-            f"Required fields to expose (if any): {sorted(required_fields) if required_fields else []}\n"
-            f"Prior tool code (truncated): {previous_code[:800]}\n"
-            "Output ONLY one Python code block defining the tools (including imports).\n"
-            "Do NOT include prose. Ensure each function has the @mcp.tool() decorator."
-        )
-        raw = self.llm.simple_complete(prompt, temperature=0.55, max_tokens=max_tokens)
-        ctx.add_step({"type": "tool_regeneration", "content": raw})
-        return raw
-
-    def _regenerate_tools_with_selftest(
-        self,
-        topic: str,
-        records: list[dict[str, Any]],
-        ctx: TaskContext,
-        sandbox: SandboxExecutor,
-        data_profile: dict[str, Any],
-        tool_selftest: dict[str, Any],
-        existing_specs: list[ToolSpec],
-        previous_code: str = "",
-        required_fields: set[str] | None = None,
-        all_errors: list[str] | None = None,
-    ) -> tuple[list[ToolSpec], str, dict[str, Any]]:
-        """Regenerate tools with additional context and validate them.
-        
-        This method generates new tool code based on selftest results, existing tools, and errors,
-        then validates and registers the tools using the unified validation flow.
-        
-        Returns:
-            (specs, tools_code, tool_selftest) tuple. If regeneration fails, returns existing values.
-        """
-        # Generate code with regeneration-specific context
-        raw = self._generate_regeneration_code(
-            topic, ctx, data_profile, tool_selftest, existing_specs, previous_code, required_fields, all_errors
-        )
-        
-        # Use unified validation flow
-        success, specs, tools_code, updated_selftest, errors = self._validate_and_register_tools(
-            raw, topic, records, ctx, sandbox, data_profile, attempt=1
-        )
-        
-        if success:
-            return specs, tools_code, updated_selftest
-        else:
-            # Regeneration failed, return existing values
-            ctx.add_step(
-                {
-                    "type": "tool_regeneration_failed",
-                    "errors": errors,
-                }
-            )
-            return existing_specs, previous_code, tool_selftest
-
     def _register_task_tools(
         self,
         tool_specs: list[ToolSpec],
@@ -1106,6 +1992,7 @@ class ToolSynthesisMixin:
         if registration_errors:
             return False, registration_errors
 
+        sandbox.set_tool_call_allowlist({spec.name for spec in tool_specs})
         ctx.add_step(
             {
                 "type": "tool_registration",
@@ -1128,18 +2015,30 @@ class ToolSynthesisMixin:
         """Generate incremental tools to augment the current toolset."""
         existing_names = {spec.name for spec in existing_specs}
         data_profile_json = json.dumps(data_profile or {}, ensure_ascii=False)
+        field_inventory_json = json.dumps(self._build_field_inventory(data_profile or {}), ensure_ascii=True)
+        if len(field_inventory_json) > self._MAX_FIELD_INVENTORY_SIZE:
+            field_inventory_json = field_inventory_json[:self._MAX_FIELD_INVENTORY_SIZE] + "..."
+        base_rules = (
+            "- CRITICAL: File paths must be absolute. Use BASE_DIR = Path(__file__).parent and BASE_DIR / \"data\" / \"file.csv\".\n"
+            "- NO network, NO external APIs. Only read the listed local files.\n"
+            "- Avoid generic free-text parameters; use enums derived from real fields.\n"
+            "- Use @mcp.tool(description=...) with a plain string literal.\n"
+            "- Implement real logic; no stubs, no pass/raise placeholders.\n"
+            "- Do NOT define submit_result here.\n"
+        )
         prompt = (
             "You are augmenting an existing toolset to make a task solvable and verifiable.\n"
             "Return Python code defining 1-2 NEW tools decorated with @mcp.tool(), avoiding duplicates.\n"
             "Include `from mcp.server.fastmcp import FastMCP` and `mcp = FastMCP(\"Tools\")` in the output.\n"
             "Do NOT call mcp.run() or start any server.\n"
+            "Hard rules:\n"
+            f"{base_rules}"
             "Constraints:\n"
             f"- Tool names must be unique, snake_case, and NOT {', '.join(repr(name) for name in self._FILTERED_TOOL_NAMES)}.\n"
-            "- RECOMMENDED: Each tool should accept (query: str, max_results: int = 5) and return list[dict] for consistency.\n"
-            "  However, you may use different signatures if the tool's purpose requires it.\n"
             "- Implement real logic that reads ONLY local files (CSV/JSON/TXT/SQLite) or the provided records; no stubs, no pass/raise placeholders.\n"
             "- Deterministic: set random.seed(0) if any randomness is used.\n"
             "Only output a single Python code block.\n"
+            f"Field Inventory (use these field names for parameters): {field_inventory_json}\n"
             f"Topic: {topic}\n"
             f"Existing tools: {sorted(existing_names)}\n"
             f"Records (JSON sample): {json.dumps(records[:5], ensure_ascii=False)}\n"
