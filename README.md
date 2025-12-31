@@ -115,6 +115,8 @@ Optional hyperparameters for running the Search Agent:
 - `--search_depth`: How many pages deep to search (higher gets more obscure data). Default: 2.
 - `--search_breadth`: Number of results to retrieve per page. Default: 5.
 
+For additional configuration options, refer to `agent_gem/agents/search_agent/cli.py`.
+
 Example usage:
 
 ```bash

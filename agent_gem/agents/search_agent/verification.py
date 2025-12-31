@@ -165,6 +165,8 @@ class VerifierMixin(PromptMixin):
                 logger.debug("Not all candidate answers are incorrect, rejecting sample")
             return all_incorrect
         else:
+            if len(candidate_results) < 3:
+                return True
             # At least one candidate answer must be incorrect
             has_incorrect = any(not r.is_correct for r in candidate_results)
             if has_incorrect:

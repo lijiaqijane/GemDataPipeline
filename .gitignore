@@ -51,5 +51,6 @@ task_category.json
 
 taskdb/
 sandbox/
+search_output/
 search_output*.json
-cahce
+cache

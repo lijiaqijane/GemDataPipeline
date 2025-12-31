@@ -323,6 +323,7 @@ class LLMClient:
         temperature: float = 0.7,
         max_tokens: int = 512,
         max_sub_turns: int = 20,
+        is_summary: bool = False,
     ) -> str:
         """Call chat completion with thinking and tools."""
         search_content = []
@@ -354,6 +355,20 @@ class LLMClient:
                 tool_result = tool_function(**json.loads(tool.function.arguments))
                 if tool.function.name == "search":
                     formatted_tool_result = _format_tool_result(tool_result)
+                elif tool.function.name == "visit" and is_summary:
+                    from .agents.search_agent.prompt_mixin import PromptMixin
+
+                    formatted_tool_result = self.chat_completion(
+                        [
+                            {
+                                "role": "user",
+                                "content": PromptMixin.SUMMARY_PROMPT.format(
+                                    webpage_content=tool_result,
+                                    goal=json.loads(tool.function.arguments)["goal"],
+                                ),
+                            }
+                        ]
+                    )
                 else:
                     formatted_tool_result = tool_result
                 search_content.append(formatted_tool_result)

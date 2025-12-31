@@ -62,19 +62,19 @@ class QuestionConstructorMixin(PromptMixin):
             List of QuestionAnswerPair objects
         """
         tasks: List[QuestionAnswerPair] = []
-        max_retries = 3
+        max_retries = 2
 
         for task_idx in range(num_tasks):
-            logger.debug(f"Constructing question {task_idx + 1}/{num_tasks} for entity: {entity.name}")
+            logger.info(f"Constructing question {task_idx + 1}/{num_tasks} for entity: {entity.name}")
 
             for retry in range(max_retries):
                 # Get relevant context for the entity
                 context, search_context = self._get_entity_context(llm, tools, tool_call_map, entity.name)
                 obscure_info = context.get("obscure_info", "") if isinstance(context, dict) else ""
-                if obscure_info != "":
+                if obscure_info:
                     break
 
-            if obscure_info == "":
+            if not obscure_info:
                 logger.warning(f"No obscure info found for entity: {entity.name}")
                 continue
 
@@ -110,7 +110,9 @@ class QuestionConstructorMixin(PromptMixin):
                                 all_search_context=search_context,
                             )
                         )
-                        logger.debug(f"Successfully generated question for {entity.name}")
+                        logger.info(
+                            f"Successfully generated question {task_idx + 1}/{num_tasks} for {entity.name}"
+                        )
                         break
                     else:
                         logger.warning(
@@ -161,6 +163,7 @@ class QuestionConstructorMixin(PromptMixin):
                 temperature=0.8,
                 max_tokens=2048,
                 max_sub_turns=100,
+                is_summary=True,
             )
             res = self._parse_output(response)
             return res, search_context
@@ -196,7 +199,7 @@ class QuestionConstructorMixin(PromptMixin):
 
         except json.JSONDecodeError as e:
             logger.warning(f"Error parsing JSON from LLM response: {e}")
-            logger.debug(f"Response content: {llm_response[:200]}...")
+            logger.info(f"Response content: {llm_response[:200]}...")
             return None
         except Exception as e:
             logger.error(f"Unexpected error parsing LLM output: {e}")

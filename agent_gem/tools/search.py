@@ -231,28 +231,32 @@ class VisitTool(BaseTool):
     ) -> None:
         super().__init__(name=name, description=description)
         self.timeout_s = timeout_s
+        self.api_key = api_key or os.environ.get("JINA_API_KEY")
 
     def execute(self, url: str, goal: str) -> str:
         """Fetch webpage content using standard HTTP requests."""
         max_retries = 3
-        
-        # Ensure URL has a scheme
-        if not url.startswith(("http://", "https://")):
-            url = f"https://{url}"
+        base_url = "https://r.jina.ai"
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
+        # Ensure URL has a scheme
+        # if not url.startswith(("http://", "https://")):
+        #     url = f"https://{url}"
+
+        # headers = {
+        #     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        #     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        #     "Accept-Language": "en-US,en;q=0.9",
+        # }
 
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, headers=headers, timeout=self.timeout_s, allow_redirects=True)
+                response = requests.get(f"{base_url}/{url}", timeout=self.timeout_s)
                 if response.status_code == 200:
-                    return response.text
+                    webpage_content = response.text
+                    return webpage_content
                 else:
-                    return f"[visit] Failed to read page: HTTP {response.status_code}"
+                    print(response.text)
+                    raise ValueError("jina readpage error")
             except requests.exceptions.RequestException as e:
                 if attempt == max_retries - 1:
                     return f"[visit] Failed to read page: {str(e)}"
@@ -301,7 +305,9 @@ class MediaWikiClient:
                 results.append({"title": item["title"], "pageid": item["pageid"]})
         return results
 
-    def _fetch_pageviews_rest(self, title: str, project: str = "en.wikipedia.org", days: int = 180) -> int | None:
+    def _fetch_pageviews_rest(
+        self, title: str, project: str = "en.wikipedia.org", days: int = 180
+    ) -> int | None:
         """Fetch pageviews using Wikimedia Analytics REST API."""
         end_date = datetime.now() - timedelta(days=1)
         start_date = end_date - timedelta(days=days - 1)
@@ -387,7 +393,9 @@ class MediaWikiClient:
                     plain_content = plain_content[: match.start()]
 
             plain_content = re.sub(r"\.mw-parser-output.*\{.*?\}", "", plain_content, flags=re.DOTALL)
-            plain_content = re.sub(r"\d+°\d+′[\d.]+″[NSEW].*?/\s*.*?°[NSEW]\s*[\d.]+°[NSEW]", "", plain_content)
+            plain_content = re.sub(
+                r"\d+°\d+′[\d.]+″[NSEW].*?/\s*.*?°[NSEW]\s*[\d.]+°[NSEW]", "", plain_content
+            )
             plain_content = re.sub(r"http[s]?://\S+", "", plain_content)
             plain_content = re.sub(r"\n\s*\n", "\n\n", plain_content)
             plain_content = re.sub(r"\n{3,}", "\n\n", plain_content)

@@ -4,10 +4,12 @@ import json
 import logging
 import os
 import uuid
+from os.path import exists
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import faiss
+import torch
 from sentence_transformers import SentenceTransformer
 
 from agent_gem.tools import MediaWikiTool, SearchTool, VisitTool
@@ -97,9 +99,18 @@ class SearchAgent(
         # Optional: Load embedding model and faiss index
         if request.embedding_path:
             self.embedding = SentenceTransformer(request.embedding_path)
-            dim = self.embedding.get_sentence_embedding_dimension()
-            self.faiss_index = faiss.IndexFlatL2(dim)
-            idx = 0
+            if exists(request.faiss_index_path):
+                self.faiss_index = faiss.read_index(request.faiss_index_path)
+            else:
+                dim = self.embedding.get_sentence_embedding_dimension()
+                self.faiss_index = faiss.IndexFlatL2(dim)
+            if exists(request.text_mapping_path):
+                with open(request.text_mapping_path, "r") as f:
+                    self.text_mapping = json.load(f)
+                idx = len(self.text_mapping)
+            else:
+                idx = 0
+            breakpoint()
 
         # Get tool call map wrapped with request constraints
         tool_call_map = self._get_tool_call_map_for_request(request)
@@ -180,10 +191,12 @@ class SearchAgent(
                                     "original_text": text,
                                 }
                                 idx += 1
-                        search_embeddings = self.embedding.encode(all_search_context)
-                        if len(search_embeddings.shape) == 1:
-                            search_embeddings = search_embeddings.reshape(1, -1)
-                        self.faiss_index.add(search_embeddings)
+                        with torch.no_grad():
+                            search_embeddings = self.embedding.encode(all_search_context)
+                            if len(search_embeddings.shape) == 1:
+                                search_embeddings = search_embeddings.reshape(1, -1)
+                            self.faiss_index.add(search_embeddings)
+                        torch.cuda.empty_cache()
                         faiss.write_index(self.faiss_index, request.faiss_index_path)
                         with open(request.text_mapping_path, "w") as f:
                             json.dump(self.text_mapping, f, indent=2, ensure_ascii=False)
@@ -310,6 +323,9 @@ class SearchAgent(
             new_item: New item to append to the array
         """
         file_path_obj = Path(file_path)
+
+        # Ensure the directory exists
+        file_path_obj.parent.mkdir(parents=True, exist_ok=True)
 
         if file_path_obj.exists():
             try:
