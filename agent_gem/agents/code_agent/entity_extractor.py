@@ -39,6 +39,31 @@ class EntityExtractorConfig:
     exclude_hidden_files: bool = True  # Exclude files starting with .
     min_entity_line_count: int = 1  # Minimum lines for an entity
     max_entity_line_count: int = 500  # Maximum lines for an entity
+    min_file_line_count: int = 1  # Minimum lines for a file to be processed
+    max_file_line_count: int = -1  # Maximum lines for a file to be processed, -1 means no limit
+    
+    # Entity type filters
+    include_functions: bool = True  # Include function entities
+    include_classes: bool = True  # Include class entities
+    
+    # Entity name filters
+    exclude_entity_names: List[str] = field(default_factory=list)  # Entity names to exclude (exact match)
+    exclude_entity_patterns: List[str] = field(default_factory=list)  # Entity name patterns to exclude (regex)
+    
+    # Documentation requirement
+    require_docstring: bool = False  # Require entities to have docstrings
+    
+    # Control flow requirements (empty list = no requirement)
+    require_control_flows: List[str] = field(default_factory=list)  # e.g., ["has_if", "has_loop"]
+    exclude_control_flows: List[str] = field(default_factory=list)  # e.g., ["has_exception"]
+    
+    # Code properties requirements
+    require_properties: List[str] = field(default_factory=list)  # e.g., ["has_return", "has_function_call"]
+    exclude_properties: List[str] = field(default_factory=list)  # e.g., ["has_decorator"]
+    
+    # Complexity filters
+    min_complexity: int = -1  # Minimum cyclomatic complexity (-1 = no limit)
+    max_complexity: int = -1  # Maximum cyclomatic complexity (-1 = no limit)
 
 
 class EntityExtractor:
@@ -111,6 +136,25 @@ class EntityExtractor:
             exclude_hidden_files=extractor_config.get('exclude_hidden_files', True),
             min_entity_line_count=extractor_config.get('min_entity_line_count', 1),
             max_entity_line_count=extractor_config.get('max_entity_line_count', 500),
+            min_file_line_count=extractor_config.get('min_file_line_count', 1),
+            max_file_line_count=extractor_config.get('max_file_line_count', -1),
+            # Entity type filters
+            include_functions=extractor_config.get('include_functions', True),
+            include_classes=extractor_config.get('include_classes', True),
+            # Entity name filters
+            exclude_entity_names=extractor_config.get('exclude_entity_names', []),
+            exclude_entity_patterns=extractor_config.get('exclude_entity_patterns', []),
+            # Documentation requirement
+            require_docstring=extractor_config.get('require_docstring', False),
+            # Control flow requirements
+            require_control_flows=extractor_config.get('require_control_flows', []),
+            exclude_control_flows=extractor_config.get('exclude_control_flows', []),
+            # Code properties requirements
+            require_properties=extractor_config.get('require_properties', []),
+            exclude_properties=extractor_config.get('exclude_properties', []),
+            # Complexity filters
+            min_complexity=extractor_config.get('min_complexity', -1),
+            max_complexity=extractor_config.get('max_complexity', -1),
         )
         
         return cls(config)
@@ -165,10 +209,22 @@ class EntityExtractor:
                 if file_ext not in self.exts:
                     continue
                 
-                # Check if file is readable
+                # Check if file is readable and count lines
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
-                        f.read(1)  # Try to read first byte
+                        file_content = f.read()
+                        file_line_count = len(file_content.splitlines())
+                    
+                    # Check minimum file line count
+                    if file_line_count < self.config.min_file_line_count:
+                        logger.debug(f"[EntityExtractor] Skipping file {file_path}: {file_line_count} lines < min {self.config.min_file_line_count}")
+                        continue
+                    
+                    # Check maximum file line count
+                    if self.config.max_file_line_count != -1 and file_line_count > self.config.max_file_line_count:
+                        logger.debug(f"[EntityExtractor] Skipping file {file_path}: {file_line_count} lines > max {self.config.max_file_line_count}")
+                        continue
+                        
                 except Exception as e:
                     logger.debug(f"[EntityExtractor] Skipping unreadable file {file_path}: {e}")
                     error_count += 1
@@ -249,6 +305,107 @@ class EntityExtractor:
             return True
         return False
     
+    def _should_include_entity(self, entity: CodeEntity) -> bool:
+        """Check if an entity should be included based on filtering criteria."""
+        from .entity import CodeProperty
+        
+        # Check entity type filters
+        if isinstance(entity.node, ast.FunctionDef) and not self.config.include_functions:
+            logger.debug(f"[EntityExtractor] Excluding function: {entity.name}")
+            return False
+        if isinstance(entity.node, ast.ClassDef) and not self.config.include_classes:
+            logger.debug(f"[EntityExtractor] Excluding class: {entity.name}")
+            return False
+        
+        # Check entity name exclusions (exact match)
+        if entity.name in self.config.exclude_entity_names:
+            logger.debug(f"[EntityExtractor] Excluding entity by name: {entity.name}")
+            return False
+        
+        # Check entity name pattern exclusions (regex)
+        for pattern in self.config.exclude_entity_patterns:
+            if re.match(pattern, entity.name):
+                logger.debug(f"[EntityExtractor] Excluding entity by pattern '{pattern}': {entity.name}")
+                return False
+        
+        # Check docstring requirement
+        if self.config.require_docstring:
+            if not self._has_docstring(entity.node):
+                logger.debug(f"[EntityExtractor] Excluding entity without docstring: {entity.name}")
+                return False
+        
+        # Check line count
+        entity_line_count = entity.line_end - entity.line_start + 1
+        if entity_line_count < self.config.min_entity_line_count:
+            logger.debug(f"[EntityExtractor] Excluding entity {entity.name}: {entity_line_count} lines < min {self.config.min_entity_line_count}")
+            return False
+        if entity_line_count > self.config.max_entity_line_count:
+            logger.debug(f"[EntityExtractor] Excluding entity {entity.name}: {entity_line_count} lines > max {self.config.max_entity_line_count}")
+            return False
+        
+        # Check required control flows
+        for required_flow in self.config.require_control_flows:
+            try:
+                prop = CodeProperty(required_flow)
+                if prop not in entity._tags:
+                    logger.debug(f"[EntityExtractor] Excluding entity {entity.name}: missing required control flow '{required_flow}'")
+                    return False
+            except ValueError:
+                logger.warning(f"[EntityExtractor] Invalid control flow property: {required_flow}")
+        
+        # Check excluded control flows
+        for excluded_flow in self.config.exclude_control_flows:
+            try:
+                prop = CodeProperty(excluded_flow)
+                if prop in entity._tags:
+                    logger.debug(f"[EntityExtractor] Excluding entity {entity.name}: has excluded control flow '{excluded_flow}'")
+                    return False
+            except ValueError:
+                logger.warning(f"[EntityExtractor] Invalid control flow property: {excluded_flow}")
+        
+        # Check required properties
+        for required_prop in self.config.require_properties:
+            try:
+                prop = CodeProperty(required_prop)
+                if prop not in entity._tags:
+                    logger.debug(f"[EntityExtractor] Excluding entity {entity.name}: missing required property '{required_prop}'")
+                    return False
+            except ValueError:
+                logger.warning(f"[EntityExtractor] Invalid code property: {required_prop}")
+        
+        # Check excluded properties
+        for excluded_prop in self.config.exclude_properties:
+            try:
+                prop = CodeProperty(excluded_prop)
+                if prop in entity._tags:
+                    logger.debug(f"[EntityExtractor] Excluding entity {entity.name}: has excluded property '{excluded_prop}'")
+                    return False
+            except ValueError:
+                logger.warning(f"[EntityExtractor] Invalid code property: {excluded_prop}")
+        
+        # Check complexity
+        if self.config.min_complexity != -1 and entity.complexity < self.config.min_complexity:
+            logger.debug(f"[EntityExtractor] Excluding entity {entity.name}: complexity {entity.complexity} < min {self.config.min_complexity}")
+            return False
+        if self.config.max_complexity != -1 and entity.complexity > self.config.max_complexity:
+            logger.debug(f"[EntityExtractor] Excluding entity {entity.name}: complexity {entity.complexity} > max {self.config.max_complexity}")
+            return False
+        
+        return True
+    
+    def _has_docstring(self, node: ast.AST) -> bool:
+        """Check if an AST node has a docstring."""
+        if not isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+            return False
+        if not node.body:
+            return False
+        first_stmt = node.body[0]
+        return (
+            isinstance(first_stmt, ast.Expr)
+            and isinstance(first_stmt.value, ast.Constant)
+            and isinstance(first_stmt.value.value, str)
+        )
+    
     def get_entities_from_file_py(
             self,
             entities: list[PythonEntity],
@@ -264,7 +421,14 @@ class EntityExtractor:
         for node in ast.walk(tree):
             if not any([isinstance(node, x) for x in (ast.ClassDef, ast.FunctionDef)]):
                 continue
-            entities.append(self._build_entity(node, file_content, file_path))
+            
+            entity = self._build_entity(node, file_content, file_path)
+            
+            # Apply entity filters
+            if not self._should_include_entity(entity):
+                continue
+            
+            entities.append(entity)
             if max_entities != -1 and len(entities) >= max_entities:
                 return
     

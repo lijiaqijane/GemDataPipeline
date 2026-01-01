@@ -117,14 +117,79 @@ entity_extractor:
   
   # Exclude hidden files (starting with .)
   exclude_hidden_files: true
+
+  # Minimum file line count
+  # Files with fewer lines will be skipped
+  min_file_line_count: 10
+  
+  # Maximum file line count
+  # Files with more lines will be skipped (-1 means no limit)
+  max_file_line_count: 1000
   
   # Minimum entity line count
   # Filters out very small functions/classes
-  min_entity_line_count: 1
+  min_entity_line_count: 10
   
   # Maximum entity line count
   # Filters out very large functions/classes
-  max_entity_line_count: 500
+  max_entity_line_count: 300
+  
+  # ===== Entity Type Filters =====
+  # Include function entities
+  include_functions: true
+  
+  # Include class entities
+  include_classes: true
+  
+  # ===== Entity Name Filters =====
+  # Exclude entities with these exact names
+  exclude_entity_names:
+    - __init__
+    - __str__
+    - __repr__
+  
+  # Exclude entities matching these regex patterns
+  exclude_entity_patterns:
+    - ^test_.*  # Exclude test functions
+    - ^_.*_$    # Exclude dunder methods (e.g., __eq__, __lt__)
+  
+  # ===== Documentation Requirements =====
+  # Require entities to have docstrings
+  require_docstring: false
+  
+  # ===== Control Flow Requirements =====
+  # Require entities to have these control flows (empty = no requirement)
+  # Available: has_if, has_if_else, has_loop, has_exception, has_switch
+  require_control_flows: []
+    # - has_if
+    # - has_loop
+  
+  # Exclude entities with these control flows
+  exclude_control_flows: []
+    # - has_exception
+  
+  # ===== Code Property Requirements =====
+  # Require entities to have these properties (empty = no requirement)
+  # Available properties from CodeProperty enum:
+  #   - has_return, has_function_call, has_assignment, has_import
+  #   - has_decorator, has_lambda, has_list_comprehension, has_list_indexing
+  #   - has_arithmetic, has_binary_op, has_bool_op, has_unary_op
+  #   - has_wrapper, has_parent, has_off_by_one
+  require_properties: 
+    - has_return
+    - has_assignment
+  
+  # Exclude entities with these properties
+  exclude_properties: []
+    # - has_decorator
+  
+  # ===== Complexity Filters =====
+  # Minimum cyclomatic complexity (-1 = no limit)
+  # Complexity measures the number of decision points in code
+  min_complexity: 3
+  
+  # Maximum cyclomatic complexity (-1 = no limit)
+  max_complexity: -1
   
   # Output settings
   output:
