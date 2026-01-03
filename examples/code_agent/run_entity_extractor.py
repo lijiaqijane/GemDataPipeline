@@ -21,8 +21,10 @@ Example:
 """
 
 import argparse
+import ast
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -55,11 +57,19 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def _slugify(name: str) -> str:
+    """Convert a string to a filesystem-safe, predictable slug."""
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+    safe = safe.strip("_")
+    return safe or "entity"
+
+
 def process_repositories(
     repo_dir: Path,
     entity_extractor: EntityExtractor,
     output_dir: Path,
-    verbose: bool = False
+    verbose: bool = False,
+    overwrite_existing: bool = False,
 ) -> dict:
     """
     Process all repositories in the crawled_repos directory.
@@ -109,50 +119,103 @@ def process_repositories(
     for idx, repo_path in enumerate(repo_dirs, 1):
         repo_name = repo_path.name
         logger.info(f"[{idx}/{len(repo_dirs)}] Processing: {repo_name}")
+
+        repo_output_dir = output_dir / repo_name
+        if repo_output_dir.exists() and not overwrite_existing:
+            logger.info(
+                "  ⊙ Skipping %s: output already exists and overwrite_existing=False",
+                repo_name,
+            )
+            summary['repos'].append({
+                'name': repo_name,
+                'path': str(repo_path),
+                'total_entities': None,
+                'output_dir': str(repo_output_dir),
+                'manifest': str(repo_output_dir / "entities.json"),
+                'skipped': True,
+            })
+            continue
         
         try:
             # Extract entities from repository
             result = entity_extractor.extract_entities_from_repo(str(repo_path))
-            
-            # Save entities to JSON
-            output_file = output_dir / f"{repo_name}_entities.json"
-            with open(output_file, 'w') as f:
-                # Convert CodeEntity objects to dictionaries for JSON serialization
-                entities_dict = []
-                for entity in result['entities']:
-                    entity_data = {
-                        'name': entity.name,
-                        # 'type': entity.type,
-                        'file_path': entity.file_path,
-                        'start_line': entity.line_start,
-                        'end_line': entity.line_end,
-                        'line_count': getattr(entity, 'line_count', entity.line_end - entity.line_start + 1),
-                        'docstring': getattr(entity, 'docstring', None),
-                    }
-                    # Truncate source code to avoid huge JSON files
-                    if hasattr(entity, 'source_code') and entity.source_code:
-                        entity_data['source_code'] = entity.source_code[:500] + ('...' if len(entity.source_code) > 500 else '')
-                    
-                    entities_dict.append(entity_data)
-                
-                output_data = {
-                    'repo_path': result['repo_path'],
-                    'repo_name': result['repo_name'],
-                    'extraction_time': result['extraction_time'],
-                    'total_entities': result['total_entities'],
-                    'entities': entities_dict,
-                    'config': result['config']
+
+            # If no entities are found, skip creating output folder/files
+            if result['total_entities'] == 0:
+                logger.info("  ⊙ No entities found in %s; skipping save", repo_name)
+                summary['repos'].append({
+                    'name': repo_name,
+                    'path': str(repo_path),
+                    'total_entities': 0,
+                    'output_dir': None,
+                    'manifest': None,
+                    'skipped': True,
+                })
+                summary['processed_repos'] += 1
+                continue
+
+            repo_output_dir.mkdir(parents=True, exist_ok=True)
+
+            entities_dict = []
+            for entity_idx, entity in enumerate(result['entities'], 1):
+                try:
+                    docstring = ast.get_docstring(entity.node)
+                except Exception:
+                    docstring = None
+
+                entity_data = {
+                    'id': entity_idx,
+                    'repo_name': repo_name,
+                    'repo_path': str(repo_path),
+                    'name': entity.name,
+                    'file_path': entity.file_path,
+                    'start_line': entity.line_start,
+                    'end_line': entity.line_end,
+                    'line_count': getattr(entity, 'line_count', entity.line_end - entity.line_start + 1),
+                    'docstring': docstring,
+                    'src_code': getattr(entity, 'src_code', None),
+                    'signature': entity.signature,
+                    'signature_content': getattr(entity, 'signature_content', ''),
+                    'signature_start_line': getattr(entity, 'signature_start_line', -1),
+                    'signature_end_line': getattr(entity, 'signature_end_line', -1),
+                    'body_content': getattr(entity, 'body_content', ''),
+                    'body_start_line': getattr(entity, 'body_start_line', -1),
+                    'body_end_line': getattr(entity, 'body_end_line', -1),
+                    'stub': entity.stub,
+                    'complexity': entity.complexity,
                 }
-                
+
+                entity_dir_name = f"{entity_idx:04d}_{_slugify(entity.name)}"
+                entity_dir = repo_output_dir / entity_dir_name
+                entity_dir.mkdir(parents=True, exist_ok=True)
+                entity_data['entity_dir'] = str(entity_dir)
+
+                with open(entity_dir / "entity.json", 'w', encoding='utf-8') as ef:
+                    json.dump(entity_data, ef, indent=2)
+
+                entities_dict.append(entity_data)
+
+            manifest_path = repo_output_dir / "entities.json"
+            output_data = {
+                'repo_path': result['repo_path'],
+                'repo_name': result['repo_name'],
+                'extraction_time': result['extraction_time'],
+                'total_entities': result['total_entities'],
+                'entities': entities_dict,
+                'config': result['config']
+            }
+
+            with open(manifest_path, 'w', encoding='utf-8') as f:
                 json.dump(output_data, f, indent=2)
-            
-            logger.info(f"  ✓ Extracted {result['total_entities']} entities -> {output_file}")
-            
+
+            logger.info(f"  ✓ Extracted {result['total_entities']} entities -> {repo_output_dir}")
+
             summary['repos'].append({
                 'name': repo_name,
                 'path': str(repo_path),
                 'total_entities': result['total_entities'],
-                'output_file': str(output_file)
+                'output_dir': str(repo_output_dir),
+                'manifest': str(manifest_path),
             })
             
             summary['processed_repos'] += 1
@@ -232,6 +295,12 @@ def main():
         default=None,
         help='Directory to save extracted entities (overrides config)'
     )
+
+    parser.add_argument(
+        '--overwrite-existing',
+        action='store_true',
+        help='Overwrite already extracted entities if output exists'
+    )
     
     parser.add_argument(
         '--verbose',
@@ -261,6 +330,11 @@ def main():
             output_dir = Path(args.output_dir)
         else:
             output_dir = Path(config.get('entity_extractor', {}).get('output', {}).get('save_dir', 'taskdb/code_agent/extracted_entities'))
+
+        overwrite_existing = bool(
+            args.overwrite_existing or
+            config.get('entity_extractor', {}).get('output', {}).get('overwrite_existing', False)
+        )
         
         logger.info(f"Repository directory: {repo_dir}")
         logger.info(f"Output directory: {output_dir}")
@@ -275,7 +349,8 @@ def main():
             repo_dir,
             entity_extractor,
             output_dir,
-            verbose=args.verbose
+            verbose=args.verbose,
+            overwrite_existing=overwrite_existing,
         )
         
         # Save and print summary

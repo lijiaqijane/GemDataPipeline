@@ -35,6 +35,7 @@ class EntityExtractorConfig:
     max_entities_per_repo: int = 1000  # Maximum total entities per repository
     dirs_exclude: List[str] = field(default_factory=list)  # Directories to exclude
     dirs_include: List[str] = field(default_factory=list)  # Empty means include all
+    extract_from_main_package_only: bool = False  # Only extract from main package folder
     exclude_test_files: bool = True  # Exclude test files and test directories
     exclude_hidden_files: bool = True  # Exclude files starting with .
     min_entity_line_count: int = 1  # Minimum lines for an entity
@@ -132,6 +133,7 @@ class EntityExtractor:
                 "test", "tests", "spec", "specs", "docs", "examples", "__pycache__", ".git"
             ]),
             dirs_include=extractor_config.get('dirs_include', []),
+            extract_from_main_package_only=extractor_config.get('extract_from_main_package_only', False),
             exclude_test_files=extractor_config.get('exclude_test_files', True),
             exclude_hidden_files=extractor_config.get('exclude_hidden_files', True),
             min_entity_line_count=extractor_config.get('min_entity_line_count', 1),
@@ -159,6 +161,28 @@ class EntityExtractor:
         
         return cls(config)
     
+    def _find_main_package_path(self, repo_path: Path) -> Optional[Path]:
+        """
+        Find the main package folder in the repository.
+        The main package is a directory with the same name as the repository.
+        
+        Args:
+            repo_path: Path to the repository root
+            
+        Returns:
+            Path to the main package folder, or None if not found
+        """
+        repo_name = repo_path.name.lower()
+        
+        # Look for a directory with the same name as the repo
+        for item in repo_path.iterdir():
+            if item.is_dir() and item.name.lower() == repo_name:
+                logger.info(f"[EntityExtractor] Found main package: {item}")
+                return item
+        
+        logger.warning(f"[EntityExtractor] No main package folder found for repo '{repo_name}'")
+        return None
+    
     def extract_entities(
         self,
         dir_path: str,
@@ -183,7 +207,18 @@ class EntityExtractor:
         if self.config.dirs_include:
             logger.info(f"[EntityExtractor] Include dirs: {self.config.dirs_include}")
         
-        for root, dirs, files in os.walk(dir_path):
+        # Determine the directory to scan
+        scan_path = Path(dir_path)
+        if self.config.extract_from_main_package_only:
+            main_package_path = self._find_main_package_path(scan_path)
+            if main_package_path is not None:
+                scan_path = main_package_path
+                logger.info(f"[EntityExtractor] Extracting only from main package: {scan_path}")
+            else:
+                logger.warning(f"[EntityExtractor] extract_from_main_package_only is True but no main package found.")
+                return entities
+        
+        for root, dirs, files in os.walk(str(scan_path)):
             # Skip excluded directories
             dirs[:] = [d for d in dirs if not self._should_skip_dir(d, root)]
             
@@ -473,6 +508,46 @@ class EntityExtractor:
             dedented_src_code.append(line[indent_level * indent_size :])
         src_code = "\n".join(dedented_src_code)
 
+        # Capture signature and body content with original indentation
+        signature_content = ""
+        signature_start_line = -1
+        signature_end_line = -1
+        body_content = ""
+        body_start_line = -1
+        body_end_line = -1
+        file_lines = file_content.splitlines()
+
+        if isinstance(node, ast.FunctionDef):
+            signature_start_line = start_line
+            sig_end_line = start_line
+            for line_no in range(start_line, min(end_line, len(file_lines)) + 1):
+                line_text = file_lines[line_no - 1]
+                if ":" in line_text:
+                    sig_end_line = line_no
+                    if line_text.rstrip().endswith(":"):
+                        break
+
+            signature_end_line = sig_end_line
+            signature_content = "\n".join(
+                file_lines[signature_start_line - 1 : signature_end_line]
+            )
+
+            body_start_line = signature_end_line + 1
+            if (
+                node.body
+                and isinstance(node.body[0], ast.Expr)
+                and isinstance(node.body[0].value, ast.Constant)
+                and isinstance(node.body[0].value.value, str)
+                and hasattr(node.body[0], "end_lineno")
+            ):
+                body_start_line = node.body[0].end_lineno + 1  # type: ignore[attr-defined]
+
+            body_end_line = end_line
+            if body_start_line <= body_end_line:
+                body_content = "\n".join(
+                    file_lines[body_start_line - 1 : body_end_line]
+                )
+
         return PythonEntity(
             file_path=file_path,
             indent_level=indent_level,
@@ -481,15 +556,10 @@ class EntityExtractor:
             line_start=start_line,
             node=node,
             src_code=src_code,
+            signature_content=signature_content,
+            signature_start_line=signature_start_line,
+            signature_end_line=signature_end_line,
+            body_content=body_content,
+            body_start_line=body_start_line,
+            body_end_line=body_end_line,
         )
-
-
-def main():
-    """Main entry point for command-line usage."""
-    import argparse
-
-
-
-
-if __name__ == "__main__":
-    exit(main())

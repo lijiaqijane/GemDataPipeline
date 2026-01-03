@@ -100,6 +100,13 @@ class CodeEntity(metaclass=CodeEntityMeta):
 
 @dataclass
 class PythonEntity(CodeEntity):
+    signature_content: str = ""
+    signature_start_line: int = -1
+    signature_end_line: int = -1
+    body_content: str = ""
+    body_start_line: int = -1
+    body_end_line: int = -1
+
     def _analyze_properties(self):
         node = self.node
 

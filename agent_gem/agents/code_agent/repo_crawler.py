@@ -40,6 +40,7 @@ class RepoFilterConfig:
     exclude_keywords: List[str] = field(default_factory=list)
     exclude_topics: List[str] = field(default_factory=list)
     require_pytest: bool = True
+    require_main_package: bool = False  # Require repo to have main package folder
     max_repos: int = 50
     max_pages: int = 10  # Maximum pages to search per query
 
@@ -155,6 +156,7 @@ class RepoCrawler:
             exclude_keywords=filters.get('exclude_keywords', []),
             exclude_topics=filters.get('exclude_topics', []),
             require_pytest=filters.get('require_pytest', True),
+            require_main_package=filters.get('require_main_package', False),
             max_repos=filters.get('max_repos', 50),
             max_pages=filters.get('max_pages', 10),
         )
@@ -187,6 +189,48 @@ class RepoCrawler:
         if self.github_token:
             headers['Authorization'] = f'token {self.github_token}'
         return headers
+    
+    def _check_has_main_package(self, repo_full_name: str) -> bool:
+        """
+        Check if a repository has a main package folder (folder with same name as repo).
+        
+        Args:
+            repo_full_name: Full repository name (owner/repo)
+            
+        Returns:
+            True if main package folder is found, False otherwise
+        """
+        try:
+            # Extract repo name from full_name (e.g., "numpy/numpy" -> "numpy")
+            repo_name = repo_full_name.split('/')[-1]
+            
+            # Get repository contents
+            url = f"https://api.github.com/repos/{repo_full_name}/contents"
+            response = requests.get(
+                url,
+                headers=self._get_headers(),
+                timeout=self.github_config.timeout,
+            )
+            
+            if response.status_code != 200:
+                logger.debug(f"[RepoCrawler] Could not check main package for {repo_full_name}: {response.status_code}")
+                return False
+            
+            contents = response.json()
+            
+            # Look for a directory with the same name as the repo
+            for item in contents:
+                if isinstance(item, dict):
+                    if item.get('type') == 'dir' and item.get('name', '').lower() == repo_name.lower():
+                        logger.debug(f"[RepoCrawler] Found main package in {repo_full_name}: {item.get('name')}")
+                        return True
+            
+            logger.debug(f"[RepoCrawler] No main package found in {repo_full_name} (looking for '{repo_name}' folder)")
+            return False
+            
+        except Exception as e:
+            logger.debug(f"[RepoCrawler] Error checking main package for {repo_full_name}: {e}")
+            return False
     
     def _check_has_pytest(self, repo_full_name: str) -> bool:
         """
@@ -466,6 +510,16 @@ class RepoCrawler:
                                 continue
                         else:
                             repo_info['has_pytest'] = self._check_has_pytest(repo_full_name)
+                        
+                        # Check for main package if required
+                        if self.filter_config.require_main_package:
+                            has_main_package = self._check_has_main_package(repo_full_name)
+                            repo_info['has_main_package'] = has_main_package
+                            if not has_main_package:
+                                logger.debug(f"[RepoCrawler] Skipping {repo_full_name}: no main package folder found")
+                                continue
+                        else:
+                            repo_info['has_main_package'] = self._check_has_main_package(repo_full_name)
                         
                         # Estimate line count
                         line_count = self._estimate_line_count(repo_full_name, item['language'] or 'Python')

@@ -11,7 +11,7 @@ repo_crawler:
     
     # Star count range
     stars:
-      min: 100
+      min: 50
       max: 1000000
     
     # Repository size in KB
@@ -20,15 +20,14 @@ repo_crawler:
     
     # Code line count range (estimated)
     line_count:
-      min: 500
+      min: 200
       max: 50000
     
     # Recently updated within days
     updated_within_days: 730  # 2 years
     
     # Required topics/tags
-    topics:
-      - tool
+    topics: []
     
     # Exclude repositories with these keywords
     exclude_keywords: []
@@ -39,13 +38,17 @@ repo_crawler:
     # Check for pytest test files
     require_pytest: false
     
+    # Require repository to have main package (folder with same name as repo in root directory)
+    # e.g., numpy repo must have numpy/ folder in root
+    require_main_package: true
+    
     # Maximum number of repositories to crawl
-    max_repos: 5
+    max_repos: 200
     
     # Maximum number of pages to search per query (prevents infinite crawling)
     # Each page contains up to 30 results, so max_pages: 10 means max 300 results per query
     # Recommended: 5-20 pages depending on your needs
-    max_pages: 10
+    max_pages: 200
   
   # Output settings
   output:
@@ -89,7 +92,7 @@ entity_extractor:
   
   # Maximum total entities to extract from repository
   # Limits memory usage for large repositories
-  max_entities_per_repo: -1
+  max_entities_per_repo: 200
   
   # Directories to exclude from extraction
   # These are checked with substring matching
@@ -112,6 +115,11 @@ entity_extractor:
   # If specified, only directories matching these patterns are included
   dirs_include: []
   
+  # Only extract entities from main package (root folder with same name as repo)
+  # e.g., for numpy repo, only extract from numpy/ folder
+  # This is useful to focus on the main codebase and ignore auxiliary files
+  extract_from_main_package_only: true
+  
   # Exclude test files from extraction
   exclude_test_files: true
   
@@ -132,7 +140,7 @@ entity_extractor:
   
   # Maximum entity line count
   # Filters out very large functions/classes
-  max_entity_line_count: 300
+  max_entity_line_count: 200
   
   # ===== Entity Type Filters =====
   # Include function entities
@@ -175,18 +183,16 @@ entity_extractor:
   #   - has_decorator, has_lambda, has_list_comprehension, has_list_indexing
   #   - has_arithmetic, has_binary_op, has_bool_op, has_unary_op
   #   - has_wrapper, has_parent, has_off_by_one
-  require_properties: 
-    - has_return
-    - has_assignment
+  require_properties: []
   
   # Exclude entities with these properties
-  exclude_properties: []
-    # - has_decorator
+  exclude_properties: 
+    - has_decorator
   
   # ===== Complexity Filters =====
   # Minimum cyclomatic complexity (-1 = no limit)
   # Complexity measures the number of decision points in code
-  min_complexity: 3
+  min_complexity: 2
   
   # Maximum cyclomatic complexity (-1 = no limit)
   max_complexity: -1
@@ -197,10 +203,13 @@ entity_extractor:
     save_dir: taskdb/code_agent/extracted_entities
     
     # Save entities as JSON
-    save_json: false
+    save_json: true
     
     # Save extraction summary
     save_summary: true
+
+    # Overwrite existing extracted entities
+    overwrite_existing: false
 
 
 # ===== Triple Generation Settings =====
@@ -341,3 +350,85 @@ sandbox:
   
   # Silent mode (suppress sandbox output)
   silent: false
+
+
+# ===== Issue Generator Settings =====
+issue_generator:
+  # Path to extracted entities (defaults to entity_extractor.output.save_dir)
+  entity_dir: taskdb/code_agent/extracted_entities
+
+  # Optional custom prompt file; if null, uses built-in template
+  prompt_path: null
+
+  # LLM generation parameters
+  max_tokens: 512
+
+  # Maximum characters to include from the entity body in the prompt
+  body_excerpt_limit: 1200
+
+  # Number of workers to parallelize issue generation
+  workers: 4
+
+  # Overwrite existing issue.txt if present
+  overwrite_existing: false
+
+
+# ===== Task Generator Settings =====
+task_generator:
+  # Input settings
+  input:
+    # Directory containing extracted entities (each entity has entity.json and issue.txt)
+    entity_dir: taskdb/code_agent/extracted_entities
+
+    # Filenames to look for within each entity directory
+    entity_filename: entity.json
+    issue_filename: issue.txt
+
+  # Output settings
+  output:
+    # Directory to save generated tasks
+    save_dir: taskdb/code_agent/tasks
+    
+    # Save format: 'json' or 'jsonl'
+    save_format: json
+  
+  # Task content settings
+  task_content:
+    # Include docstring in stub version
+    include_docstring: true
+    
+    # Include type hints in stub version
+    include_type_hints: true
+    
+    # Include decorators in stub version
+    include_decorators: true
+  
+  # Issue generation settings
+  issue_generation:
+    # Issue template: 'default', 'detailed', or 'minimal'
+    template: default
+    
+    # Include surrounding code context in issue
+    include_context: true
+    
+    # Number of context lines before/after entity
+    context_lines: 3
+  
+  # Filtering settings
+  filters:
+    # Minimum entity line count
+    min_entity_lines: 5
+    
+    # Maximum entity line count
+    max_entity_lines: 200
+    
+    # Exclude entities with complexity < 2
+    exclude_simple_entities: true
+  
+  # Metadata settings
+  metadata:
+    # Include metadata in generated tasks
+    include_metadata: true
+    
+    # Include entity properties in metadata
+    include_entity_properties: true
