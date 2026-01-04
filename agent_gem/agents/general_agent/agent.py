@@ -148,8 +148,8 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 update={
                     "metadata": {
                         **(package.metadata or {}),
-                        "data_profile": json.dumps(data_profile, ensure_ascii=False)[:4000],
-                        "tool_selftest": json.dumps(tool_selftest, ensure_ascii=False)[:4000],
+                        "data_profile": self._safe_metadata_json(data_profile),
+                        "tool_selftest": self._safe_metadata_json(tool_selftest),
                     }
                 }
             )
@@ -177,12 +177,17 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             for round_idx in range(2, effective_refine_rounds + 1):
                 target = min(int(request.difficulty), round_idx)
                 ctx.current_difficulty = target
+                try:
+                    tool_selftest = json.loads((package.metadata or {}).get("tool_selftest", "{}"))
+                except Exception:
+                    tool_selftest = {}
                 refined = self._refine_task(
                     previous=package,
                     records=records,
                     tool_specs=task_tool_specs,
                     ctx=ctx,
                     target_difficulty=target,
+                    tool_selftest=tool_selftest if isinstance(tool_selftest, dict) else None,
                 )
                 refined = self._ensure_substantive_task(task_tool_specs, refined, ctx=ctx, request=request)
                 current_tools_code = (package.metadata or {}).get("tools_code", tools_code)

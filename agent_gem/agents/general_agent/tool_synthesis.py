@@ -764,6 +764,116 @@ class ToolSynthesisMixin:
         entries.sort(key=lambda item: item["path"])
         return entries
 
+    def _prepare_entry_states(self, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        entry_states: list[dict[str, Any]] = []
+        used_tool_names: set[str] = set()
+        for entry in entries:
+            prefix = self._tool_prefix_from_path(entry["path"])
+            list_name, main_name = self._unique_tool_names(prefix, used_tool_names)
+            used_tool_names.update({list_name, main_name})
+            entry_states.append(
+                {
+                    "kind": entry["kind"],
+                    "path": entry["path"],
+                    "entry": entry["entry"],
+                    "list_tool_name": list_name,
+                    "main_tool_name": main_name,
+                    "fragment": None,
+                    "specs": None,
+                    "imports": None,
+                }
+            )
+        return entry_states
+
+    @staticmethod
+    def _fragment_defines_symbol(code: str, name: str) -> bool:
+        if not code or not name:
+            return False
+        pattern = rf"^\s*(def|class)\s+{re.escape(name)}\b|^\s*{re.escape(name)}\s*="
+        return re.search(pattern, code, re.MULTILINE) is not None
+
+    def _paths_for_validation_reasons(
+        self, reasons: list[str], entry_states: list[dict[str, Any]]
+    ) -> set[str]:
+        paths: set[str] = set()
+        for reason in reasons:
+            if reason == "raw_csv_rows_returned":
+                for state in entry_states:
+                    fragment = state.get("fragment") or ""
+                    if fragment and self._tool_code_returns_raw_csv_rows(fragment):
+                        paths.add(state["path"])
+            elif reason == "no_data_io_detected":
+                for state in entry_states:
+                    fragment = state.get("fragment") or ""
+                    if fragment and not self._tool_code_reads_data(fragment):
+                        paths.add(state["path"])
+            elif reason == "embedded_dataset_literal":
+                for state in entry_states:
+                    fragment = state.get("fragment") or ""
+                    if fragment and self._tool_code_embeds_dataset(fragment):
+                        paths.add(state["path"])
+            elif reason == "path_replace_on_path":
+                for state in entry_states:
+                    fragment = state.get("fragment") or ""
+                    if fragment and self._tool_code_uses_path_replace(fragment):
+                        paths.add(state["path"])
+            elif reason == "invalid_path_join_base_dir":
+                for state in entry_states:
+                    fragment = state.get("fragment") or ""
+                    if fragment and (
+                        re.search(r"\bDATA_DIR\s*/\s*BASE_DIR\b", fragment)
+                        or re.search(r"\bBASE_DIR\s*/\s*DATA_DIR\b", fragment)
+                    ):
+                        paths.add(state["path"])
+            elif reason == "duplicated_base_dir_in_path":
+                for state in entry_states:
+                    fragment = state.get("fragment") or ""
+                    if fragment and re.search(r"\bBASE_DIR\s*/\s*BASE_DIR\b", fragment):
+                        paths.add(state["path"])
+        return paths
+
+    def _target_regen_paths(
+        self, message: str, entry_states: list[dict[str, Any]]
+    ) -> set[str]:
+        paths: set[str] = set()
+        if not message:
+            return paths
+
+        for missing_path in re.findall(r"path_missing:([A-Za-z0-9_./\\-]+)", message):
+            for state in entry_states:
+                if state["path"] == missing_path:
+                    paths.add(state["path"])
+
+        tool_names: set[str] = set()
+        tool_names.update(re.findall(r"free_text_param_disallowed:([A-Za-z0-9_]+)\.", message))
+        tool_names.update(re.findall(r"tool_output_[^:]+:([A-Za-z0-9_]+)", message))
+        tool_names.update(re.findall(r"in ([A-Za-z0-9_]+):", message))
+        if "tools.py missing required tool defs" in message or "tools.py global name collisions" in message:
+            tool_names.update(re.findall(r"'([A-Za-z0-9_]+)'", message))
+
+        if "tools.py invalid (not data-driven)" in message:
+            reasons = re.findall(r"'([^']+)'", message)
+            paths.update(self._paths_for_validation_reasons(reasons, entry_states))
+
+        tool_name_to_path = {}
+        for state in entry_states:
+            tool_name_to_path[state["list_tool_name"]] = state["path"]
+            tool_name_to_path[state["main_tool_name"]] = state["path"]
+
+        for name in tool_names:
+            path = tool_name_to_path.get(name)
+            if path:
+                paths.add(path)
+
+        if "tools.py global name collisions" in message:
+            for name in tool_names:
+                for state in entry_states:
+                    fragment = state.get("fragment") or ""
+                    if self._fragment_defines_symbol(fragment, name):
+                        paths.add(state["path"])
+
+        return paths
+
     @staticmethod
     def _tool_prefix_from_path(path: str) -> str:
         parts = Path(path).with_suffix("").as_posix().split("/")
@@ -780,6 +890,34 @@ class ToolSynthesisMixin:
         if prefix[0].isdigit():
             prefix = f"data_{prefix}"
         return prefix
+
+    @staticmethod
+    def _typed_dict_class_names(code: str) -> set[str]:
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return set()
+        names: set[str] = set()
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for base in node.bases:
+                if isinstance(base, ast.Name) and base.id == "TypedDict":
+                    names.add(node.name)
+                elif isinstance(base, ast.Attribute) and base.attr == "TypedDict":
+                    names.add(node.name)
+        return names
+
+    @staticmethod
+    def _annotation_uses_names(node: ast.AST | None, names: set[str]) -> bool:
+        if node is None or not names:
+            return False
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name) and child.id in names:
+                return True
+            if isinstance(child, ast.Constant) and isinstance(child.value, str) and child.value in names:
+                return True
+        return False
 
     @staticmethod
     def _namespace_for_path(path: str) -> str:
@@ -1124,23 +1262,52 @@ class ToolSynthesisMixin:
         required_hint = ""
         if required_fields:
             required_hint = f"Required output fields (use if applicable): {sorted(required_fields)}\n"
-        rules = (
-            "- Output ONLY one Python code block.\n"
-            f"- Define tools with @mcp.tool() for `{list_tool_name}` and `{main_tool_name}`.\n"
-            "- You MAY define helper functions/classes/constants and imports.\n"
-            "- Avoid adding extra @mcp.tool-decorated functions; they will be ignored.\n"
-            "- Do NOT define mcp, FastMCP, or BASE_DIR; those are provided by the framework.\n"
-            f"- Use BASE_DIR and the exact path parts for this file: {rel_path}.\n"
-            "- Each tool function must read the local file and must not be empty (no pass/raise).\n"
-            f"- `{list_tool_name}` returns a list of allowed values for a filter parameter used by `{main_tool_name}`.\n"
-            f"- `{main_tool_name}` accepts only those values (enum), and returns list[dict] or a dict summary.\n"
-            "- Add type hints for all parameters and returns; list tools should return list[str].\n"
-            "- Do NOT name parameters query/q/text/search/keyword/term.\n"
-            "- Avoid free-text parameters; use explicit, data-driven filters.\n"
-            "- Deterministic: set random.seed(0) if randomness is used.\n"
-            "- Tool descriptions must be plain string literals.\n"
-            "- Return JSON-serializable shapes with stable keys.\n"
+        rules_parts = [
+            "- Output ONLY one Python code block.\n",
+            f"- Define tools with @mcp.tool() for `{list_tool_name}` and `{main_tool_name}`.\n",
+            "- You MAY define helper functions/classes/constants and imports.\n",
+            "- Avoid adding extra @mcp.tool-decorated functions; they will be ignored.\n",
+            "- Do NOT define mcp, FastMCP, or BASE_DIR; those are provided by the framework.\n",
+            f"- Use BASE_DIR and the exact path parts for this file: {rel_path}.\n",
+            "- Each tool function must read the local file and must not be empty (no pass/raise).\n",
+            f"- `{list_tool_name}` returns a list of allowed values for a filter parameter used by `{main_tool_name}`.\n",
+            f"- `{main_tool_name}` accepts only those values (enum), and returns list[dict] or a dict summary.\n",
+            "- Add type hints for all parameters and returns; list tools should return list[str].\n",
+            "- Keep return types stable; if a field is missing, use a type-appropriate default (e.g., \"\" for strings, 0 for numbers, [] for lists) instead of None.\n",
+        ]
+        if file_kind == "txt":
+            rules_parts.append(
+                "- When parsing text/markdown, strip formatting markers like **, *, and trailing colons from extracted fields.\n"
+            )
+            rules_parts.append(
+                "- Build a cleaned copy of the text (remove markdown markers like **, *, backticks) and use it for section/header detection.\n"
+            )
+            rules_parts.append(
+                "- Headings may look like '**Title:**' or '* Title:'; normalize these to 'Title' before matching.\n"
+            )
+            rules_parts.append(
+                "- Do not stop parsing after the first paragraph; scan the full file for section headers and lists.\n"
+            )
+            rules_parts.append(
+                "- If you see numbered or bulleted lists under a section, map those list items into a list field.\n"
+            )
+        if file_kind == "csv":
+            rules_parts.append(
+                "- CSV files may not be comma-delimited; detect dialect with csv.Sniffer or use the file profile, "
+                "then pass the dialect/delimiter to csv.reader/csv.DictReader.\n"
+            )
+        rules_parts.extend(
+            [
+                "- Do NOT append raw csv.DictReader rows; map into a new dict with explicit keys.\n",
+                "- Avoid TypedDict/custom class return annotations; use list[dict[str, Any]] or dict[str, Any].\n",
+                "- Do NOT name parameters query/q/text/search/keyword/term.\n",
+                "- Avoid free-text parameters; use explicit, data-driven filters.\n",
+                "- Deterministic: set random.seed(0) if randomness is used.\n",
+                "- Tool descriptions must be plain string literals.\n",
+                "- Return JSON-serializable shapes with stable keys.\n",
+            ]
         )
+        rules = "".join(rules_parts)
         prompt = (
             f"{error_context}"
             "Generate tools for exactly ONE local data file.\n"
@@ -1214,14 +1381,41 @@ class ToolSynthesisMixin:
                 errors.append("tool_names_missing")
             if "submit_result" in names or "def submit_result" in code:
                 errors.append("submit_result_disallowed")
+            typed_dict_names = self._typed_dict_class_names(code)
             for func in funcs:
                 node = func["node"]
                 if not self._function_body_has_logic(node):
                     errors.append(f"empty_body:{func['name']}")
+                if self._annotation_uses_names(node.returns, typed_dict_names):
+                    errors.append(f"typed_dict_return_disallowed:{func['name']}")
             if not self._path_literals_ok(code, entry["path"]):
                 errors.append("path_missing_or_mismatch")
+            if self._tool_code_returns_raw_csv_rows(code):
+                errors.append("raw_csv_rows_returned")
+            if not self._tool_code_reads_data(code):
+                errors.append("no_data_io_detected")
+            if self._tool_code_embeds_dataset(code):
+                errors.append("embedded_dataset_literal")
+            if self._tool_code_uses_path_replace(code):
+                errors.append("path_replace_on_path")
+            if re.search(r"\bDATA_DIR\s*/\s*BASE_DIR\b", code) or re.search(
+                r"\bBASE_DIR\s*/\s*DATA_DIR\b", code
+            ):
+                errors.append("invalid_path_join_base_dir")
+            if re.search(r"\bBASE_DIR\s*/\s*BASE_DIR\b", code):
+                errors.append("duplicated_base_dir_in_path")
 
             if errors:
+                prompt_errors: list[str] = []
+                for err in errors:
+                    if err == "raw_csv_rows_returned":
+                        prompt_errors.append(
+                            "raw_csv_rows_returned (do NOT append DictReader rows; create a new dict with explicit keys)"
+                        )
+                    elif err.startswith("typed_dict_return_disallowed:"):
+                        prompt_errors.append(f"{err} (use list[dict[str, Any]] or dict[str, Any])")
+                    else:
+                        prompt_errors.append(err)
                 logger.info(
                     "Tool synthesis retry for file %s (attempt %s/%s): %s",
                     entry["path"],
@@ -1237,7 +1431,7 @@ class ToolSynthesisMixin:
                         "errors": errors,
                     }
                 )
-                attempt_errors = errors
+                attempt_errors = prompt_errors
                 continue
 
             keep_names = {list_tool_name, main_tool_name}
@@ -1270,6 +1464,24 @@ class ToolSynthesisMixin:
             if missing_specs:
                 errors = ["tool_spec_name_mismatch"]
             else:
+                output_keys = self._extract_tool_output_keys(fragment)
+                keys_for_main = output_keys.get(main_tool_name)
+                if not keys_for_main and output_keys:
+                    union_keys: set[str] = set()
+                    for keys in output_keys.values():
+                        union_keys |= {k for k in keys if isinstance(k, str)}
+                    if union_keys:
+                        keys_for_main = sorted(union_keys)
+                if keys_for_main:
+                    enriched: list[ToolSpec] = []
+                    for spec in specs:
+                        if spec.name == main_tool_name:
+                            meta = dict(spec.meta or {})
+                            meta["output_keys"] = keys_for_main
+                            enriched.append(spec.copy(update={"meta": meta}))
+                        else:
+                            enriched.append(spec)
+                    specs = enriched
                 return fragment, specs, imports
             if errors:
                 logger.info(
@@ -1384,6 +1596,8 @@ class ToolSynthesisMixin:
         data_profile: dict[str, Any],
         required_fields: set[str] | None = None,
         all_errors: list[str] | None = None,
+        entry_states: list[dict[str, Any]] | None = None,
+        regen_paths: set[str] | None = None,
     ) -> tuple[list[ToolSpec], str, dict[str, Any]]:
         """Generate task-specific tools using detected data sources.
         
@@ -1394,27 +1608,47 @@ class ToolSynthesisMixin:
         if not entries:
             raise RuntimeError("Tool synthesis failed: no usable data files found.")
 
+        if entry_states is None:
+            entry_states = self._prepare_entry_states(entries)
+        else:
+            entries = [
+                {"kind": state["kind"], "path": state["path"], "entry": state["entry"]}
+                for state in entry_states
+            ]
+
+        regen_set = set(regen_paths or [])
         fragments: list[str] = []
         import_lines: list[str] = []
         tool_specs: list[ToolSpec] = []
-        used_tool_names: set[str] = set()
 
-        for entry in entries:
-            prefix = self._tool_prefix_from_path(entry["path"])
-            list_name, main_name = self._unique_tool_names(prefix, used_tool_names)
+        for state in entry_states:
+            fragment = state.get("fragment")
+            specs = state.get("specs")
+            imports = state.get("imports")
+            if fragment and specs is not None and imports is not None and state["path"] not in regen_set:
+                fragments.append(fragment)
+                import_lines.extend(imports)
+                tool_specs.extend(specs)
+                continue
+
+            entry = {"kind": state["kind"], "path": state["path"], "entry": state["entry"]}
+            per_entry_errors = (
+                all_errors if all_errors and (not regen_set or state["path"] in regen_set) else None
+            )
             fragment, specs, imports = self._synthesize_file_tools(
                 topic=topic,
                 entry=entry,
-                list_tool_name=list_name,
-                main_tool_name=main_name,
+                list_tool_name=state["list_tool_name"],
+                main_tool_name=state["main_tool_name"],
                 ctx=ctx,
                 required_fields=required_fields,
-                all_errors=all_errors,
+                all_errors=per_entry_errors,
             )
+            state["fragment"] = fragment
+            state["specs"] = specs
+            state["imports"] = imports
             fragments.append(fragment)
             import_lines.extend(imports)
-            for spec in specs:
-                used_tool_names.add(spec.name)
             tool_specs.extend(specs)
 
         tools_code = self._assemble_tools_module(
@@ -1542,7 +1776,12 @@ class ToolSynthesisMixin:
         required_fields: set[str] | None = None,
         all_errors: list[str] | None = None,
     ) -> tuple[list[ToolSpec], str, dict[str, Any]]:
+        entries = self._iter_data_entries(data_profile)
+        if not entries:
+            raise RuntimeError("Tool synthesis failed: no usable data files found.")
+        entry_states = self._prepare_entry_states(entries)
         attempt_errors = list(all_errors or [])
+        regen_paths: set[str] | None = None
         for attempt in range(1, self._MAX_REGEN_ATTEMPTS + 1):
             try:
                 return self._synthesize_task_tools(
@@ -1553,6 +1792,8 @@ class ToolSynthesisMixin:
                     data_profile,
                     required_fields=required_fields,
                     all_errors=attempt_errors,
+                    entry_states=entry_states,
+                    regen_paths=regen_paths,
                 )
             except RuntimeError as exc:
                 message = str(exc)
@@ -1571,6 +1812,9 @@ class ToolSynthesisMixin:
                 )
                 if not self._is_retryable_tool_synthesis_error(message) or attempt >= self._MAX_REGEN_ATTEMPTS:
                     raise
+                regen_paths = self._target_regen_paths(message, entry_states)
+                if not regen_paths:
+                    regen_paths = {state["path"] for state in entry_states}
                 attempt_errors = [message]
         raise RuntimeError("tool_synthesis_failed_after_retries")
 
@@ -1654,11 +1898,16 @@ class ToolSynthesisMixin:
         if not code_ok:
             raise RuntimeError(f"tools.py invalid (not data-driven): {reasons}")
 
-        # Validate: submit_result must be implemented by the agent and persist the payload.
-        if "def submit_result" not in code:
-            raise RuntimeError("tools.py missing required submit_result implementation (agent-authored).")
-        if self._SUBMITTED_RESULT_FILE not in code:
-            raise RuntimeError(f"tools.py submit_result must persist to {self._SUBMITTED_RESULT_FILE} (agent-authored).")
+        # Validate: submit_result must be implemented by the agent and persist the payload
+        # only when the toolset expects it (e.g., full tool synthesis vs. augmentation).
+        requires_submit_result = any(spec.name == self._SUBMIT_RESULT_TOOL for spec in tool_specs)
+        if requires_submit_result:
+            if "def submit_result" not in code:
+                raise RuntimeError("tools.py missing required submit_result implementation (agent-authored).")
+            if self._SUBMITTED_RESULT_FILE not in code:
+                raise RuntimeError(
+                    f"tools.py submit_result must persist to {self._SUBMITTED_RESULT_FILE} (agent-authored)."
+                )
 
         # Validate: required tool functions should exist in the module source.
         try:
@@ -1883,6 +2132,21 @@ class ToolSynthesisMixin:
             else:
                 profile[spec.name] = {"ok": True}
 
+        tool_names = [spec.name for spec in tool_specs if spec.name != self._SUBMIT_RESULT_TOOL]
+        samples = self._collect_tool_samples(sandbox, tool_names)
+        for name, info in samples.items():
+            if not isinstance(info, dict):
+                continue
+            existing = profile.get(name)
+            if isinstance(existing, dict) and existing.get("ok") is False:
+                continue
+            merged = dict(existing or {})
+            merged.setdefault("ok", True)
+            for key, value in info.items():
+                if value is not None:
+                    merged[key] = value
+            profile[name] = merged
+
         profile_serializable = self._convert_paths_to_strings(profile)
         ctx.add_step(
             {
@@ -1891,6 +2155,233 @@ class ToolSynthesisMixin:
             }
         )
         return profile
+
+    def _collect_tool_samples(
+        self,
+        sandbox: SandboxExecutor,
+        tool_names: list[str],
+    ) -> dict[str, Any]:
+        if not tool_names:
+            return {}
+        names_json = json.dumps(sorted(tool_names), ensure_ascii=True)
+        script = f"""python - <<'PY'
+import importlib.util
+import inspect
+import json
+from pathlib import Path
+
+TOOLS_PATH = Path("tools.py")
+TOOL_NAMES = {names_json}
+
+def _truncate(value, limit=120):
+    if isinstance(value, str) and len(value) > limit:
+        return value[:limit] + "..."
+    return value
+
+def _simple_value(value):
+    if isinstance(value, (str, int, float, bool)):
+        return _truncate(value)
+    return None
+
+def _unwrap(value):
+    if isinstance(value, dict) and "result" in value:
+        if len(value) == 1 or (len(value) == 2 and "error" in value):
+            return value.get("result")
+    return value
+
+def _enum_from_annotation(annotation):
+    try:
+        from enum import Enum
+        from typing import get_args, get_origin
+    except Exception:
+        return None
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return annotation
+    origin = get_origin(annotation)
+    if origin is None:
+        return None
+    for arg in get_args(annotation):
+        enum_type = _enum_from_annotation(arg)
+        if enum_type is not None:
+            return enum_type
+    return None
+
+def _coerce_enum_value(value, enum_type):
+    if enum_type is None:
+        return value
+    if value is None or isinstance(value, enum_type):
+        return value
+    if isinstance(value, str):
+        try:
+            return enum_type(value)
+        except Exception:
+            member = enum_type.__members__.get(value)
+            if member is not None:
+                return member
+    return value
+
+def _collect_fields(sample):
+    if isinstance(sample, dict):
+        return list(sample.keys())
+    return []
+
+def _collect_sample_values(sample):
+    values = {{}}
+    if not isinstance(sample, dict):
+        return values
+    for key, raw in sample.items():
+        if isinstance(raw, (str, int, float, bool)):
+            values[key] = [_simple_value(raw)]
+            continue
+        if isinstance(raw, list):
+            items = []
+            for item in raw:
+                simple = _simple_value(item)
+                if simple is None:
+                    continue
+                if simple not in items:
+                    items.append(simple)
+                if len(items) >= 3:
+                    break
+            if items:
+                values[key] = items
+    return values
+
+def _collect_empty_list_fields(sample):
+    if not isinstance(sample, dict):
+        return []
+    empty = []
+    for key, raw in sample.items():
+        if isinstance(raw, list) and not raw:
+            empty.append(key)
+    return empty
+
+def _safe_call(fn, *args, **kwargs):
+    try:
+        return True, fn(*args, **kwargs)
+    except Exception as exc:
+        return False, "call_failed: " + str(exc)
+
+spec = importlib.util.spec_from_file_location("generated_tools", TOOLS_PATH)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+available = {{name: getattr(module, name) for name in TOOL_NAMES if hasattr(module, name)}}
+list_tools = {{name: fn for name, fn in available.items() if name.startswith("list_")}}
+get_tools = {{name: fn for name, fn in available.items() if name.startswith("get_")}}
+
+list_outputs = {{}}
+profile = {{}}
+
+for name, fn in list_tools.items():
+    ok, result = _safe_call(fn)
+    entry = {{"ok": bool(ok)}}
+    if ok:
+        result = _unwrap(result)
+        if isinstance(result, list):
+            options = []
+            for item in result:
+                simple = _simple_value(item)
+                if simple is None:
+                    continue
+                options.append(simple)
+                if len(options) >= 6:
+                    break
+            entry["options"] = options
+            list_outputs[name] = options
+        else:
+            entry["options"] = []
+    else:
+        entry["error"] = result
+    profile[name] = entry
+
+def _base_from_list(name):
+    if not (name.startswith("list_") and name.endswith("_options")):
+        return ""
+    return name[len("list_"):-len("_options")]
+
+list_by_base = {{}}
+for name, options in list_outputs.items():
+    base = _base_from_list(name)
+    if base:
+        list_by_base[base] = options
+
+for name, fn in get_tools.items():
+    entry = {{"ok": True}}
+    sample = None
+    ok = True
+    sig = inspect.signature(fn)
+    try:
+        from typing import get_type_hints
+        type_hints = get_type_hints(fn)
+    except Exception:
+        type_hints = getattr(fn, "__annotations__", {{}}) or {{}}
+    params = [p for p in sig.parameters.values() if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)]
+    kwargs = {{}}
+    if params:
+        base = ""
+        if name.startswith("get_") and name.endswith("_records"):
+            base = name[len("get_"):-len("_records")]
+        options = list_by_base.get(base, [])
+        if options:
+            first_param = params[0]
+            ann = type_hints.get(first_param.name)
+            enum_type = _enum_from_annotation(ann)
+            kwargs[first_param.name] = _coerce_enum_value(options[0], enum_type)
+        elif params[0].default is inspect._empty:
+            ann = type_hints.get(params[0].name)
+            enum_type = _enum_from_annotation(ann)
+            if enum_type is not None:
+                try:
+                    kwargs[params[0].name] = list(enum_type)[0]
+                except Exception:
+                    ok = False
+                    entry["error"] = "missing_required_params"
+            else:
+                ok = False
+                entry["error"] = "missing_required_params"
+    if ok and params:
+        # Fill remaining required params with defaults if present.
+        for param in params[1:]:
+            if param.name in kwargs:
+                continue
+            if param.default is not inspect._empty:
+                kwargs[param.name] = param.default
+    if ok:
+        called, result = _safe_call(fn, **kwargs)
+        if not called:
+            entry["ok"] = False
+            entry["error"] = result
+        else:
+            result = _unwrap(result)
+            if isinstance(result, list) and result:
+                sample = result[0]
+            elif isinstance(result, dict):
+                sample = result
+    if sample is not None:
+        fields = _collect_fields(sample)
+        entry["fields"] = fields[:10]
+        entry["sample_values"] = _collect_sample_values(sample)
+        entry["empty_list_fields"] = _collect_empty_list_fields(sample)
+    else:
+        entry.setdefault("fields", [])
+    profile[name] = entry
+
+print(json.dumps(profile, ensure_ascii=False))
+PY"""
+        result = sandbox.execute_bash(script, timeout_s=20)
+        stdout = (result.get("stdout") or "").strip()
+        if result.get("returncode") != 0:
+            logger.debug("tool sample collection failed: %s", result.get("stderr"))
+            return {}
+        if not stdout:
+            return {}
+        try:
+            parsed = json.loads(stdout)
+        except Exception:
+            logger.debug("tool sample collection parse failed")
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
 
     @staticmethod
     def _expected_fields_from_format(submit_result_format: Any) -> set[str]:
@@ -2024,64 +2515,145 @@ class ToolSynthesisMixin:
             "- Avoid generic free-text parameters; use enums derived from real fields.\n"
             "- Use @mcp.tool(description=...) with a plain string literal.\n"
             "- Implement real logic; no stubs, no pass/raise placeholders.\n"
+            "- Do NOT append raw csv.DictReader rows; map into a new dict with explicit keys.\n"
+            "- If you read CSV files, detect the delimiter (csv.Sniffer) or use the file profile; do not assume commas.\n"
+            "- When parsing markdown/text, strip formatting markers like **, *, and trailing colons from extracted fields.\n"
+            "- Avoid TypedDict/custom class return annotations; use list[dict[str, Any]] or dict[str, Any].\n"
+            "- Keep return types stable; if a field is missing, use a type-appropriate default (e.g., \"\" for strings, 0 for numbers, [] for lists) instead of None.\n"
             "- Do NOT define submit_result here.\n"
         )
-        prompt = (
-            "You are augmenting an existing toolset to make a task solvable and verifiable.\n"
-            "Return Python code defining 1-2 NEW tools decorated with @mcp.tool(), avoiding duplicates.\n"
-            "Include `from mcp.server.fastmcp import FastMCP` and `mcp = FastMCP(\"Tools\")` in the output.\n"
-            "Do NOT call mcp.run() or start any server.\n"
-            "Hard rules:\n"
-            f"{base_rules}"
-            "Constraints:\n"
-            f"- Tool names must be unique, snake_case, and NOT {', '.join(repr(name) for name in self._FILTERED_TOOL_NAMES)}.\n"
-            "- Implement real logic that reads ONLY local files (CSV/JSON/TXT/SQLite) or the provided records; no stubs, no pass/raise placeholders.\n"
-            "- Deterministic: set random.seed(0) if any randomness is used.\n"
-            "Only output a single Python code block.\n"
-            f"Field Inventory (use these field names for parameters): {field_inventory_json}\n"
-            f"Topic: {topic}\n"
-            f"Existing tools: {sorted(existing_names)}\n"
-            f"Records (JSON sample): {json.dumps(records[:5], ensure_ascii=False)}\n"
-            f"Data profile (JSON): {data_profile_json[:800]}\n"
-        )
         max_tokens = getattr(ctx.request, "max_tokens", 10000)
-        raw = self.llm.simple_complete(prompt, temperature=0.55, max_tokens=max_tokens)
-        ctx.add_step({"type": "tool_augmentation", "content": raw})
-
-        specs = self._extract_mcp_tools(raw)
-        tools_code = self._sanitize_llm_code(raw)
-
-        new_specs: list[ToolSpec] = []
-        for spec in specs:
-            if spec.name in self._FILTERED_TOOL_NAMES:
-                continue
-            if spec.name in existing_names:
-                continue
-            existing_names.add(spec.name)
-            new_specs.append(
-                spec.copy(
-                    update={
-                        "description": spec.description
-                        or f"Augmented tool for {topic}",
-                        "meta": (spec.meta or {}) | {"topic": topic, "augmented": True},
-                    }
+        attempt_errors: list[str] = []
+        last_tools_code = ""
+        for attempt in range(1, self._MAX_REGEN_ATTEMPTS + 1):
+            error_context = ""
+            if attempt_errors:
+                error_context = (
+                    "Previous attempts encountered the following issues:\n"
+                    + "\n".join(f"- {error}" for error in attempt_errors)
+                    + "\n\n"
                 )
+            prompt = (
+                f"{error_context}"
+                "You are augmenting an existing toolset to make a task solvable and verifiable.\n"
+                "Return Python code defining 1-2 NEW tools decorated with @mcp.tool(), avoiding duplicates.\n"
+                "Include `from mcp.server.fastmcp import FastMCP` and `mcp = FastMCP(\"Tools\")` in the output.\n"
+                "Do NOT call mcp.run() or start any server.\n"
+                "Hard rules:\n"
+                f"{base_rules}"
+                "Constraints:\n"
+                f"- Tool names must be unique, snake_case, and NOT {', '.join(repr(name) for name in self._FILTERED_TOOL_NAMES)}.\n"
+                "- Implement real logic that reads ONLY local files (CSV/JSON/TXT/SQLite) or the provided records; no stubs, no pass/raise placeholders.\n"
+                "- Deterministic: set random.seed(0) if any randomness is used.\n"
+                "Only output a single Python code block.\n"
+                f"Field Inventory (use these field names for parameters): {field_inventory_json}\n"
+                f"Topic: {topic}\n"
+                f"Existing tools: {sorted(existing_names)}\n"
+                f"Records (JSON sample): {json.dumps(records[:5], ensure_ascii=False)}\n"
+                f"Data profile (JSON): {data_profile_json[:800]}\n"
             )
+            raw = self.llm.simple_complete(prompt, temperature=0.55, max_tokens=max_tokens)
+            ctx.add_step({"type": "tool_augmentation", "attempt": attempt, "content": raw})
 
-        if not new_specs:
-            return existing_specs, tools_code, False
-        if tools_code:
+            tools_code = self._sanitize_llm_code(raw)
+            last_tools_code = tools_code or ""
+            if not tools_code:
+                attempt_errors = ["empty_tool_code"]
+                ctx.add_step(
+                    {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
+                )
+                continue
+
+            try:
+                tree = ast.parse(tools_code)
+            except Exception as exc:
+                attempt_errors = [f"parse_failed:{exc}"]
+                ctx.add_step(
+                    {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
+                )
+                continue
+
+            typed_dict_names = self._typed_dict_class_names(tools_code)
+            typed_dict_returns = []
+            for node in tree.body:
+                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if self._annotation_uses_names(node.returns, typed_dict_names):
+                    typed_dict_returns.append(node.name)
+            if typed_dict_returns:
+                attempt_errors = [f"typed_dict_return_disallowed:{name}" for name in typed_dict_returns]
+                ctx.add_step(
+                    {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
+                )
+                continue
+
+            specs = self._extract_mcp_tools_from_python(tools_code)
+            if not specs:
+                attempt_errors = ["no_tools_found"]
+                ctx.add_step(
+                    {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
+                )
+                continue
+
+            candidate_names = set(existing_names)
+            new_specs: list[ToolSpec] = []
+            for spec in specs:
+                if spec.name in self._FILTERED_TOOL_NAMES:
+                    continue
+                if spec.name in candidate_names:
+                    continue
+                candidate_names.add(spec.name)
+                new_specs.append(
+                    spec.copy(
+                        update={
+                            "description": spec.description
+                            or f"Augmented tool for {topic}",
+                            "meta": (spec.meta or {}) | {"topic": topic, "augmented": True},
+                        }
+                    )
+                )
+
+            if not new_specs:
+                attempt_errors = ["no_new_tools"]
+                ctx.add_step(
+                    {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
+                )
+                continue
+
             code_ok, code_reasons = self._validate_tool_code(tools_code)
             if not code_ok:
+                prompt_errors: list[str] = []
+                for reason in code_reasons:
+                    if reason == "raw_csv_rows_returned":
+                        prompt_errors.append(
+                            "raw_csv_rows_returned (do NOT append DictReader rows; create a new dict with explicit keys)"
+                        )
+                    else:
+                        prompt_errors.append(reason)
+                attempt_errors = prompt_errors
                 ctx.add_step(
                     {
                         "type": "tool_augmentation_invalid_tool_code",
+                        "attempt": attempt,
                         "tool_code_reasons": code_reasons,
                     }
                 )
-            return existing_specs, tools_code, False
+                continue
 
-        if tools_code:
+            output_keys = self._extract_tool_output_keys(tools_code)
+            if output_keys:
+                enriched: list[ToolSpec] = []
+                for spec in new_specs:
+                    if spec.name == self._SUBMIT_RESULT_TOOL:
+                        enriched.append(spec)
+                        continue
+                    meta = dict(spec.meta or {})
+                    keys = output_keys.get(spec.name)
+                    if keys:
+                        meta["output_keys"] = keys
+                    enriched.append(spec.copy(update={"meta": meta}))
+                new_specs = enriched
+
             tools_path = sandbox.sandbox_dir / "tools.py"
             implemented_code = self._generate_tool_implementations(
                 tools_code=tools_code,
@@ -2103,9 +2675,14 @@ class ToolSynthesisMixin:
             sandbox.execute_bash("python -m py_compile tools.py")
             sandbox.execute_bash('python -c "import tools; print(\'TOOLS_IMPORT_OK\')"')
 
-        self._register_task_tools(new_specs, sandbox, ctx, tools_code=tools_code)
-        combined_specs = self._ensure_submit_result_tool(existing_specs + new_specs)
-        return combined_specs, tools_code, True
+            self._register_task_tools(new_specs, sandbox, ctx, tools_code=tools_code)
+            combined_specs = self._ensure_submit_result_tool(existing_specs + new_specs)
+            return combined_specs, tools_code, True
+
+        ctx.add_step(
+            {"type": "tool_augmentation_failed", "errors": attempt_errors or ["unknown_failure"]}
+        )
+        return existing_specs, last_tools_code, False
 
     @staticmethod
     def _extract_mcp_tools(raw: str) -> list[ToolSpec]:

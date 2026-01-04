@@ -101,7 +101,7 @@ class TaskBuilderMixin:
             f"submit_result_format (JSON): {json.dumps(submit_result_format, ensure_ascii=True)}\n"
             f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=True)}\n"
             f"Database sample (JSON): {json.dumps(records[:3], ensure_ascii=True)}\n"
-            f"Tool self-tests (schemas): {json.dumps(tool_selftest or {}, ensure_ascii=True)[:1200]}\n"
+            f"Tool self-tests (samples): {json.dumps(tool_selftest or {}, ensure_ascii=True)[:1200]}\n"
             f"Previous solution snippet:\n{(previous_solution or '')[:800]}\n"
             f"Previous verification snippet:\n{(previous_verification or '')[:800]}\n"
         )
@@ -149,7 +149,7 @@ class TaskBuilderMixin:
             f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
             f"submit_result_format (JSON): {json.dumps(submit_result_format, ensure_ascii=False)}\n"
             f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
-            f"Tool self-tests (schemas): {json.dumps(tool_selftest or {}, ensure_ascii=False)[:1200]}\n"
+            f"Tool self-tests (samples): {json.dumps(tool_selftest or {}, ensure_ascii=False)[:1200]}\n"
         )
 
         solution_base = (
@@ -194,6 +194,7 @@ class TaskBuilderMixin:
             "- Must NOT be trivial (no unconditional pass/return True).\n"
             "- Must be exception-safe: DO NOT raise. If any unexpected condition or exception occurs, return False.\n"
             "- Must handle answer is None / missing keys / None values without throwing (avoid NoneType is not iterable).\n"
+            "- If you define helpers like safe_get, accept default= as a keyword and call it with default=... to avoid key/arg confusion.\n"
             "- Must ALWAYS return a boolean OR a dict with keys like {passed: bool, message: str, details: ...}.\n"
             "- If returning a dict, include a short failure message to help repairs.\n"
             "- If answer is wrapped by submit_result (keys like status/message/submitted_data or status/message/data), verify the wrapped payload.\n"
@@ -459,6 +460,9 @@ class TaskBuilderMixin:
             "- Must reference specific tool names and explain how they should be used together.\n"
             "- Must include concrete examples of what fields/values to look for in the data.\n"
             "- Must specify any data quality requirements (e.g., exclude nulls, filter by date ranges).\n"
+            "- Any filter values MUST come from the specific tool's own outputs (see tool_selftest options/sample_values); do not use values from other tools or unrelated data samples.\n"
+            "- The database sample is for context only; do not use it to invent filter values.\n"
+            "- Avoid relying on fields listed under empty_list_fields in tool_selftest; treat them as unavailable.\n"
             "- If you suggest specific search queries, they MUST appear in the provided data samples or tool outputs.\n"
             "- Write in clear, actionable language that leaves no ambiguity about the task requirements.\n\n"
             f"Topic: {request.topic}\n"
@@ -466,7 +470,7 @@ class TaskBuilderMixin:
             f"Allowed tool names (you MUST call from these): {json.dumps(tool_names, ensure_ascii=False)}\n"
             f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
             f"Local data sources (detected): {json.dumps(data_profile_payload, ensure_ascii=False)[:1200]}\n"
-            f"Tool self-tests (schemas): {json.dumps(tool_selftest_payload, ensure_ascii=False)[:1200]}\n"
+            f"Tool self-tests (samples): {json.dumps(tool_selftest_payload, ensure_ascii=False)[:1200]}\n"
             + "CRITICAL: design submit_result_format and task_content ONLY using fields actually available from the tools/data above.\n"
             + "CRITICAL: difficulty_level must be the integer 1.\n"
         )
@@ -578,15 +582,21 @@ class TaskBuilderMixin:
         tool_specs: list[ToolSpec],
         ctx: TaskContext,
         target_difficulty: int,
+        tool_selftest: dict[str, Any] | None = None,
     ) -> TaskPackage:
         tool_list = [{"name": spec.name, "description": spec.description} for spec in tool_specs]
+        tool_selftest_payload: Any = tool_selftest or {}
         prompt = (
             "Increase the task difficulty while keeping it verifiable.\n"
             "Return ONLY JSON with keys: task_content, submit_result_format, difficulty_level.\n"
             "Do not introduce new tools; only use tools from the provided list.\n"
+            "Any filter values MUST come from the specific tool's own outputs (see tool_selftest options/sample_values); do not use values from other tools or unrelated data samples.\n"
+            "The database sample is for context only; do not use it to invent filter values.\n"
+            "Avoid relying on fields listed under empty_list_fields in tool_selftest; treat them as unavailable.\n"
             f"Target difficulty_level: {target_difficulty}\n"
             f"Tools (JSON): {json.dumps(tool_list, ensure_ascii=False)}\n"
             f"Database sample (JSON): {json.dumps(records[:5], ensure_ascii=False)}\n"
+            f"Tool self-tests (samples): {json.dumps(tool_selftest_payload, ensure_ascii=False)[:1200]}\n"
             f"Previous task (JSON): {json.dumps(previous.as_payload(), ensure_ascii=False)}\n"
         )
         max_tokens = getattr(ctx.request, "max_tokens", 10000)
@@ -612,7 +622,7 @@ class TaskBuilderMixin:
             submit_result_format=submit_result_format,
             tool_specs=tool_specs,
             records=records,
-            tool_selftest=None,
+            tool_selftest=tool_selftest if isinstance(tool_selftest, dict) else None,
             previous_solution=previous.solution or "",
             previous_verification=previous.verification or "",
         )

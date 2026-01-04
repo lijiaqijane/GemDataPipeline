@@ -43,6 +43,33 @@ class ValidationMixin:
         return text
 
     @staticmethod
+    def _safe_metadata_json(payload: Any, *, max_chars: int = 4000) -> str:
+        if payload is None:
+            return "{}"
+
+        def _compact(value: Any, *, max_items: int, max_str: int) -> Any:
+            if isinstance(value, dict):
+                return {k: _compact(v, max_items=max_items, max_str=max_str) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_compact(v, max_items=max_items, max_str=max_str) for v in value[:max_items]]
+            if isinstance(value, str) and len(value) > max_str:
+                return value[:max_str] + "..."
+            return value
+
+        try:
+            text = json.dumps(payload, ensure_ascii=False, default=str)
+        except Exception:
+            return "{}"
+        if len(text) <= max_chars:
+            return text
+        for max_items, max_str in ((6, 200), (4, 120), (2, 80), (1, 60)):
+            compact = _compact(payload, max_items=max_items, max_str=max_str)
+            text = json.dumps(compact, ensure_ascii=False, default=str)
+            if len(text) <= max_chars:
+                return text
+        return json.dumps({"truncated": True}, ensure_ascii=False)
+
+    @staticmethod
     def _verifier_is_broken(run: Any) -> bool:
         if run.verified is None:
             return True
@@ -381,8 +408,8 @@ class ValidationMixin:
                             update={
                                 "metadata": {
                                     **(package.metadata or {}),
-                                    "data_profile": json.dumps(data_profile, ensure_ascii=False)[:4000],
-                                    "tool_selftest": json.dumps(refreshed_selftest, ensure_ascii=False)[:4000],
+                                    "data_profile": self._safe_metadata_json(data_profile or {}),
+                                    "tool_selftest": self._safe_metadata_json(refreshed_selftest),
                                 }
                             }
                         )
@@ -409,7 +436,7 @@ class ValidationMixin:
                                 "task": package.task.copy(update={"tool_set": new_specs}),
                                 "metadata": {
                                     **(package.metadata or {}),
-                                    "tool_selftest": json.dumps(new_selftest, ensure_ascii=False)[:4000],
+                                    "tool_selftest": self._safe_metadata_json(new_selftest),
                                     "tools_code": tools_code[:5000] if tools_code else "",
                                     "toolset_augmented": "true",
                                 },
@@ -597,7 +624,7 @@ class ValidationMixin:
                     "metadata": {
                         **(package.metadata or {}),
                         "validation_error": last_error,
-                        "data_profile": json.dumps(metadata_profile, ensure_ascii=False)[:4000],
+                        "data_profile": self._safe_metadata_json(metadata_profile),
                     }
                 }
             )
@@ -902,9 +929,11 @@ class ValidationMixin:
                     break
         
         if all_arrays_empty and any(isinstance(v, (list, dict)) for v in data.values()):
-            # If we have array/dict fields but they're all empty, it's not meaningful
             array_fields = [k for k, v in data.items() if isinstance(v, (list, dict))]
-            return False, f"All array/dict fields are empty: {array_fields}"
+            non_collection_values = [v for v in data.values() if not isinstance(v, (list, dict))]
+            non_collection_meaningful = any(_is_meaningful_value(v) for v in non_collection_values)
+            if not non_collection_meaningful:
+                return False, f"All array/dict fields are empty: {array_fields}"
         
         # Pattern 2: All counts are zero (common pattern: total_count: "0", hotels: [])
         count_fields = [k for k in data.keys() if "count" in k.lower() or "total" in k.lower() or "num" in k.lower()]
