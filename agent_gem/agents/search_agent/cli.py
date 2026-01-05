@@ -96,6 +96,12 @@ def add_search_synthesize_subparser(
         default=None,
         help="Text mapping to use for search agent",
     )
+    search_parser.add_argument(
+        "--max_workers",
+        type=int,
+        default=4,
+        help="Maximum number of worker threads for parallel processing (default: 4)",
+    )
 
 
 def handle_search_synthesize(args: argparse.Namespace) -> None:
@@ -122,6 +128,7 @@ def handle_search_synthesize(args: argparse.Namespace) -> None:
             embedding_path=args.embedding_path,
             faiss_index_path=args.faiss_index_path,
             text_mapping_path=args.text_mapping_path,
+            max_workers=args.max_workers,
         )
 
         logger.info("Starting generation process")
