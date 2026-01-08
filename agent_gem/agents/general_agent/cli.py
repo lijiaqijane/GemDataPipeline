@@ -171,6 +171,15 @@ def handle_synthesize(args: argparse.Namespace) -> None:
             task_id_prefix = f"{category_slug}-task-{task_idx + 1}"
             logging.info(f"Generating task {task_idx + 1}/{num_tasks} for category: {category} (ID: {task_id_prefix})")
 
+            # Check if tasks.json already exists for this task
+            # task_id_prefix is used as the actual task_id in agent.generate()
+            task_dir = writer.task_dir(task_id_prefix, "general_agent")
+            tasks_json_path = task_dir / "tasks.json"
+            if tasks_json_path.exists():
+                logging.info(f"Skipping task {task_id_prefix} - tasks.json already exists at {tasks_json_path}")
+                successful_task_ids.append(task_id_prefix)
+                continue
+
             # Generate the task package (includes all refinement rounds internally)
             # agent.generate() will automatically handle all difficulty levels and persist results
             request = GenerationRequest(

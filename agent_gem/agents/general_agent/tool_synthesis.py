@@ -83,6 +83,7 @@ class ToolSynthesisMixin:
 
     @staticmethod
     def _tool_code_reads_data(code: str) -> bool:
+        """Check if code reads JSON data files."""
         try:
             tree = ast.parse(code)
         except Exception:
@@ -95,17 +96,13 @@ class ToolSynthesisMixin:
                 return True
             if isinstance(func, ast.Attribute):
                 attr = func.attr
-                if attr in {"read_text", "read_bytes", "read_csv", "read_json", "connect", "open"}:
+                if attr in {"read_text", "read_bytes", "read_json", "open"}:
                     return True
                 if isinstance(func.value, ast.Name):
                     base = func.value.id
-                    if base == "csv" and attr == "DictReader":
-                        return True
                     if base == "json" and attr == "load":
                         return True
-                    if base == "sqlite3" and attr == "connect":
-                        return True
-                    if base in {"pd", "pandas"} and attr in {"read_csv", "read_json"}:
+                    if base in {"pd", "pandas"} and attr == "read_json":
                         return True
         return False
 
@@ -132,47 +129,6 @@ class ToolSynthesisMixin:
                             return True
         return False
 
-    @staticmethod
-    def _tool_code_returns_raw_csv_rows(code: str) -> bool:
-        """Detect appending raw csv.DictReader rows without remapping keys."""
-        try:
-            tree = ast.parse(code)
-        except Exception:
-            return False
-        reader_vars: set[str] = set()
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Assign):
-                continue
-            value = node.value
-            if not isinstance(value, ast.Call):
-                continue
-            func = value.func
-            if (
-                isinstance(func, ast.Attribute)
-                and isinstance(func.value, ast.Name)
-                and func.value.id == "csv"
-                and func.attr == "DictReader"
-            ):
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        reader_vars.add(target.id)
-        if not reader_vars:
-            return False
-        for node in ast.walk(tree):
-            if isinstance(node, ast.For) and isinstance(node.iter, ast.Name) and node.iter.id in reader_vars:
-                if isinstance(node.target, ast.Name):
-                    row_var = node.target.id
-                else:
-                    continue
-                for child in ast.walk(node):
-                    if not isinstance(child, ast.Call):
-                        continue
-                    func = child.func
-                    if isinstance(func, ast.Attribute) and func.attr == "append" and child.args:
-                        arg = child.args[0]
-                        if isinstance(arg, ast.Name) and arg.id == row_var:
-                            return True
-        return False
 
     @staticmethod
     def _tool_code_uses_path_replace(code: str) -> bool:
@@ -232,113 +188,73 @@ class ToolSynthesisMixin:
                     return True
         return False
 
-    @classmethod
-    def _truncate_value(cls, value: Any, limit: int = 60) -> str:
-        text = str(value).strip()
-        if len(text) > limit:
-            return text[:limit] + "..."
-        return text
-
-    @classmethod
-    def _collect_sample_values(cls, columns: list[str], rows: list[list[Any]]) -> dict[str, list[str]]:
-        values: dict[str, list[str]] = {col: [] for col in columns}
-        for row in rows:
-            if not isinstance(row, list):
-                continue
-            for idx, col in enumerate(columns):
-                if idx >= len(row):
-                    continue
-                raw = row[idx]
-                if raw is None:
-                    continue
-                text = cls._truncate_value(raw)
-                if not text:
-                    continue
-                bucket = values.get(col)
-                if bucket is None:
-                    continue
-                if text not in bucket:
-                    bucket.append(text)
-                if len(bucket) >= cls._MAX_FIELD_VALUES:
-                    continue
-        # Drop empty buckets
-        return {k: v for k, v in values.items() if v}
-
-    @classmethod
-    def _collect_sample_values_from_dicts(cls, items: list[dict[str, Any]]) -> dict[str, list[str]]:
-        values: dict[str, list[str]] = {}
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            for key, raw in item.items():
-                if raw is None or isinstance(raw, (dict, list)):
-                    continue
-                text = cls._truncate_value(raw)
-                if not text:
-                    continue
-                bucket = values.setdefault(str(key), [])
-                if text not in bucket:
-                    bucket.append(text)
-                if len(bucket) >= cls._MAX_FIELD_VALUES:
-                    continue
-        return values
-
-    def _build_field_inventory(self, data_profile: dict[str, Any]) -> dict[str, Any]:
-        """Build a compact field/value inventory to guide tool parameter design."""
-        inventory: dict[str, Any] = {"csv": [], "json": [], "sqlite": [], "txt": []}
-        for entry in data_profile.get("csv", []):
-            header = entry.get("header") if isinstance(entry.get("header"), list) else []
-            rows = entry.get("sample_rows") if isinstance(entry.get("sample_rows"), list) else []
-            sample_values = self._collect_sample_values([str(h) for h in header], rows)
-            inventory["csv"].append(
-                {
-                    "path": entry.get("path"),
-                    "columns": header,
-                    "sample_values": sample_values,
-                }
-            )
-        for entry in data_profile.get("json", []):
-            items = entry.get("sample_items") if isinstance(entry.get("sample_items"), list) else []
-            dict_items = [item for item in items if isinstance(item, dict)]
-            sample_values = self._collect_sample_values_from_dicts(dict_items)
-            keys = sorted({str(k) for item in dict_items for k in item.keys()})
-            inventory["json"].append(
-                {
-                    "path": entry.get("path"),
-                    "keys": keys,
-                    "sample_values": sample_values,
-                }
-            )
-        for entry in data_profile.get("sqlite", []):
-            tables = entry.get("tables") if isinstance(entry.get("tables"), list) else []
-            table_summaries = []
-            for table in tables:
-                if not isinstance(table, dict):
-                    continue
-                columns = table.get("columns") if isinstance(table.get("columns"), list) else []
-                rows = table.get("rows") if isinstance(table.get("rows"), list) else []
-                sample_values = self._collect_sample_values([str(c) for c in columns], rows)
-                table_summaries.append(
-                    {
-                        "table": table.get("table"),
-                        "columns": columns,
-                        "sample_values": sample_values,
-                    }
-                )
-            inventory["sqlite"].append(
-                {
-                    "path": entry.get("path"),
-                    "tables": table_summaries,
-                }
-            )
-        for entry in data_profile.get("txt", []):
-            inventory["txt"].append(
-                {
-                    "path": entry.get("path"),
-                    "line_count": entry.get("line_count"),
-                }
-            )
-        return inventory
+    def _build_merged_file_data(self, entry: dict[str, Any], sandbox: SandboxExecutor) -> dict[str, Any]:
+        """Build merged file data by reading from actual file.
+        
+        Returns a simplified structure with:
+        - data: simplified data structure (title, summary, sections)
+          - content field is removed
+          - text and bullets in sections are replaced with data types
+        
+        Raises:
+            Warning and returns empty data if file cannot be read or has no content.
+        """
+        rel_path = entry["path"]
+        file_path = sandbox.sandbox_dir / rel_path
+        
+        merged_data: dict[str, Any] = {"data": {}}
+        
+        try:
+            if not file_path.exists():
+                logger.warning(f"File not found: {file_path}, skipping merged data for {rel_path}")
+                return merged_data
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                file_data = json.load(f)
+            
+            if not file_data or not isinstance(file_data, dict):
+                logger.warning(f"File has no content or invalid format: {rel_path}, skipping merged data")
+                return merged_data
+            
+            # Copy title and summary if present
+            if "title" in file_data:
+                merged_data["data"]["title"] = file_data["title"]
+            if "summary" in file_data:
+                merged_data["data"]["summary"] = file_data["summary"]
+            
+            # Process sections: keep heading, replace text and bullets with data types
+            if "sections" in file_data:
+                sections = file_data["sections"]
+                if isinstance(sections, list):
+                    processed_sections = []
+                    for section in sections:
+                        if isinstance(section, dict):
+                            processed_section: dict[str, Any] = {}
+                            if "heading" in section:
+                                processed_section["heading"] = section["heading"]
+                            # Replace text with data type
+                            if "text" in section:
+                                processed_section["text"] = "str"
+                            # Replace bullets with data type
+                            if "bullets" in section:
+                                processed_section["bullets"] = "list[str]"
+                            # Copy other fields as-is (if any)
+                            for key, value in section.items():
+                                if key not in ["heading", "text", "bullets"]:
+                                    processed_section[key] = value
+                            processed_sections.append(processed_section)
+                    merged_data["data"]["sections"] = processed_sections
+            
+            # Copy other top-level fields as-is (if any, excluding content)
+            for key, value in file_data.items():
+                if key not in ["title", "summary", "content", "sections"]:
+                    merged_data["data"][key] = value
+            
+        except Exception as e:
+            logger.warning(f"Failed to read or parse file {rel_path}: {e}, skipping merged data")
+            return merged_data
+        
+        return merged_data
 
     @staticmethod
     def _extract_tool_output_keys(code: str) -> dict[str, list[str]]:
@@ -376,9 +292,6 @@ class ToolSynthesisMixin:
             return False, reasons
         if re.search(r"\bBASE_DIR\s*/\s*BASE_DIR\b", code):
             reasons.append("duplicated_base_dir_in_path")
-            return False, reasons
-        if cls._tool_code_returns_raw_csv_rows(code):
-            reasons.append("raw_csv_rows_returned")
             return False, reasons
         if cls._tool_code_uses_path_replace(code):
             reasons.append("path_replace_on_path")
@@ -742,25 +655,18 @@ class ToolSynthesisMixin:
         return tool_specs + [self._submit_result_spec()]
 
     def _iter_data_entries(self, data_profile: dict[str, Any]) -> list[dict[str, Any]]:
+        """Iterate over data entries, only processing JSON files."""
         entries: list[dict[str, Any]] = []
-        for kind in ("csv", "json", "sqlite", "txt"):
-            items = data_profile.get(kind, [])
-            if not isinstance(items, list):
+        # Only process JSON files since database is always JSON
+        items = data_profile.get("json", [])
+        if not isinstance(items, list):
+            return entries
+        for entry in items:
+            if not isinstance(entry, dict):
                 continue
-            for entry in items:
-                if not isinstance(entry, dict):
-                    continue
-                path = entry.get("path")
-                if isinstance(path, str) and path.strip():
-                    entries.append({"kind": kind, "path": path, "entry": entry})
-        log_items = data_profile.get("logs", [])
-        if isinstance(log_items, list):
-            for entry in log_items:
-                if not isinstance(entry, dict):
-                    continue
-                path = entry.get("path")
-                if isinstance(path, str) and path.strip():
-                    entries.append({"kind": "txt", "path": path, "entry": {"path": path}})
+            path = entry.get("path")
+            if isinstance(path, str) and path.strip():
+                entries.append({"kind": "json", "path": path, "entry": entry})
         entries.sort(key=lambda item: item["path"])
         return entries
 
@@ -797,12 +703,7 @@ class ToolSynthesisMixin:
     ) -> set[str]:
         paths: set[str] = set()
         for reason in reasons:
-            if reason == "raw_csv_rows_returned":
-                for state in entry_states:
-                    fragment = state.get("fragment") or ""
-                    if fragment and self._tool_code_returns_raw_csv_rows(fragment):
-                        paths.add(state["path"])
-            elif reason == "no_data_io_detected":
+            if reason == "no_data_io_detected":
                 for state in entry_states:
                     fragment = state.get("fragment") or ""
                     if fragment and not self._tool_code_reads_data(fragment):
@@ -876,14 +777,33 @@ class ToolSynthesisMixin:
 
     @staticmethod
     def _tool_prefix_from_path(path: str) -> str:
+        """Build a short, human-readable prefix from a data file path.
+
+        Strategy:
+        - Drop the leading 'data/' segment.
+        - Take the basename without extension, split on non-alphanumeric boundaries.
+        - Keep only a few tokens to avoid extremely long function names, e.g.:
+          'debug-node-js-like-a-boss-10-node-js-debugging-t_content.json'
+          -> 'debug_node_js_content'.
+        """
         parts = Path(path).with_suffix("").as_posix().split("/")
         if parts and parts[0] == "data":
             parts = parts[1:]
         if not parts:
-            parts = ["data"]
-        parts = parts[-2:] if len(parts) >= 2 else parts
-        prefix = "_".join(parts)
-        prefix = re.sub(r"[^a-zA-Z0-9_]", "_", prefix)
+            base = "data"
+        else:
+            stem = parts[-1]
+            raw_tokens = re.split(r"[^a-zA-Z0-9]+", stem)
+            tokens = [t for t in raw_tokens if t]
+            if not tokens:
+                base = "data"
+            else:
+                # Keep first 3 tokens + last token (often 'content' or similar)
+                if len(tokens) <= 4:
+                    base = "_".join(tokens)
+                else:
+                    base = "_".join(tokens[:3] + tokens[-1:])
+        prefix = re.sub(r"[^a-zA-Z0-9_]", "_", base)
         prefix = re.sub(r"_+", "_", prefix).strip("_").lower()
         if not prefix:
             prefix = "data"
@@ -927,14 +847,15 @@ class ToolSynthesisMixin:
 
     @staticmethod
     def _unique_tool_names(prefix: str, used: set[str]) -> tuple[str, str]:
-        base_list = f"list_{prefix}_options"
-        base_tool = f"get_{prefix}_records"
+        # Simplified function names: shorter and cleaner
+        base_list = f"list_{prefix}"
+        base_tool = f"get_{prefix}"
         list_name = base_list
         tool_name = base_tool
         suffix = 2
         while list_name in used or tool_name in used:
-            list_name = f"{base_list}_{suffix}"
-            tool_name = f"{base_tool}_{suffix}"
+            list_name = f"{base_list}{suffix}"
+            tool_name = f"{base_tool}{suffix}"
             suffix += 1
         return list_name, tool_name
 
@@ -1217,25 +1138,23 @@ class ToolSynthesisMixin:
 
     @staticmethod
     def _detect_global_name_collisions(code: str) -> list[str]:
-        """Return duplicated top-level symbols (functions/classes/constants)."""
+        """Return duplicated top-level function symbols.
+
+        We deliberately ignore classes and module-level constants here, because:
+        - Classes like per-file Enums (e.g., HeadingEnum variants) are often repeated
+          across fragments but do not affect tool dispatch.
+        - Python allows later class/constant definitions to shadow earlier ones
+          without breaking function-based tool calling.
+        """
         try:
             tree = ast.parse(code)
         except Exception:
             return []
         counts: dict[str, int] = {}
         for node in tree.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            # Only consider functions as potential global-name collisions.
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 name = node.name
-                counts[name] = counts.get(name, 0) + 1
-                continue
-            if isinstance(node, ast.Assign):
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        name = target.id
-                        counts[name] = counts.get(name, 0) + 1
-                continue
-            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                name = node.target.id
                 counts[name] = counts.get(name, 0) + 1
         return sorted(name for name, count in counts.items() if count > 1)
 
@@ -1245,8 +1164,7 @@ class ToolSynthesisMixin:
         topic: str,
         file_kind: str,
         rel_path: str,
-        entry_json: str,
-        field_inventory_json: str,
+        merged_file_data_json: str,
         list_tool_name: str,
         main_tool_name: str,
         required_fields: set[str] | None = None,
@@ -1266,47 +1184,17 @@ class ToolSynthesisMixin:
             "- Output ONLY one Python code block.\n",
             f"- Define tools with @mcp.tool() for `{list_tool_name}` and `{main_tool_name}`.\n",
             "- You MAY define helper functions/classes/constants and imports.\n",
-            "- Avoid adding extra @mcp.tool-decorated functions; they will be ignored.\n",
-            "- Do NOT define mcp, FastMCP, or BASE_DIR; those are provided by the framework.\n",
-            f"- Use BASE_DIR and the exact path parts for this file: {rel_path}.\n",
-            "- Each tool function must read the local file and must not be empty (no pass/raise).\n",
-            f"- `{list_tool_name}` returns a list of allowed values for a filter parameter used by `{main_tool_name}`.\n",
-            f"- `{main_tool_name}` accepts only those values (enum), and returns list[dict] or a dict summary.\n",
-            "- Add type hints for all parameters and returns; list tools should return list[str].\n",
-            "- Keep return types stable; if a field is missing, use a type-appropriate default (e.g., \"\" for strings, 0 for numbers, [] for lists) instead of None.\n",
+            "- Do NOT define mcp, FastMCP, or BASE_DIR; those are provided.\n",
+            f"- Use BASE_DIR and exact path: {rel_path}.\n",
+            "- Each tool must read the file and implement real logic (no pass/raise).\n",
+            f"- `{list_tool_name}` returns list[str] (may have 0 parameters).\n",
+            f"- `{main_tool_name}` returns list[dict] or dict (should have 2-4+ parameters for filtering).\n",
+            "- Add type hints; use stable defaults (\"\", 0, []) instead of None.\n",
+            f"- Parameters: Be DIVERSE and TOPIC-SPECIFIC. Derive from File data structure and topic semantics.\n",
+            "  Vary names across tools; use JSON-serializable types (str, int, bool, list[str], Optional[...]), NOT Enum.\n",
+            "- Returns: list[dict[str, Any]] or dict[str, Any] (avoid TypedDict).\n",
+            "- Set random.seed(0) if using randomness.\n",
         ]
-        if file_kind == "txt":
-            rules_parts.append(
-                "- When parsing text/markdown, strip formatting markers like **, *, and trailing colons from extracted fields.\n"
-            )
-            rules_parts.append(
-                "- Build a cleaned copy of the text (remove markdown markers like **, *, backticks) and use it for section/header detection.\n"
-            )
-            rules_parts.append(
-                "- Headings may look like '**Title:**' or '* Title:'; normalize these to 'Title' before matching.\n"
-            )
-            rules_parts.append(
-                "- Do not stop parsing after the first paragraph; scan the full file for section headers and lists.\n"
-            )
-            rules_parts.append(
-                "- If you see numbered or bulleted lists under a section, map those list items into a list field.\n"
-            )
-        if file_kind == "csv":
-            rules_parts.append(
-                "- CSV files may not be comma-delimited; detect dialect with csv.Sniffer or use the file profile, "
-                "then pass the dialect/delimiter to csv.reader/csv.DictReader.\n"
-            )
-        rules_parts.extend(
-            [
-                "- Do NOT append raw csv.DictReader rows; map into a new dict with explicit keys.\n",
-                "- Avoid TypedDict/custom class return annotations; use list[dict[str, Any]] or dict[str, Any].\n",
-                "- Do NOT name parameters query/q/text/search/keyword/term.\n",
-                "- Avoid free-text parameters; use explicit, data-driven filters.\n",
-                "- Deterministic: set random.seed(0) if randomness is used.\n",
-                "- Tool descriptions must be plain string literals.\n",
-                "- Return JSON-serializable shapes with stable keys.\n",
-            ]
-        )
         rules = "".join(rules_parts)
         prompt = (
             f"{error_context}"
@@ -1315,8 +1203,9 @@ class ToolSynthesisMixin:
             f"{rules}\n"
             f"Topic: {topic}\n"
             f"File type: {file_kind}\n"
-            f"File profile (JSON): {entry_json}\n"
-            f"Field inventory (JSON): {field_inventory_json}\n"
+            f"File data structure (JSON): {merged_file_data_json}\n"
+            "IMPORTANT: When reading the file with json.load(), the JSON structure is directly at the top level.\n"
+            "The file does NOT have a 'data' wrapper. Access fields directly from the loaded dict (e.g., data.get('sections', []), data.get('title', '')).\n"
             f"{required_hint}"
             "Output ONLY one Python code block defining the two tools. No prose."
         )
@@ -1330,18 +1219,15 @@ class ToolSynthesisMixin:
         list_tool_name: str,
         main_tool_name: str,
         ctx: TaskContext,
+        sandbox: SandboxExecutor,
         required_fields: set[str] | None = None,
         all_errors: list[str] | None = None,
     ) -> tuple[str, list[ToolSpec], list[str]]:
-        file_profile: dict[str, Any] = {"csv": [], "json": [], "sqlite": [], "txt": []}
-        file_profile[entry["kind"]] = [entry["entry"]]
-        field_inventory = self._build_field_inventory(file_profile)
-        field_inventory_json = json.dumps(field_inventory, ensure_ascii=True)
-        if len(field_inventory_json) > self._MAX_FIELD_INVENTORY_SIZE:
-            field_inventory_json = field_inventory_json[:self._MAX_FIELD_INVENTORY_SIZE] + "..."
-        entry_json = json.dumps(entry["entry"], ensure_ascii=False)
-        if len(entry_json) > 2000:
-            entry_json = entry_json[:2000] + "..."
+        # Build merged file data by reading from actual file
+        merged_file_data = self._build_merged_file_data(entry, sandbox)
+        merged_file_data_json = json.dumps(merged_file_data, ensure_ascii=False)
+        if len(merged_file_data_json) > self._MAX_FIELD_INVENTORY_SIZE:
+            merged_file_data_json = merged_file_data_json[:self._MAX_FIELD_INVENTORY_SIZE] + "..."
 
         max_tokens = getattr(ctx.request, "max_tokens", 10000)
         attempt_errors = list(all_errors or [])
@@ -1350,8 +1236,7 @@ class ToolSynthesisMixin:
                 topic=topic,
                 file_kind=entry["kind"],
                 rel_path=entry["path"],
-                entry_json=entry_json,
-                field_inventory_json=field_inventory_json,
+                merged_file_data_json=merged_file_data_json,
                 list_tool_name=list_tool_name,
                 main_tool_name=main_tool_name,
                 required_fields=required_fields,
@@ -1375,6 +1260,20 @@ class ToolSynthesisMixin:
             funcs, tree = self._extract_decorated_tool_functions(code)
             if tree is None:
                 errors.append("parse_failed")
+            else:
+                # Reject tools that define Enum-based parameter types; callers pass raw JSON values, not Enum members.
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.ClassDef):
+                        continue
+                    for base in node.bases:
+                        if isinstance(base, ast.Name) and base.id == "Enum":
+                            errors.append("enum_class_disallowed")
+                            break
+                        if isinstance(base, ast.Attribute) and base.attr == "Enum":
+                            errors.append("enum_class_disallowed")
+                            break
+                    if "enum_class_disallowed" in errors:
+                        break
             names = {func["name"] for func in funcs}
             missing = {list_tool_name, main_tool_name} - names
             if missing:
@@ -1390,8 +1289,6 @@ class ToolSynthesisMixin:
                     errors.append(f"typed_dict_return_disallowed:{func['name']}")
             if not self._path_literals_ok(code, entry["path"]):
                 errors.append("path_missing_or_mismatch")
-            if self._tool_code_returns_raw_csv_rows(code):
-                errors.append("raw_csv_rows_returned")
             if not self._tool_code_reads_data(code):
                 errors.append("no_data_io_detected")
             if self._tool_code_embeds_dataset(code):
@@ -1408,11 +1305,7 @@ class ToolSynthesisMixin:
             if errors:
                 prompt_errors: list[str] = []
                 for err in errors:
-                    if err == "raw_csv_rows_returned":
-                        prompt_errors.append(
-                            "raw_csv_rows_returned (do NOT append DictReader rows; create a new dict with explicit keys)"
-                        )
-                    elif err.startswith("typed_dict_return_disallowed:"):
+                    if err.startswith("typed_dict_return_disallowed:"):
                         prompt_errors.append(f"{err} (use list[dict[str, Any]] or dict[str, Any])")
                     else:
                         prompt_errors.append(err)
@@ -1516,11 +1409,11 @@ class ToolSynthesisMixin:
         body = "\n\n".join(fragment.strip() for fragment in fragments if fragment.strip()).strip()
         body = self._sanitize_tool_decorators(body)
         known_paths: set[str] = set()
-        for key in ("csv", "json", "sqlite", "txt"):
-            for entry in data_profile.get(key, []):
-                path = entry.get("path")
-                if isinstance(path, str):
-                    known_paths.add(path)
+        # Only process JSON files
+        for entry in data_profile.get("json", []):
+            path = entry.get("path")
+            if isinstance(path, str):
+                known_paths.add(path)
         known_basenames = {Path(path).name for path in known_paths}
         body = self._fix_file_paths(
             body,
@@ -1554,10 +1447,6 @@ class ToolSynthesisMixin:
         add_import("import json")
         add_import("from pathlib import Path")
         add_import("from mcp.server.fastmcp import FastMCP")
-        if "csv." in body and not any("import csv" in line for line in header_lines):
-            add_import("import csv")
-        if "sqlite3." in body and not any("import sqlite3" in line for line in header_lines):
-            add_import("import sqlite3")
         if "random." in body and not any("import random" in line for line in header_lines):
             add_import("import random")
         if "re." in body and not any("import re" in line for line in header_lines):
@@ -1641,6 +1530,7 @@ class ToolSynthesisMixin:
                 list_tool_name=state["list_tool_name"],
                 main_tool_name=state["main_tool_name"],
                 ctx=ctx,
+                sandbox=sandbox,
                 required_fields=required_fields,
                 all_errors=per_entry_errors,
             )
@@ -1673,7 +1563,7 @@ class ToolSynthesisMixin:
             filtered.append(
                 spec.copy(
                     update={
-                        "description": spec.description or f"Query curated records about {topic}",
+                        "description": spec.description or f"Query JSON data about {topic}",
                         "meta": (spec.meta or {}) | {"topic": topic},
                     }
                 )
@@ -1983,9 +1873,9 @@ class ToolSynthesisMixin:
         code = "\n".join(lines)
         
         # Step 3: Replace relative file paths with BASE_DIR / path
-        # Match patterns like: "data/file.csv", 'data/file.csv', "records.json"
+        # Match patterns like: "data/file.json", 'data/file.json'
         # But avoid replacing if already using BASE_DIR or absolute paths
-        file_ext_pattern = r'\.(csv|tsv|json|jsonl|ndjson|sqlite|sqlite3|db|txt|log|parquet)'
+        file_ext_pattern = r'\.(json|jsonl|ndjson)'
         
         def replace_file_path(match):
             full_match = match.group(0)
@@ -2021,7 +1911,7 @@ class ToolSynthesisMixin:
                 return f'BASE_DIR / {quote_char}{path}{quote_char}'
         
         # Pattern: matches quoted strings that look like file paths
-        # Matches: "data/file.csv", 'data/file.csv', "records.json"
+        # Matches: "data/file.json", 'data/file.json'
         # Excludes: already absolute paths, paths in BASE_DIR expressions
         pattern = rf'(["\'])((?:data/|\./)?[^"\']+{file_ext_pattern})(["\'])'
         
@@ -2320,8 +2210,8 @@ for name, fn in get_tools.items():
     kwargs = {{}}
     if params:
         base = ""
-        if name.startswith("get_") and name.endswith("_records"):
-            base = name[len("get_"):-len("_records")]
+        if name.startswith("get_"):
+            base = name[len("get_"):]
         options = list_by_base.get(base, [])
         if options:
             first_param = params[0]
@@ -2452,7 +2342,7 @@ PY"""
                     spec_module.loader.exec_module(module)
             except Exception as exc:
                 import_error = str(exc)
-                logger.debug("Failed to import generated tools.py", exc_info=True)
+                logger.warning("Failed to import generated tools.py", exc_info=True)
 
         registration_errors: list[str] = []
         for spec in tool_specs:
@@ -2502,25 +2392,56 @@ PY"""
         data_profile: dict[str, Any] | None,
         ctx: TaskContext,
         sandbox: SandboxExecutor,
+        target_file_path: str | None = None,
     ) -> tuple[list[ToolSpec], str, bool]:
-        """Generate incremental tools to augment the current toolset."""
+        """Generate incremental tools to augment the current toolset.
+        
+        Args:
+            target_file_path: Optional path to a specific file that needs augmentation.
+                            If None, uses the first available file.
+        """
         existing_names = {spec.name for spec in existing_specs}
-        data_profile_json = json.dumps(data_profile or {}, ensure_ascii=False)
-        field_inventory_json = json.dumps(self._build_field_inventory(data_profile or {}), ensure_ascii=True)
-        if len(field_inventory_json) > self._MAX_FIELD_INVENTORY_SIZE:
-            field_inventory_json = field_inventory_json[:self._MAX_FIELD_INVENTORY_SIZE] + "..."
+        
+        # Read data for a single file only
+        entries = self._iter_data_entries(data_profile or {})
+        if not entries:
+            return existing_specs, "", False
+        
+        # If target_file_path is specified, find matching entry
+        target_entry = None
+        if target_file_path:
+            for entry in entries:
+                if entry["path"] == target_file_path:
+                    target_entry = entry
+                    break
+            if not target_entry:
+                logger.warning(f"Target file path {target_file_path} not found in data profile, using first file")
+                target_entry = entries[0]
+        else:
+            # Use first available file
+            target_entry = entries[0]
+        
+        # Build merged file data for the target file only
+        merged_file_data = self._build_merged_file_data(target_entry, sandbox)
+        if not merged_file_data.get("data"):
+            logger.warning(f"File {target_entry['path']} has no content, skipping augmentation")
+            return existing_specs, "", False
+        
+        merged_file_data_json = json.dumps(merged_file_data, ensure_ascii=False)
+        if len(merged_file_data_json) > self._MAX_FIELD_INVENTORY_SIZE:
+            merged_file_data_json = merged_file_data_json[:self._MAX_FIELD_INVENTORY_SIZE] + "..."
+        
         base_rules = (
-            "- CRITICAL: File paths must be absolute. Use BASE_DIR = Path(__file__).parent and BASE_DIR / \"data\" / \"file.csv\".\n"
-            "- NO network, NO external APIs. Only read the listed local files.\n"
+            "- CRITICAL: File paths must be absolute. Use BASE_DIR = Path(__file__).parent and BASE_DIR / \"data\" / \"file.json\".\n"
             "- Avoid generic free-text parameters; use enums derived from real fields.\n"
             "- Use @mcp.tool(description=...) with a plain string literal.\n"
             "- Implement real logic; no stubs, no pass/raise placeholders.\n"
-            "- Do NOT append raw csv.DictReader rows; map into a new dict with explicit keys.\n"
-            "- If you read CSV files, detect the delimiter (csv.Sniffer) or use the file profile; do not assume commas.\n"
-            "- When parsing markdown/text, strip formatting markers like **, *, and trailing colons from extracted fields.\n"
             "- Avoid TypedDict/custom class return annotations; use list[dict[str, Any]] or dict[str, Any].\n"
             "- Keep return types stable; if a field is missing, use a type-appropriate default (e.g., \"\" for strings, 0 for numbers, [] for lists) instead of None.\n"
             "- Do NOT define submit_result here.\n"
+            f"- Parameters: Be DIVERSE and TOPIC-SPECIFIC. Derive from File data structure and topic semantics.\n"
+            "  Vary names across tools; use JSON-serializable types (str, int, bool, list[str], Optional[...]), NOT Enum.\n"
+            "- Tools should have 2-4+ parameters for filtering (except list tools which may have 0 parameters).\n"
         )
         max_tokens = getattr(ctx.request, "max_tokens", 10000)
         attempt_errors: list[str] = []
@@ -2543,14 +2464,15 @@ PY"""
                 f"{base_rules}"
                 "Constraints:\n"
                 f"- Tool names must be unique, snake_case, and NOT {', '.join(repr(name) for name in self._FILTERED_TOOL_NAMES)}.\n"
-                "- Implement real logic that reads ONLY local files (CSV/JSON/TXT/SQLite) or the provided records; no stubs, no pass/raise placeholders.\n"
+                "- Implement real logic that reads ONLY local JSON files; no stubs, no pass/raise placeholders.\n"
                 "- Deterministic: set random.seed(0) if any randomness is used.\n"
                 "Only output a single Python code block.\n"
-                f"Field Inventory (use these field names for parameters): {field_inventory_json}\n"
+                f"File data structure (JSON): {merged_file_data_json}\n"
+                "IMPORTANT: When reading the file with json.load(), the JSON structure is directly at the top level.\n"
+                "The file does NOT have a 'data' wrapper. Access fields directly from the loaded dict (e.g., data.get('sections', []), data.get('title', '')).\n"
                 f"Topic: {topic}\n"
+                f"File path: {target_entry['path']}\n"
                 f"Existing tools: {sorted(existing_names)}\n"
-                f"Records (JSON sample): {json.dumps(records[:5], ensure_ascii=False)}\n"
-                f"Data profile (JSON): {data_profile_json[:800]}\n"
             )
             raw = self.llm.simple_complete(prompt, temperature=0.55, max_tokens=max_tokens)
             ctx.add_step({"type": "tool_augmentation", "attempt": attempt, "content": raw})
@@ -2624,12 +2546,7 @@ PY"""
             if not code_ok:
                 prompt_errors: list[str] = []
                 for reason in code_reasons:
-                    if reason == "raw_csv_rows_returned":
-                        prompt_errors.append(
-                            "raw_csv_rows_returned (do NOT append DictReader rows; create a new dict with explicit keys)"
-                        )
-                    else:
-                        prompt_errors.append(reason)
+                    prompt_errors.append(reason)
                 attempt_errors = prompt_errors
                 ctx.add_step(
                     {

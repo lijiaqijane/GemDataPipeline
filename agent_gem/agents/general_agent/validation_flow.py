@@ -42,6 +42,143 @@ class ValidationMixin:
             return text[:limit] + "..."
         return text
 
+    def _log_negative_check(
+        self,
+        sandbox: SandboxType,
+        run: Any,
+        negative: Any,
+        package: TaskPackage,
+    ) -> None:
+        """Log detailed information about negative check for analysis."""
+        try:
+            from pathlib import Path
+            
+            # Get logs directory path
+            logs_dir = sandbox.sandbox_dir / "logs"
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            log_path = logs_dir / "negative_checks.jsonl"
+            
+            # Compare answers
+            run_answer_str = json.dumps(run.answer, sort_keys=True, ensure_ascii=False, default=str) if run.answer is not None else None
+            negative_answer_str = json.dumps(negative.answer, sort_keys=True, ensure_ascii=False, default=str) if negative.answer is not None else None
+            
+            answers_identical = run_answer_str == negative_answer_str
+            answers_same_type = type(run.answer) == type(negative.answer)
+            
+            # Check if answers have same structure (for dict/list)
+            same_structure = False
+            if isinstance(run.answer, dict) and isinstance(negative.answer, dict):
+                same_structure = set(run.answer.keys()) == set(negative.answer.keys())
+            elif isinstance(run.answer, list) and isinstance(negative.answer, list):
+                same_structure = len(run.answer) == len(negative.answer)
+            elif run.answer is None and negative.answer is None:
+                same_structure = True
+            elif not isinstance(run.answer, (dict, list)) and not isinstance(negative.answer, (dict, list)):
+                same_structure = True
+            
+            # Create log entry
+            log_entry = {
+                "timestamp": time.time(),
+                "task_id": package.task.task_id,
+                "task_title": package.task.task_title,
+                "difficulty": getattr(package.task, "difficulty_level", None),
+                "first_run": {
+                    "run_id": run.run_id,
+                    "verified": run.verified,
+                    "verification_score": run.verification_score,
+                    "verification_message": run.verification_message,
+                    "verification_error": run.verification_error,
+                    "answer_type": type(run.answer).__name__ if run.answer is not None else "None",
+                    "answer_summary": self._summarize_for_repair(run.answer, limit=500),
+                },
+                "negative_run": {
+                    "run_id": negative.run_id,
+                    "verified": negative.verified,
+                    "verification_score": negative.verification_score,
+                    "verification_message": negative.verification_message,
+                    "verification_error": negative.verification_error,
+                    "answer_type": type(negative.answer).__name__ if negative.answer is not None else "None",
+                    "answer_summary": self._summarize_for_repair(negative.answer, limit=500),
+                },
+                "comparison": {
+                    "answers_identical": answers_identical,
+                    "answers_same_type": answers_same_type,
+                    "same_structure": same_structure,
+                    "first_answer_hash": self._hash_code(run_answer_str),
+                    "negative_answer_hash": self._hash_code(negative_answer_str),
+                },
+                "negative_check_result": {
+                    "failed": negative.verified is True,
+                    "reason": "negative_check_failed" if negative.verified else "negative_check_passed",
+                },
+            }
+            
+            # Write to log file
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False, default=str) + "\n")
+            
+            # Also log to standard logger for visibility
+            if negative.verified:
+                self.logger.warning(
+                    f"Negative check FAILED: task_id={package.task.task_id}, "
+                    f"first_run_id={run.run_id}, negative_run_id={negative.run_id}, "
+                    f"answers_identical={answers_identical}, same_structure={same_structure}, "
+                    f"log_file={log_path}"
+                )
+            else:
+                self.logger.debug(
+                    f"Negative check passed: task_id={package.task.task_id}, "
+                    f"first_run_id={run.run_id}, negative_run_id={negative.run_id}, "
+                    f"answers_identical={answers_identical}, log_file={log_path}"
+                )
+        except Exception as exc:
+            # Use warning level to ensure errors are visible
+            self.logger.warning(f"Failed to log negative check details: {exc}", exc_info=True)
+            # Try to write a minimal error log entry
+            try:
+                logs_dir = sandbox.sandbox_dir / "logs"
+                logs_dir.mkdir(parents=True, exist_ok=True)
+                log_path = logs_dir / "negative_checks.jsonl"
+                error_entry = {
+                    "timestamp": time.time(),
+                    "error": "Failed to log negative check",
+                    "exception": str(exc),
+                    "task_id": getattr(package.task, "task_id", "unknown") if package else "unknown",
+                }
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(error_entry, ensure_ascii=False, default=str) + "\n")
+            except Exception:
+                pass  # If even error logging fails, give up
+    
+    def _log_negative_check_exception(
+        self,
+        sandbox: SandboxType,
+        run: Any,
+        exception: Exception,
+    ) -> None:
+        """Log exception during negative check."""
+        try:
+            from pathlib import Path
+            
+            logs_dir = sandbox.sandbox_dir / "logs"
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            log_path = logs_dir / "negative_checks.jsonl"
+            
+            log_entry = {
+                "timestamp": time.time(),
+                "first_run_id": run.run_id if run else None,
+                "error": "negative_check_exception",
+                "exception_type": type(exception).__name__,
+                "exception_message": str(exception),
+            }
+            
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False, default=str) + "\n")
+            
+            self.logger.warning(f"Negative check exception: {exception}", exc_info=True)
+        except Exception:
+            pass
+
     @staticmethod
     def _safe_metadata_json(payload: Any, *, max_chars: int = 4000) -> str:
         if payload is None:
@@ -86,6 +223,100 @@ class ValidationMixin:
                 "syntax error",
             )
         )
+
+    @staticmethod
+    def _extract_file_paths_from_error(error_message: str, available_files: list[str]) -> list[str]:
+        """Extract file paths from error message that match available files.
+        
+        Args:
+            error_message: Error message text
+            available_files: List of available file paths from data_profile
+            
+        Returns:
+            List of file paths found in error message that match available files
+        """
+        if not error_message or not available_files:
+            return []
+        
+        found_paths: set[str] = set()
+        error_lower = error_message.lower()
+        
+        # Try to find file paths in error message
+        for file_path in available_files:
+            # Check if file path or filename appears in error message
+            file_name = file_path.split("/")[-1] if "/" in file_path else file_path
+            if file_path in error_message or file_name in error_lower:
+                found_paths.add(file_path)
+        
+        return sorted(found_paths)
+    
+    def _extract_file_paths_from_code(self, code: str, available_files: list[str]) -> list[str]:
+        """Extract file paths from solution/verification code that match available files.
+        
+        Args:
+            code: Solution or verification code
+            available_files: List of available file paths from data_profile
+            
+        Returns:
+            List of file paths found in code that match available files
+        """
+        if not code or not available_files:
+            return []
+        
+        import re
+        
+        found_paths: set[str] = set()
+        
+        # Step 1: Extract string literals from code that might be file paths
+        # Look for patterns like: "data/file.json", 'data/file.json', BASE_DIR / "data" / "file.json"
+        for file_path in available_files:
+            file_name = file_path.split("/")[-1] if "/" in file_path else file_path
+            
+            # Check for file path in string literals
+            if file_path in code or file_name in code:
+                # More precise: check if it's actually in a string literal or path expression
+                # Look for patterns: "data/file.json", 'data/file.json', / "file.json", / 'file.json'
+                patterns = [
+                    rf'["\']{re.escape(file_path)}["\']',  # "data/file.json"
+                    rf'["\']{re.escape(file_name)}["\']',  # "file.json"
+                    rf'/[\s]*["\']{re.escape(file_name)}["\']',  # / "file.json"
+                    rf'[\s]+["\']{re.escape(file_name)}["\']',  #  "file.json"
+                ]
+                for pattern in patterns:
+                    if re.search(pattern, code):
+                        found_paths.add(file_path)
+                        break
+        
+        # Step 2: Extract tool names from code and match with file prefixes using the same logic as tool synthesis
+        # Tool names are generated using _tool_prefix_from_path, so we need to use the same logic
+        tool_calls = CodeValidator.extract_tool_calls(code)
+        for tool_name in tool_calls:
+            # Extract prefix from tool name (remove get_ or list_ prefix)
+            if tool_name.startswith("get_"):
+                tool_prefix = tool_name[4:]  # Remove "get_"
+            elif tool_name.startswith("list_"):
+                tool_prefix = tool_name[5:]  # Remove "list_"
+            else:
+                continue  # Skip tools that don't follow the naming convention
+            
+            # For each available file, extract its prefix using the same logic as _tool_prefix_from_path
+            for file_path in available_files:
+                file_prefix = self._tool_prefix_from_path(file_path)
+                # Compare prefixes (normalize for comparison)
+                # The prefix matching should be flexible - check if tool_prefix matches file_prefix
+                if tool_prefix == file_prefix:
+                    found_paths.add(file_path)
+                # Also check if tool_prefix is a substring of file_prefix or vice versa
+                # (to handle cases where the prefix extraction might differ slightly)
+                elif tool_prefix in file_prefix or file_prefix in tool_prefix:
+                    # Additional check: ensure they share significant common parts
+                    tool_tokens = set(tool_prefix.split("_"))
+                    file_tokens = set(file_prefix.split("_"))
+                    # If they share at least 2 common tokens, consider it a match
+                    if len(tool_tokens & file_tokens) >= 2:
+                        found_paths.add(file_path)
+        
+        return sorted(found_paths)
 
     @staticmethod
     def _tool_selftest_missing_or_empty(tool_selftest: dict[str, Any] | None) -> bool:
@@ -414,42 +645,98 @@ class ValidationMixin:
                             }
                         )
                 if not augmented_once:
-                    new_specs, new_code, augmented = self._augment_toolset(
-                        request.topic or package.task.task_title,
-                        records,
-                        list(package.task.tool_set),
-                        data_profile or {},
-                        ctx,
-                        sandbox,
-                    )
-                    if augmented:
-                        augmented_once = True
-                        tools_code = (package.metadata or {}).get("tools_code", "")
-                        if new_code and new_code not in tools_code:
-                            tools_code = (tools_code + "\n\n" + new_code).strip()
-                        try:
-                            new_selftest = self._self_test_tools(new_specs, sandbox, request.topic, ctx)
-                        except Exception:
-                            new_selftest = tool_selftest
-                        package = package.copy(
-                            update={
-                                "task": package.task.copy(update={"tool_set": new_specs}),
-                                "metadata": {
-                                    **(package.metadata or {}),
-                                    "tool_selftest": self._safe_metadata_json(new_selftest),
-                                    "tools_code": tools_code[:5000] if tools_code else "",
-                                    "toolset_augmented": "true",
-                                },
-                            }
-                        )
-                        package = self._repair_package(
-                            request,
-                            package,
-                            ctx,
-                            error="toolset augmented; update solution to use new tools",
-                            records=records,
-                        )
-                        continue
+                    # Determine which files need augmentation based on errors or code analysis
+                    entries = self._iter_data_entries(data_profile or {})
+                    if not entries:
+                        # No data files available, skip augmentation
+                        pass
+                    else:
+                        available_file_paths = [entry["path"] for entry in entries]
+                        target_files: list[str] = []
+                        
+                        # Step 1: Try to extract file paths from error messages
+                        error_text = f"{last_error or ''} {run.error or ''} {run.verification_error or ''}".strip()
+                        if error_text:
+                            error_files = self._extract_file_paths_from_error(error_text, available_file_paths)
+                            if error_files:
+                                target_files.extend(error_files)
+                        
+                        # Step 2: If no files found from errors, analyze solution/verification code
+                        if not target_files:
+                            solution_files: list[str] = []
+                            if package.solution:
+                                solution_files = self._extract_file_paths_from_code(package.solution, available_file_paths)
+                            verify_files: list[str] = []
+                            if package.verification:
+                                verify_files = self._extract_file_paths_from_code(package.verification, available_file_paths)
+                            # Combine files from solution and verification, prioritizing solution
+                            target_files.extend(solution_files)
+                            for f in verify_files:
+                                if f not in target_files:
+                                    target_files.append(f)
+                        
+                        # Step 3: If still no files found, use first available file as fallback
+                        if not target_files:
+                            target_files = [available_file_paths[0]] if available_file_paths else []
+                        
+                        # Remove duplicates while preserving order
+                        seen: set[str] = set()
+                        unique_target_files: list[str] = []
+                        for f in target_files:
+                            if f not in seen:
+                                seen.add(f)
+                                unique_target_files.append(f)
+                        
+                        # Augment tools for each target file separately
+                        current_specs = list(package.task.tool_set)
+                        all_new_code_parts: list[str] = []
+                        augmented_any = False
+                        
+                        for target_file_path in unique_target_files:
+                            new_specs, new_code, augmented = self._augment_toolset(
+                                request.topic or package.task.task_title,
+                                records,
+                                current_specs,  # Use accumulated specs (including previously augmented)
+                                data_profile or {},
+                                ctx,
+                                sandbox,
+                                target_file_path=target_file_path,
+                            )
+                            if augmented:
+                                augmented_any = True
+                                current_specs = new_specs  # Update specs for next iteration
+                                if new_code and new_code not in "\n".join(all_new_code_parts):
+                                    all_new_code_parts.append(new_code)
+                        
+                        if augmented_any:
+                            augmented_once = True
+                            tools_code = (package.metadata or {}).get("tools_code", "")
+                            combined_new_code = "\n\n".join(all_new_code_parts).strip()
+                            if combined_new_code and combined_new_code not in tools_code:
+                                tools_code = (tools_code + "\n\n" + combined_new_code).strip()
+                            try:
+                                new_selftest = self._self_test_tools(current_specs, sandbox, request.topic, ctx)
+                            except Exception:
+                                new_selftest = tool_selftest
+                            package = package.copy(
+                                update={
+                                    "task": package.task.copy(update={"tool_set": current_specs}),
+                                    "metadata": {
+                                        **(package.metadata or {}),
+                                        "tool_selftest": self._safe_metadata_json(new_selftest),
+                                        "tools_code": tools_code[:5000] if tools_code else "",
+                                        "toolset_augmented": "true",
+                                    },
+                                }
+                            )
+                            package = self._repair_package(
+                                request,
+                                package,
+                                ctx,
+                                error="toolset augmented; update solution to use new tools",
+                                records=records,
+                            )
+                            continue
                 if self._tool_selftest_missing_or_empty(tool_selftest):
                     last_error = "tool_selftest_missing_or_empty; skipping tool resynthesis; verify/solution must use existing tools"
                     package = self._repair_package(
@@ -508,6 +795,19 @@ class ValidationMixin:
                     try:
                         # Fold negative checks into the same difficulty folder (user preference).
                         negative = sandbox.run_task(package, run_group=group_prefix)
+                        
+                        # Log negative check details
+                        try:
+                            self._log_negative_check(
+                                sandbox=sandbox,
+                                run=run,
+                                negative=negative,
+                                package=package,
+                            )
+                        except Exception as log_exc:
+                            # If logging fails, still continue with negative check logic
+                            self.logger.error(f"Failed to log negative check: {log_exc}", exc_info=True)
+                        
                         if negative.verified:
                             last_error = "negative_check_failed"
                             try:
@@ -535,7 +835,9 @@ class ValidationMixin:
                                 pass
                             package = self._repair_package(request, package, ctx, error=last_error, records=records)
                             continue
-                    except Exception:
+                    except Exception as exc:
+                        # Log negative check exception
+                        self._log_negative_check_exception(sandbox=sandbox, run=run, exception=exc)
                         pass
                 try:
                     sandbox.annotate_run_record(

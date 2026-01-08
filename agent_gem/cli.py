@@ -62,7 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_synthesize_subparser(subparsers)
 
-    add_search_synthesize_subparser(subparsers)
+    # add_search_synthesize_subparser(subparsers)
 
     add_code_synthesize_subparser(subparsers)
 

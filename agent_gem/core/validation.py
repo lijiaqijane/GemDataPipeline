@@ -62,17 +62,24 @@ class CodeValidator:
         except SyntaxError as e:
             return False, f"Syntax error: {e}"
 
-        # Check 1: Must define solve function
+        # Check 1: Must define solve function AND cannot define other functions
+        # We check both in one pass for efficiency and to catch all function definitions
         has_solve = False
         solve_node = None
+        other_functions = []
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "solve":
-                has_solve = True
-                solve_node = node
-                break
+            if isinstance(node, ast.FunctionDef):
+                if node.name == "solve":
+                    has_solve = True
+                    solve_node = node
+                else:
+                    other_functions.append(node.name)
 
         if not has_solve:
             return False, "Missing 'def solve(tools)' function definition"
+        
+        if other_functions:
+            return False, f"Solution code can only define solve function, cannot define other functions: {', '.join(other_functions)}"
 
         allowed_import_names: Set[str] = set()
         # Check 2: Only allow safe module imports
@@ -109,11 +116,6 @@ class CodeValidator:
                         )
                     for alias in node.names or []:
                         allowed_import_names.add(alias.asname or alias.name)
-
-        # Check 3: Cannot define other functions (only solve function allowed)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name != "solve":
-                return False, f"Solution code can only define solve function, cannot define other functions: {node.name}"
 
         # Check 4: Cannot define classes
         for node in ast.walk(tree):

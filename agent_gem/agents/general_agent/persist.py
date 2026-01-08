@@ -97,11 +97,13 @@ def persist_quadruple_format(
             "records": records,
             "record_count": len(records),
         },
-        "tools": all_tools,
-        "tools_interface": tools_interface,
+        "tools": {
+            "list": all_tools,
+            "interface": tools_interface,
+        },
         "tasks": tasks_with_verifiers,
         "metadata": {
-            "version": "1.1",
+            "version": "1.2",
             "format": "quadruple",
             "task_count": len(tasks_with_verifiers),
             "tool_count": len(all_tools),
