@@ -650,6 +650,9 @@ class ValidationMixin:
                 package = package.copy(update={"metadata": cleaned_meta})
                 if new_files:
                     for rel in new_files:
+                        # Don't delete submitted_result.json - it needs to be persisted
+                        if rel == "submitted_result.json":
+                            continue
                         try:
                             target = sandbox.sandbox_dir / rel
                             if target.exists():

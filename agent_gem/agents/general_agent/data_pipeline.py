@@ -15,6 +15,7 @@ from agent_gem.core.utils import dump_json, slugify
 from agent_gem.sandbox import SandboxExecutor
 
 from ..base import BaseAgent, TaskContext
+from .persist import _filter_records_by_existing_files
 
 logger = logging.getLogger(__name__)
 
@@ -718,13 +719,17 @@ class DataPipelineMixin:
                 )
             if synthetic_records:
                 merged_records = self.writer.merge_records(synthetic_records)
-        self.writer.records = merged_records
-
+        
+        # Filter records to only include those with existing files
         task_dir = self.writer.task_dir(ctx.task_id, self.agent_type)
+        sandbox_dir = task_dir / "_sandbox"
+        filtered_records = _filter_records_by_existing_files(merged_records, sandbox_dir)
+        self.writer.records = filtered_records
+
         task_db_path = task_dir / "db.json"
         task_db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        payload = {"records": merged_records, "search_queries": search_queries}
+        payload = {"records": filtered_records, "search_queries": search_queries}
         dump_json(task_db_path, payload)
 
         files_with_errors = [r for r in records if r.get("error")]
@@ -825,7 +830,7 @@ class DataPipelineMixin:
                         first_item = value[0]
                         if isinstance(first_item, dict):
                             keys_seen.update(str(k) for k in first_item.keys())
-                            break
+                        break
                 # If no list found, check top-level keys
                 if not keys_seen:
                     keys_seen.update(str(k) for k in payload.keys())
