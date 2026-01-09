@@ -210,7 +210,25 @@ class ValidationMixin:
         solution_repeat: int,
         verification_repeat: int,
     ) -> str:
-        if self._verifier_is_broken(run):
+        # Check if error is from verification or solution based on error message
+        if run.error:
+            error_lower = (run.error or "").lower()
+            # Check if error explicitly mentions verification/verify in traceback
+            if any(key in error_lower for key in ["in verify", "verify(", "def verify", "verification_src"]):
+                target = "verification"
+            # Check if error explicitly mentions solution/solve in traceback
+            elif any(key in error_lower for key in ["in solve", "solve(", "def solve", "solution_src", "line 187", "line 188"]):
+                # Common solution error patterns (line 187/188 are typical solution code lines)
+                target = "solution"
+            else:
+                # Default: if we have both error and verification_error,
+                # check which one came first
+                # If answer is None, error likely happened before solve() completed
+                # This could be solution exec error or solve() runtime error
+                # If answer is not None but verified is None, error likely happened in verify()
+                # But we can't check answer here, so default to solution for runtime errors
+                target = "solution"
+        elif self._verifier_is_broken(run):
             target = "verification"
         else:
             target = "solution"
@@ -708,7 +726,11 @@ class ValidationMixin:
                 continue
 
             if run.error or run.verification_error:
-                last_error = run.error or run.verification_error or "unknown_error"
+                # Prioritize solution error if both exist, since verification error may be secondary
+                if run.error:
+                    last_error = run.error
+                else:
+                    last_error = run.verification_error or "unknown_error"
                 target = self._choose_repair_target(
                     run=run,
                     attempt=attempt,

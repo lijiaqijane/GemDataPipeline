@@ -217,10 +217,10 @@ class TaskBuilderMixin:
             "- Do not assume anything about the solution logic; validate using schema and tool outputs only.\n"
             f"{common_tool_rules}"
             "- Use exact keys from tool outputs (check output_keys if provided). Do not invent keys.\n"
-            "- CRITICAL: If using tool calls to verify, use LOOSE filtering: avoid combining strict filters, use OR logic for keywords.\n"
-            "  If tool calls return empty, try different parameters or skip that check.\n"
-            "- Verify answer matches submit_result_format structure and is consistent with tool outputs.\n"
-            "- submit_result does not validate. You must verify answer matches submit_result_format structure.\n\n"
+            "- CRITICAL: Verify answer matches submit_result_format structure and is consistent with tool outputs.\n"
+            "- submit_result does not validate. You must verify answer matches submit_result_format structure.\n"
+            "- CRITICAL: When accessing fields from the answer, use EXACT field names from submit_result_format.\n"
+            "  Do NOT abbreviate or shorten field names. Always use the exact keys as defined in submit_result_format.\n\n"
             f"{common_context}"
         )
         repair_guidance: str | None = None
