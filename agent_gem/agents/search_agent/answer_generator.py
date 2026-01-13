@@ -48,6 +48,7 @@ class CandidateAnswer:
 
     answer: str
     generator_config: AgentConfig
+    all_search_context: List[str]
 
 
 class AnswerGeneratorMixin(PromptMixin):
@@ -121,7 +122,7 @@ class AnswerGeneratorMixin(PromptMixin):
         configs = self._default_agent_configs() if agent_configs is None else agent_configs
 
         for config in configs:
-            logger.debug(f"Generating answer with config: {config.name}")
+            logger.info(f"Generating answer with config: {config.name}")
             candidate = self._generate_with_config(llm, tools, tool_call_map, qa_pair, config)
             if candidate:
                 candidates.append(candidate)
@@ -187,13 +188,13 @@ class AnswerGeneratorMixin(PromptMixin):
                 # Fallback: use the answer as-is if JSON parsing fails
                 logger.debug(f"Failed to parse JSON from answer, using raw answer: {e}")
 
-            if not answer:
+            answer_str = answer if answer else ""
+            if not answer_str:
                 logger.warning(f"Empty answer generated for config: {config.name}")
-                return None
-
             return CandidateAnswer(
-                answer=answer,
+                answer=answer_str,
                 generator_config=config,
+                all_search_context=search_context,
             )
         except Exception as e:
             logger.error(f"Error generating answer with config {config.name}: {e}")

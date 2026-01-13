@@ -45,20 +45,33 @@ class PromptMixin:
 Remember: Your goal is to be the most helpful AI assistant possible within ethical boundaries. Build rapport, understand context, and provide value in every interaction.
 """
 
-    SUMMARY_PROMPT = """Please process the following webpage content and user goal to extract relevant information:
+    SUMMARY_PROMPT = """Analyze the provided webpage content and user goal below. Extract all relevant information—be thorough and do not miss any important details directly supporting the user's goal.
 
-## **Webpage Content**
+## Webpage Content
 {webpage_content}
 
-## **User Goal**
+## User Goal
 {goal}
 
-## **Task Guidelines**
-1. **Content Scanning for Rationale**: Locate the **specific sections/data** directly related to the user's goal within the webpage content
-2. **Key Extraction for Evidence**: Identify and extract the **most relevant information** from the content, you never miss any important information, output the **full original context** of the content as far as possible, it can be more than three paragraphs.
-3. **Summary Output for Summary**: Organize into a concise paragraph with logical flow, prioritizing clarity and judge the contribution of the information to the goal.
+## Task Guidelines
+1. **Rationale Identification**: Find and highlight sections or data from the content that directly relate to the user goal.
+2. **Evidence Extraction**: Extract the most pertinent and comprehensive information—include full context and do not omit significant details, even if this results in outputting several paragraphs.
+3. **Concise Summary**: Write a clear and logically organized summary, emphasizing how each piece of information supports the user's goal.
 
-**Final Output Format using JSON format has "rational", "evidence", "summary" fields**
+**Output Format**  
+Respond only with a valid JSON object containing the following fields:
+- "rationale": The reasoning behind why certain content from the webpage is relevant.
+- "evidence": The direct excerpts or synthesized information from the webpage content supporting the goal.
+- "summary": A concise, logically-structured summary contextualizing the evidence in relation to the goal.
+
+**Example:**
+```json
+{{
+  "rationale": "Sections mentioning 'Company X quarterly earnings' are relevant because the user's goal is to analyze financial trends in 2023.",
+  "evidence": "In Q1 2023, Company X reported a net income of $2.5 billion... (full relevant excerpts continued)",
+  "summary": "Company X experienced sustained growth in 2023, as quarterly reports highlight a cumulative net income increase driven by strong sales in Q2 and Q4."
+}}
+```
 """
 
     QUESTION_CONSTRUCTOR_PROMPT = """# Goal
@@ -183,15 +196,24 @@ Return the result strictly in the following JSON format.
     DOMAIN_SAMPLER_PROMPT = """Task: Generate a strictly numbered list of exactly {num_domains} distinct, specific domains.
 
 Constraints:
-1. QUANTITY: The output list must contain EXACTLY {num_domains} items. Do not stop early. Do not generate extra.
-2. SPECIFICITY: Use specific sub-fields.
-3. FORMAT: Return ONLY a valid JSON array of strings.
+1. QUANTITY: The output list must contain EXACTLY {num_domains} items.
+2. SPECIFICITY: Use highly specific sub-fields (e.g., "Quantum Cryptography" instead of "Science").
+3. DIVERSITY: Ensure maximum categorical variance. The list MUST span across unrelated pillars such as:
+   - Natural Sciences & Engineering
+   - Arts & Humanities
+   - Applied Technology & Digital Economy
+   - Social Sciences & Governance
+   - Healthcare & Bio-ethics
+   - Traditional Crafts & Niche Industries
+   Avoid clustering (e.g., do not provide multiple items within "Information Technology").
+4. FORMAT: Return ONLY a valid JSON array of strings.
 
 Example Output (if num_domains=3):
+
 [
-    "Sub-field A",
-    "Sub-field B",
-    "Sub-field C"
+"Sub-field A",
+"Sub-field B",
+"Sub-field C"
 ]
 
 Your Output (Quantity: {num_domains}):

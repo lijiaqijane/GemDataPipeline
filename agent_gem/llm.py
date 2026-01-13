@@ -354,11 +354,13 @@ class LLMClient:
                 tool_function = tool_call_map[tool.function.name]
                 tool_result = tool_function(**json.loads(tool.function.arguments))
                 if tool.function.name == "search":
-                    formatted_tool_result = _format_tool_result(tool_result)
-                elif tool.function.name == "visit" and is_summary:
+                    formatted_tool_result = _format_search_result(tool_result)
+                    formatted_context = _format_context(tool_result)
+                    search_content.append(formatted_context)
+                elif tool.function.name == "visit":
                     from .agents.search_agent.prompt_mixin import PromptMixin
 
-                    formatted_tool_result = self.chat_completion(
+                    summary_content = self.chat_completion(
                         [
                             {
                                 "role": "user",
@@ -367,11 +369,21 @@ class LLMClient:
                                     goal=json.loads(tool.function.arguments)["goal"],
                                 ),
                             }
-                        ]
+                        ],
+                        max_tokens=4096,
                     )
-                else:
-                    formatted_tool_result = tool_result
-                search_content.append(formatted_tool_result)
+                    # breakpoint()
+                    try:
+                        summary_content = json.loads(summary_content)
+                    except Exception:
+                        summary_content = {}
+                    if is_summary:
+                        formatted_tool_result = _format_visit_result(summary_content)
+                    else:
+                        formatted_tool_result = tool_result
+                    formatted_context = summary_content.get("summary", "")
+                    search_content.append(formatted_context)
+
                 messages.append(
                     {
                         "role": "tool",
@@ -391,7 +403,7 @@ def _preview_text(text: str, limit: int = 320) -> str:
     return f"{cleaned[:limit]}... (truncated)"
 
 
-def _format_tool_result(tool_result: Any) -> str:
+def _format_search_result(tool_result: Any) -> str:
     formatted_text = "Here are the search results/documents:\n\n"
 
     for index, item in enumerate(tool_result, 1):
@@ -399,13 +411,46 @@ def _format_tool_result(tool_result: Any) -> str:
         url = item.get("url", "No URL")
         summary = item.get("summary", "No Summary")
 
-        entry = (
-            f"Source [{index}]:\n"
-            f"Title: {title}\n"
-            f"URL: {url}\n"
-            f"Summary: {summary}\n"
-            f"----------------------------------------\n"
-        )
+        if title == "" or title == "No Title":
+            continue
+
+        entry = f"Source [{index}]:\n" f"Title: {title}\n" f"URL: {url}\n" f"Summary: {summary}\n"
         formatted_text += entry
 
+    if formatted_text == "Here are the search results/documents:\n\n":
+        return "Empty search results\n"
+    return formatted_text
+
+
+def _format_visit_result(tool_result: Any) -> str:
+    formatted_text = "Here are the visit results:\n\n"
+
+    rationale = tool_result.get("rationale", "")
+    evidence = tool_result.get("evidence", "")
+    summary = tool_result.get("summary", "")
+
+    if rationale == "" or evidence == "" or summary == "":
+        return "Empty visit results\n"
+
+    entry = f"Rationale: {rationale}\n" f"Evidence: {evidence}\n" f"Summary: {summary}\n"
+    formatted_text += entry
+
+    return formatted_text
+
+
+def _format_context(tool_result: Any) -> str:
+    formatted_text = "Here are the search results/documents:\n\n"
+
+    for index, item in enumerate(tool_result, 1):
+        title = item.get("title", "No Title")
+        summary = item.get("summary", "No Summary")
+
+        if title == "" or title == "No Title":
+            continue
+
+        entry = f"Source [{index}]:\n" f"Title: {title}\n" f"Summary: {summary}\n"
+        formatted_text += entry
+
+    if formatted_text == "Here are the search results/documents:\n\n":
+        return ""
     return formatted_text

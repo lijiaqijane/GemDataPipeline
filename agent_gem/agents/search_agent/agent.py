@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import faiss
+import ftfy
 import torch
 from sentence_transformers import SentenceTransformer
 
@@ -186,19 +187,25 @@ class SearchAgent(
 
                         if should_retain:
                             result_item = {
-                                "task_id": str(uuid.uuid4()),
-                                "question": qa_pair.question,
-                                "answer": qa_pair.answer,
-                                "entity": qa_pair.entity.name,
-                                "domain": qa_pair.entity.domain,
-                                "pageview": qa_pair.entity.pageview,
-                                "parent": qa_pair.entity.parent.name if qa_pair.entity.parent else None,
-                                "search_context": qa_pair.search_context,
-                                "all_search_context": qa_pair.all_search_context,
-                                "candidates": [candidate.answer for candidate in candidates],
-                                "verification_results": [
-                                    result.is_correct for result in verification_results
-                                ],
+                                "environment": {
+                                    "category": qa_pair.entity.domain,
+                                    "records": {
+                                        "search_context": qa_pair.search_context,
+                                        "construct_context": qa_pair.all_search_context,
+                                        "answer_context": [
+                                            candidate.all_search_context for candidate in candidates
+                                        ],
+                                    },
+                                    "record_count": len(qa_pair.all_search_context)
+                                    + sum([len(candidate.all_search_context) for candidate in candidates]),
+                                },
+                                "tools": ["search", "visit"],
+                                "tasks": {
+                                    "task_id": str(uuid.uuid5(uuid.NAMESPACE_DNS, qa_pair.question)),
+                                    "question": qa_pair.question,
+                                    "answer": qa_pair.answer,
+                                    "entity": qa_pair.entity.name,
+                                },
                             }
                             logger.info(f"Retained QA pair for entity: {entity.name}")
 
@@ -207,26 +214,31 @@ class SearchAgent(
                                 with self._file_lock:
                                     self._append_to_json_file(output_file, result_item)
 
+                            all_search_context = qa_pair.all_search_context
+                            for candidate in candidates:
+                                all_search_context.extend(candidate.all_search_context)
+                            # Remove all empty string entries from all_search_context
+                            all_search_context = [c for c in all_search_context if c != ""]
                             # Thread-safe embedding and index update
                             if self.embedding and self.faiss_index:
-                                all_search_context = []
+                                all_context = []
                                 chunk_to_original = {}  # Map chunks to original text
-                                for text in qa_pair.all_search_context:
+                                for text in all_search_context:
                                     chunks = self._chunk_context(text)
-                                    all_search_context.extend(chunks)
+                                    all_context.extend(chunks)
                                     for chunk in chunks:
                                         chunk_to_original[chunk] = text
 
                                 # Generate embeddings
                                 with torch.no_grad():
-                                    search_embeddings = self.embedding.encode(all_search_context)
+                                    search_embeddings = self.embedding.encode(all_context)
                                     if len(search_embeddings.shape) == 1:
                                         search_embeddings = search_embeddings.reshape(1, -1)
 
                                 # Thread-safe index and mapping update
                                 with self._index_lock:
                                     current_idx = idx_counter[0]
-                                    for chunk in all_search_context:
+                                    for chunk in all_context:
                                         self.text_mapping[current_idx] = {
                                             "chunk_text": chunk,
                                             "original_text": chunk_to_original.get(chunk, ""),
@@ -435,6 +447,16 @@ class SearchAgent(
         chunks = []
         chunk_size = 1024
         overlap = 128
+
+        import re
+
+        def _remove_urls(text: str) -> str:
+            url_pattern = r"https?://[^\s]+"
+            return re.sub(url_pattern, "", text)
+
+        context = _remove_urls(context)
+        context = ftfy.fix_text(context)
+
         for i in range(0, len(context), chunk_size - overlap):
             chunks.append(context[i : i + chunk_size])
         return chunks

@@ -76,9 +76,7 @@ class EntitySamplerMixin(PromptMixin):
         # Step 1: Initial sampling from each domain
         for domain in domains:
             logger.debug(f"Sampling {num_entities_each_domain} entities from domain: {domain}")
-            domain_entities = self._sample_domain_entities(
-                llm, tools, tool_call_map, domain, num_entities_each_domain
-            )
+            domain_entities = self._sample_domain_entities(llm, domain, num_entities_each_domain)
             if domain_entities == []:
                 continue
 
@@ -101,8 +99,6 @@ class EntitySamplerMixin(PromptMixin):
     def _sample_domain_entities(
         self,
         llm: LLMClient,
-        tools: List[Dict[str, Any]],
-        tool_call_map: Dict[str, Callable],
         domain: str,
         num_entities_each_domain: int,
     ) -> List[Entity]:

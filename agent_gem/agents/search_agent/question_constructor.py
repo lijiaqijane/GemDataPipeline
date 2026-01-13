@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from agent_gem.llm import LLMClient, _format_tool_result
+from agent_gem.llm import LLMClient
 from agent_gem.tools import SearchTool
 
 from .entity_sampler import Entity
