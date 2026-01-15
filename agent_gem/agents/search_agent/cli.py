@@ -102,6 +102,12 @@ def add_search_synthesize_subparser(
         default=4,
         help="Maximum number of worker threads for parallel processing (default: 4)",
     )
+    search_parser.add_argument(
+        "--num_iterations",
+        type=int,
+        default=2,
+        help="Number of iterations for entity sampling and search depth",
+    )
 
 
 def handle_search_synthesize(args: argparse.Namespace) -> None:

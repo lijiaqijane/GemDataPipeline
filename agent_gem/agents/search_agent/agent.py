@@ -51,7 +51,7 @@ class SearchAgent(
     description = "Search agent that generates tasks and answers using search tools"
 
     search_tool = SearchTool(
-        cache_path=Path(os.getenv("SEARCH_CACHE_PATH", "")),
+        cache_path=Path(os.getenv("SEARCH_CACHE_PATH", "search_cache.json")),
         api_key=os.getenv("SERPER_API_KEY"),
     )
     visit_tool = VisitTool(api_key=os.getenv("JINA_API_KEY"))
@@ -122,15 +122,19 @@ class SearchAgent(
         # Get tool call map wrapped with request constraints
         tool_call_map = self._get_tool_call_map_for_request(request)
 
+        # Get max_workers from request, default to 4
+        max_workers = getattr(request, "max_workers", 4)
+        if max_workers <= 0:
+            max_workers = 4
+
         # Step 1: Entity Sampling
-        entities = self.sample_entities(
+        entities = self._sample_entities(
             llm=self.llm,
-            tools=self._get_tools_info(),
-            tool_call_map=tool_call_map,
             num_entities_each_domain=request.num_entities_each_domain,
             domains=request.domain,
-            num_iterations=request.search_depth,
+            num_iterations=request.num_iterations,
             entities_per_entity=request.search_breadth,
+            max_workers=5,  # indicates the number of threads to use for parallel processing
         )
         logger.info(f"Sampled {len(entities)} entities")
 
@@ -139,11 +143,6 @@ class SearchAgent(
             self._file_lock = threading.Lock()
         if self._index_lock is None:
             self._index_lock = threading.Lock()
-
-        # Get max_workers from request, default to 4
-        max_workers = getattr(request, "max_workers", 4)
-        if max_workers <= 0:
-            max_workers = 4
 
         # Step 2 & 3: Parallel processing of entities and questions
         results: List[Dict[str, Any]] = []
@@ -218,7 +217,7 @@ class SearchAgent(
                             for candidate in candidates:
                                 all_search_context.extend(candidate.all_search_context)
                             # Remove all empty string entries from all_search_context
-                            all_search_context = [c for c in all_search_context if c != ""]
+                            all_search_context = [c for c in all_search_context if len(c) > 20]
                             # Thread-safe embedding and index update
                             if self.embedding and self.faiss_index:
                                 all_context = []
@@ -389,20 +388,19 @@ class SearchAgent(
         """
         messages = [
             {
-                "role": "system",
-                "content": self.SYSTEM_PROMPT,
-            },
-            {
                 "role": "user",
                 "content": self.DOMAIN_SAMPLER_PROMPT.format(num_domains=1),
-            },
+            }
         ]
         domains = []
         while len(domains) < num_domains:
-            response = self.llm.chat_completion(messages=messages, temperature=1.2)
-            domain = json.loads(response)[0]
-            if domain not in domains:
-                domains.append(domain)
+            try:
+                response = self.llm.chat_completion(messages=messages, temperature=1.0, top_p=0.95)
+                domain = json.loads(response)[0]
+                if domain not in domains:
+                    domains.append(domain)
+            except Exception as e:
+                continue
         return domains
 
     def _append_to_json_file(self, file_path: str, new_item: Dict[str, Any]) -> None:

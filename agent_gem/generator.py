@@ -40,6 +40,7 @@ class GenerationRequest:
     faiss_index_path: Optional[str] = None
     text_mapping_path: Optional[str] = None
     max_workers: int = 4  # Maximum number of worker threads for parallel processing
+    num_iterations: int = 1  # Number of iterations for entity sampling and search depth
 
 
 class EnvironmentGenerator:

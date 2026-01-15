@@ -79,7 +79,6 @@ Generate a complex question where the answer is {entity_name}. The answer must b
 The question must rely on intersecting constraints found ONLY within the source text. **External knowledge is strictly PROHIBITED.**
 
 # Information Context
-{entity_info}
 
 {context}
 
@@ -165,7 +164,7 @@ Example format:
 """
 
     RETRIEVE_CONTEXT_PROMPT = """# Role
-You are an Efficient Data Miner. Your goal is to identify **{entity_name}** and extract a "Composite Fingerprint" consisting of **4-5 distinct, obscure constraints** in a single workflow.
+You are an Efficient Data Miner. Your goal is to identify **{entity_name}** in the domain of {entity_domain} and extract a "Composite Fingerprint" consisting of **4-5 distinct, obscure constraints** in a single workflow.
 
 # Efficiency Protocol (Single-Shot Strategy)
 To avoid multiple tool loops, you must find a **"High-Density Source"**.
@@ -217,4 +216,50 @@ Example Output (if num_domains=3):
 ]
 
 Your Output (Quantity: {num_domains}):
+"""
+
+
+QUESTION_OBFUSCATE_TIME_PROMPT = """
+Your task is to take the following question and modify any specific temporal details to be less precise or more vague. 
+
+Instructions:
+- Replace specific years (e.g., "1969") with broader time ranges (e.g., "the 1960s").
+- Replace specific dates (e.g., "March 21, 1988") with the month/year, year, or decade, as appropriate ("March 1988" -> "the late 1980s").
+- Replace specific time periods with less precise alternatives if possible.
+- Do not make any other changes to the question.
+- Return the rewritten question in the \\boxed{{}}.
+
+Example:
+Original: Who won the Nobel Prize in Physics in 1969?
+Rewritten: \\boxed{{Who won the Nobel Prize in Physics in the 1960s?}}
+
+Original: What major event happened in Beijing on June 4, 1989?
+Rewritten: \\boxed{{What major event happened in Beijing in the late 1980s?}}
+
+Question to rewrite:
+{question}
+"""
+
+QUESTION_NEGATE_PROMPT = """
+Your task is to rewrite the following question by changing positive statements or affirmative phrases into their negative or antonym forms.
+
+Instructions:
+- Change sentences expressing affirmation, existence, or positive state into their negative forms using "not" or antonyms. 
+- For instance, "A is B" should become "A is not C", where C is the antonym of B.
+- Only make the minimal changes needed to negate the meaning of the question. Do not paraphrase unnecessarily.
+- Do not make any other changes to the question's entities, numbers, or facts.
+- Return ONLY the rewritten question.
+
+Example:
+Original: Is the Eiffel Tower made of iron?
+Rewritten: Is the Eiffel Tower not made of iron?
+
+Original: Is Mount Everest the highest mountain?
+Rewritten: Is Mount Everest not the highest mountain?
+
+Original: Does the Sahara receive a lot of rainfall?
+Rewritten: Does the Sahara not receive a lot of rainfall?
+
+Question to rewrite:
+{question}
 """

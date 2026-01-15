@@ -5,6 +5,8 @@ import json
 import logging
 import random
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -43,15 +45,14 @@ class EntitySamplerMixin(PromptMixin):
     and optionally expand them iteratively by extracting related entities.
     """
 
-    def sample_entities(
+    def _sample_entities(
         self,
         llm: LLMClient,
-        tools: List[Dict[str, Any]],
-        tool_call_map: Dict[str, Callable],
         num_entities_each_domain: int,
         domains: List[str],
         num_iterations: int = 2,
         entities_per_entity: int = 2,
+        max_workers: int = 4,
     ) -> List[Entity]:
         """Sample informative entities from diverse domains with iterative expansion.
 
@@ -63,6 +64,7 @@ class EntitySamplerMixin(PromptMixin):
             domains: List of domain names to sample from
             num_iterations: Number of expansion iterations
             entities_per_entity: Number of new entities to extract per entity
+            max_workers: Maximum number of worker threads for parallel processing
 
         Returns:
             List of sampled entities, shuffled randomly
@@ -70,29 +72,41 @@ class EntitySamplerMixin(PromptMixin):
         # Initialize tracking sets for deduplication
         self._seen_names = set()
         self._fetched_names = set()
+        # Initialize locks for thread-safe operations
+        self._names_lock = threading.Lock()
 
         entities: List[Entity] = []
 
-        # Step 1: Initial sampling from each domain
-        for domain in domains:
-            logger.debug(f"Sampling {num_entities_each_domain} entities from domain: {domain}")
-            domain_entities = self._sample_domain_entities(llm, domain, num_entities_each_domain)
-            if domain_entities == []:
-                continue
+        # Step 1.1: Parallel sampling from each domain
+        def process_domain(domain: str) -> List[Entity]:
+            """Process a single domain: sample entities and perform iterative expansion."""
+            try:
+                logger.info(f"Sampling {num_entities_each_domain} entities from domain: {domain}")
+                domain_entities = self._sample_domain_entities(llm, domain, num_entities_each_domain)
 
-            # Step 2-4: Iterative entity expansion
-            domain_entities = self._iterative_entity_expansion(
-                domain_entities,
-                num_iterations=num_iterations,
-                entities_per_entity=entities_per_entity,
-            )
+                # Step 1.2-1.4: Iterative entity expansion
+                domain_entities = self._iterative_entity_expansion(
+                    domain_entities,
+                    num_iterations=num_iterations,
+                    entities_per_entity=entities_per_entity,
+                )
 
-            # Step 5: Deduplicate and prioritize long-tail entities
-            domain_entities = self._dedupe_and_sort_long_tail(domain_entities)[:num_entities_each_domain]
-            entities.extend(domain_entities)
-            logger.info(f"Sampled {len(domain_entities)} entities from domain: {domain}")
+                # Step 1.5: Deduplicate and prioritize long-tail entities
+                domain_entities = self._dedupe_and_sort_long_tail(domain_entities)[
+                    :num_entities_each_domain
+                ]
+                logger.info(f"Sampled {len(domain_entities)} entities from domain: {domain}")
+                return domain_entities
+            except Exception as e:
+                logger.error(f"Error processing domain {domain}: {e}")
+                return []
 
-        logger.info(f"Total unique entities sampled: {len(entities)}")
+        logger.info(f"Starting parallel entity sampling with {max_workers} workers")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_domain = {executor.submit(process_domain, domain): domain for domain in domains}
+            for future in as_completed(future_to_domain):
+                domain_entities = future.result()
+                entities.extend(domain_entities)
 
         return entities
 
@@ -120,10 +134,6 @@ class EntitySamplerMixin(PromptMixin):
             try:
                 messages = [
                     {
-                        "role": "system",
-                        "content": self.SYSTEM_PROMPT,
-                    },
-                    {
                         "role": "user",
                         "content": self.ENTITY_SAMPLER_PROMPT.format(
                             num_entities_each_domain=1, domain=domain
@@ -133,8 +143,9 @@ class EntitySamplerMixin(PromptMixin):
 
                 response = llm.chat_completion(
                     messages=messages,
-                    temperature=0.8,
-                    max_tokens=2048,
+                    temperature=1.0,
+                    top_p=0.95,
+                    max_tokens=128,
                 )
 
                 # Parse response with proper JSON parsing
@@ -163,30 +174,29 @@ class EntitySamplerMixin(PromptMixin):
         """
         entities: List[Entity] = []
 
-        # Try to extract JSON array from response
-        # Look for JSON array pattern (may be wrapped in markdown code blocks or text)
+        # Attempt to extract a JSON array from the response (may be inside markdown code blocks or plain text)
         json_match = re.search(r"\[.*\]", response, re.DOTALL)
         if json_match:
             json_str = json_match.group(0)
-            data = json.loads(json_str)
+            try:
+                data = json.loads(json_str)
+            except Exception as e:
+                logger.error(f"Failed to parse JSON: {e}")
+                return entities
 
-            # Parse each entity from JSON
+            # Build Entity objects from the JSON items
             for item in data:
-                if isinstance(item, dict):
-                    name = item.get("name", "").strip()
-                    description = item.get("description", "").strip()
-
-                    if name:
-                        entities.append(
-                            Entity(
-                                name=name,
-                                domain=domain,
-                                description=description or f"Entity from {domain}",
-                            )
-                        )
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name", "").strip()
+                description = item.get("description", "").strip()
+                if name:
+                    entities.append(
+                        Entity(name=name, domain=domain, description=description or f"Entity from {domain}")
+                    )
 
             if entities:
-                logger.debug(f"Successfully parsed {len(entities)} entities from JSON")
+                logger.info(f"Parsed {len(entities)} entities from JSON successfully")
                 return entities
 
     def _fetch_wiki_content(self, entity: Entity) -> str:
@@ -216,9 +226,10 @@ class EntitySamplerMixin(PromptMixin):
                 entity.pageview = page_data.get("pageview")
                 entity.fetched = True
 
-                # Update fetched names for deduplication
+                # Update fetched names for deduplication (thread-safe)
                 if hasattr(self, "_fetched_names") and entity.name:
-                    self._fetched_names.add(self._normalize_name(entity.name))
+                    with self._names_lock:
+                        self._fetched_names.add(self._normalize_name(entity.name))
 
                 return entity.description
         except Exception as e:
@@ -251,7 +262,8 @@ class EntitySamplerMixin(PromptMixin):
                         entity.fetched = True
 
                         if hasattr(self, "_fetched_names") and entity.name:
-                            self._fetched_names.add(self._normalize_name(entity.name))
+                            with self._names_lock:
+                                self._fetched_names.add(self._normalize_name(entity.name))
 
                         logger.info(
                             f"Successfully fetched and cleaned content via visit_tool for: {entity.name}"
@@ -536,24 +548,24 @@ Guidance / Requirements (to prioritize concrete, low-traffic long-tail entities)
                         entity, num_entities=2 * entities_per_entity
                     )
 
-                    # Lightweight deduplication
+                    # Lightweight deduplication (thread-safe)
                     filtered = []
                     for child in extracted:
                         key = self._normalize_name(child.name or "")
                         if not key:
                             continue
-                        if (hasattr(self, "_seen_names") and key in self._seen_names) or (
-                            hasattr(self, "_fetched_names") and key in self._fetched_names
-                        ):
-                            continue
-                        if hasattr(self, "_seen_names"):
-                            self._seen_names.add(key)
+                        with self._names_lock:
+                            if (hasattr(self, "_seen_names") and key in self._seen_names) or (
+                                hasattr(self, "_fetched_names") and key in self._fetched_names
+                            ):
+                                continue
+                            if hasattr(self, "_seen_names"):
+                                self._seen_names.add(key)
                         filtered.append(child)
-                    extracted = filtered
 
                     # Fetch content for children immediately and filter
                     valid_children = []
-                    for child in extracted:
+                    for child in filtered:
                         child.parent = entity
                         self._fetch_wiki_content(child)
                         # Filter by description length (threshold: 100 words)

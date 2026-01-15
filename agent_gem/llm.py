@@ -157,6 +157,7 @@ class LLMClient:
         self,
         messages: List[Dict[str, str]],
         temperature: float = 0.6,
+        top_p: float = 1.0,
         max_tokens: int = 1024,
     ) -> str:
         logger.info(
@@ -170,6 +171,7 @@ class LLMClient:
                 "model": self.config.model,
                 "messages": messages,
                 "temperature": temperature,
+                "top_p": top_p,
                 "max_tokens": max_tokens,
             },
         )
@@ -181,6 +183,7 @@ class LLMClient:
                     model=self.config.model,
                     messages=messages,
                     temperature=temperature,
+                    top_p=top_p,
                     max_tokens=max_tokens,
                 )
                 content = response.choices[0].message.content
@@ -321,6 +324,7 @@ class LLMClient:
         tools: List[Dict[str, str]],
         tool_call_map: Dict[str, str],
         temperature: float = 0.7,
+        top_p: float = 1.0,
         max_tokens: int = 512,
         max_sub_turns: int = 20,
         is_summary: bool = False,
@@ -334,6 +338,7 @@ class LLMClient:
                 messages=messages,
                 tools=tools,
                 temperature=temperature,
+                top_p=top_p,
                 max_tokens=max_tokens,
                 extra_body={
                     "thinking": {
