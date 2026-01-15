@@ -13,6 +13,60 @@ from agent_gem.writer import TaskWriter
 logger = logging.getLogger(__name__)
 
 
+def _filter_records_by_existing_files(
+    records: List[Dict[str, Any]], 
+    sandbox_dir: Path
+) -> List[Dict[str, Any]]:
+    """Filter records to only include those with files that actually exist in _sandbox/data.
+    
+    Args:
+        records: List of record dicts with 'downloaded_files' field
+        sandbox_dir: Path to _sandbox directory
+        
+    Returns:
+        Filtered list of records where all downloaded_files exist
+    """
+    filtered_records = []
+    data_dir = sandbox_dir / "data"
+    
+    for record in records:
+        downloaded_files = record.get("downloaded_files", [])
+        if not downloaded_files:
+            # Skip records without downloaded_files
+            continue
+        
+        # Check which files actually exist
+        existing_files = []
+        for file_path in downloaded_files:
+            # file_path is like "data/xxx.json" (relative to _sandbox)
+            # Actual file is at _sandbox/data/xxx.json
+            if file_path.startswith("data/"):
+                actual_path = sandbox_dir / file_path
+            else:
+                actual_path = data_dir / file_path
+                
+            if actual_path.exists():
+                existing_files.append(file_path)
+        
+        # Only include record if at least one file exists
+        if existing_files:
+            # Update downloaded_files to only include existing files
+            record_copy = record.copy()
+            record_copy["downloaded_files"] = existing_files
+            filtered_records.append(record_copy)
+    
+    if len(filtered_records) < len(records):
+        removed_count = len(records) - len(filtered_records)
+        logger.info(
+            "Filtered records: %d -> %d (removed %d records with missing files)",
+            len(records),
+            len(filtered_records),
+            removed_count,
+        )
+    
+    return filtered_records
+
+
 def persist_quadruple_format(
     writer: TaskWriter,
     *,
@@ -38,6 +92,10 @@ def persist_quadruple_format(
     first_package = packages_list[0]
     task_dir = writer.task_dir(first_package.task.task_id, first_package.agent_type)
     target = output_path or (task_dir / "tasks.json")
+    sandbox_dir = task_dir / "_sandbox"
+
+    # Filter records to only include those with existing files
+    filtered_records = _filter_records_by_existing_files(records, sandbox_dir)
 
     # Get tools_interface from the task's sandbox
     first_meta = first_package.metadata if packages_list else {}
@@ -72,6 +130,17 @@ def persist_quadruple_format(
             logger.warning("Skipping task with validation errors: %s", package.task.task_id)
             continue
 
+        # Clean metadata: remove fields that are duplicated elsewhere
+        clean_meta = {**(package.metadata or {})}
+        fields_to_remove = {
+            "tools_code",  # Already in tools.interface
+            "pre_state_hash",  # Already in task.state_hash.pre
+            "post_state_hash",  # Already in task.state_hash.post
+            "tools_code_preview",  # Redundant preview
+        }
+        for field in fields_to_remove:
+            clean_meta.pop(field, None)
+        
         task_entry = {
             "task": {
                 "id": package.task.task_id,
@@ -87,21 +156,23 @@ def persist_quadruple_format(
             "verifier": {
                 "verification_code": package.verification or "",
             },
-            "metadata": package.metadata,
+            "metadata": clean_meta,
         }
         tasks_with_verifiers.append(task_entry)
 
     payload = {
         "environment": {
             "category": category,
-            "records": records,
-            "record_count": len(records),
+            "records": filtered_records,
+            "record_count": len(filtered_records),
         },
-        "tools": all_tools,
-        "tools_interface": tools_interface,
+        "tools": {
+            "list": all_tools,
+            "interface": tools_interface,
+        },
         "tasks": tasks_with_verifiers,
         "metadata": {
-            "version": "1.1",
+            "version": "1.2",
             "format": "quadruple",
             "task_count": len(tasks_with_verifiers),
             "tool_count": len(all_tools),
@@ -116,6 +187,6 @@ def persist_quadruple_format(
         target,
         len(tasks_with_verifiers),
         len(all_tools),
-        len(records),
+        len(filtered_records),
     )
     return target

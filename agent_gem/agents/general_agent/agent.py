@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from agent_gem.core.task_schema import TaskPackage
-from agent_gem.sandbox import SandboxExecutor, SandboxFusionExecutor
-from agent_gem.tools import BashTool, PythonRunnerTool, SearchTool
+from agent_gem.sandbox import SandboxExecutor
+from agent_gem.tools import SearchTool
+from agent_gem.agents.general_agent.tool_synthesis import ToolSynthesisMixin
 
 from ..base import BaseAgent, TaskContext
 from .data_pipeline import DataPipelineMixin
@@ -30,8 +31,6 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
     description = "Automatic environment-synthesis agent that creates diverse, verifiable tasks with a growing toolset."
 
     def _configure_sandbox(self, sandbox: SandboxExecutor):
-        if not isinstance(sandbox, SandboxFusionExecutor):
-            sandbox.register_tool(BashTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s))
         try:
             sandbox.register_tool(
                 SearchTool(
@@ -42,11 +41,8 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
         except ValueError as exc:
             logger.error("Search tool configuration failed: %s", exc)
             raise
-        if not isinstance(sandbox, SandboxFusionExecutor):
-            sandbox.register_tool(
-                PythonRunnerTool(workdir=sandbox.sandbox_dir, timeout_s=sandbox.timeout_s)
-            )
         sandbox.set_tool_call_callback(self._record_tool_call)
+        sandbox.set_tool_call_allowlist(set())
 
     def generate(self, request: GenerationRequest) -> Optional[TaskPackage]:
         try:
@@ -92,23 +88,51 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 self.writer.task_dir(task_id, self.agent_type),
             )
 
+            # Step 1: Check existing data files first (since tool synthesis depends on data_profile)
+            logger.info("Step 1/5: profiling sandbox data sources...")
+            data_profile = self._inspect_data_sources(sandbox, ctx)
+            
+            # Step 2: Decide whether to skip data seeding based on data_profile
             records: list[dict[str, Any]] | None = None
-            resume_seed = os.getenv("RESUME_SEEDED_DB", "").lower() in {"1", "true", "yes"}
-            if resume_seed:
+            json_file_count = len(data_profile.get("json", []))
+            MIN_DATA_FILES = 10
+            
+            if json_file_count >= MIN_DATA_FILES:
+                # If we have 10+ data files, skip seeding and try to load records from db.json for metadata
+                logger.info("Step 2/5: found %d data files, skipping seeding.", json_file_count)
                 records = self._load_seeded_records(ctx)
-                if records is not None:
-                    logger.info("Step 1/5: resuming from existing seeded database (skip seeding).")
-            if records is None:
-                logger.info("Step 1/5: seeding database from web search and real pages...")
+                if records is None:
+                    logger.info("Step 2/5: no db.json metadata found, but data files are sufficient.")
+            else:
+                # Not enough data files, need to seed database
+                logger.info("Step 2/5: found %d data files (need %d+), seeding database from web search and real pages...", 
+                           json_file_count, MIN_DATA_FILES)
                 records = self._seed_database(request.topic, ctx, sandbox)
 
-            logger.info("Step 2/5: profiling sandbox data sources...")
-            data_profile = self._inspect_data_sources(sandbox, ctx)
-
-            logger.info("Step 3/5: synthesizing task-specific tools...")
-            task_tool_specs, tools_code, tool_selftest = self._synthesize_task_tools(
-                request.topic, records, ctx, sandbox, data_profile
-            )
+            # Check if tools.py already exists, skip synthesis if it does
+            tools_path = sandbox.sandbox_dir / "tools.py" if sandbox else None
+            if tools_path and tools_path.exists():
+                logger.info("Step 3/5: tools.py already exists, skipping tool synthesis...")
+                # Load existing tools
+                try:
+                    tools_code = tools_path.read_text(encoding="utf-8")
+                    # Extract tool specs from existing tools.py
+                    task_tool_specs = ToolSynthesisMixin._extract_mcp_tools_from_python(tools_code)
+                    # Add submit_result tool if not present
+                    task_tool_specs = self._ensure_submit_result_tool(task_tool_specs)
+                    # Run self-test on existing tools
+                    tool_selftest = self._self_test_tools(task_tool_specs, sandbox, request.topic, ctx, data_profile)
+                    logger.info(f"Loaded {len(task_tool_specs)} existing tools from tools.py")
+                except Exception as e:
+                    logger.warning(f"Failed to load existing tools.py: {e}, regenerating...", exc_info=True)
+                    task_tool_specs, tools_code, tool_selftest = self._synthesize_task_tools_with_retry(
+                        request.topic, records, ctx, sandbox, data_profile
+                    )
+            else:
+                logger.info("Step 3/5: synthesizing task-specific tools...")
+                task_tool_specs, tools_code, tool_selftest = self._synthesize_task_tools_with_retry(
+                    request.topic, records, ctx, sandbox, data_profile
+                )
             self.writer.record_steps(task_id, self.agent_type, ctx.history)
 
             logger.info("Step 4/5: proposing initial task and code...")
@@ -121,6 +145,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 tools_code=tools_code,
                 data_profile=data_profile,
                 tool_selftest=tool_selftest,
+                sandbox_dir=sandbox.sandbox_dir if sandbox else None,
             )
             # Check if format-based regeneration is needed
             expected_fields = self._expected_fields_from_format(package.task.submit_result_format)
@@ -146,6 +171,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                     tools_code=tools_code,
                     data_profile=data_profile,
                     tool_selftest=tool_selftest,
+                    sandbox_dir=sandbox.sandbox_dir if sandbox else None,
                 )
             if package.metadata is None:
                 package.metadata = {}
@@ -153,8 +179,8 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 update={
                     "metadata": {
                         **(package.metadata or {}),
-                        "data_profile": json.dumps(data_profile, ensure_ascii=False)[:4000],
-                        "tool_selftest": json.dumps(tool_selftest, ensure_ascii=False)[:4000],
+                        "data_profile": self._safe_metadata_json(data_profile),
+                        "tool_selftest": self._safe_metadata_json(tool_selftest),
                     }
                 }
             )
@@ -182,12 +208,19 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             for round_idx in range(2, effective_refine_rounds + 1):
                 target = min(int(request.difficulty), round_idx)
                 ctx.current_difficulty = target
+                try:
+                    tool_selftest = json.loads((package.metadata or {}).get("tool_selftest", "{}"))
+                except Exception:
+                    tool_selftest = {}
                 refined = self._refine_task(
                     previous=package,
                     records=records,
                     tool_specs=task_tool_specs,
                     ctx=ctx,
                     target_difficulty=target,
+                    tool_selftest=tool_selftest if isinstance(tool_selftest, dict) else None,
+                    data_profile=data_profile,
+                    sandbox_dir=sandbox.sandbox_dir if sandbox else None,
                 )
                 refined = self._ensure_substantive_task(task_tool_specs, refined, ctx=ctx, request=request)
                 current_tools_code = (package.metadata or {}).get("tools_code", tools_code)
@@ -226,7 +259,7 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                         packages=validated_packages,
                     )
                 except Exception:
-                    logger.debug("Failed to persist quadruple format", exc_info=True)
+                    logger.warning("Failed to persist quadruple format", exc_info=True)
 
             return package
         except Exception as e:

@@ -13,7 +13,6 @@ from agent_gem.sandbox.executor import CodeExecutor
 from agent_gem.sandbox.manager import SandboxManager
 
 from ..base import BaseAgent
-from .feature_requester_generator import RepoMetadata, FeatureRequestGenerator
 
 if TYPE_CHECKING:  # pragma: no cover
     from agent_gem.config import CodeAgentConfig

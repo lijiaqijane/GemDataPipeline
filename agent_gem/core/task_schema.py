@@ -19,6 +19,7 @@ from mcp.server.fastmcp.utilities.context_injection import find_context_paramete
 from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata, func_metadata
 from mcp.shared.tool_name_validation import validate_and_warn_tool_name
 from pydantic import BaseModel, Field, field_validator, model_serializer
+from pydantic_core import core_schema
 
 
 def _is_async_callable(obj: Any) -> bool:
@@ -288,6 +289,10 @@ class _AnnotationPlaceholder:
     @classmethod
     def __class_getitem__(cls, _item: object) -> type["_AnnotationPlaceholder"]:
         return cls
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, _source: Any, _handler: Any) -> core_schema.CoreSchema:
+        return core_schema.any_schema()
 
 
 def _inject_annotation_placeholders(

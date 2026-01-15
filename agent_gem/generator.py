@@ -39,6 +39,7 @@ class GenerationRequest:
     embedding_path: Optional[str] = None
     faiss_index_path: Optional[str] = None
     text_mapping_path: Optional[str] = None
+    max_workers: int = 4  # Maximum number of worker threads for parallel processing
 
 
 class EnvironmentGenerator:

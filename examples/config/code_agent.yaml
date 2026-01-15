@@ -16,7 +16,7 @@ repo_crawler:
     
     # Repository size in KB
     size:
-      max: 51200  # 50MB
+      max: 204800  # 200MB
     
     # Code line count range (estimated)
     line_count:
@@ -34,16 +34,35 @@ repo_crawler:
     
     # Exclude repositories with these topics
     exclude_topics: []
+
+    # Explicitly exclude these repositories by full name (owner/repo)
+    # Example:
+    #   exclude_repos:
+    #     - psf/requests
+    #     - numpy/numpy
+    exclude_repos:
+      - astropy/astropy
+      - django/django
+      - matplotlib/matplotlib
+      - mwaskom/seaborn
+      - pallets/flask
+      - psf/requests
+      - pydata/xarray
+      - pylint-dev/pylint
+      - pytest-dev/pytest
+      - scikit-learn/scikit-learn
+      - sphinx-doc/sphinx
+      - sympy/sympy
     
     # Check for pytest test files
     require_pytest: false
     
     # Require repository to have main package (folder with same name as repo in root directory)
     # e.g., numpy repo must have numpy/ folder in root
-    require_main_package: true
+    require_main_package: false
     
     # Maximum number of repositories to crawl
-    max_repos: 200
+    max_repos: 100
     
     # Maximum number of pages to search per query (prevents infinite crawling)
     # Each page contains up to 30 results, so max_pages: 10 means max 300 results per query
@@ -53,13 +72,13 @@ repo_crawler:
   # Output settings
   output:
     # Directory to save repository information and code
-    save_dir: taskdb/code_agent/crawled_repos
+    save_dir: taskdb/code_agent/repos
     
     # Save repository metadata as JSON
     save_metadata: true
     
     # Clone repository codebase
-    clone_codebase: true
+    clone_codebase: false
     
     # Use shallow clone (depth=1) to save space
     shallow_clone: true
@@ -78,357 +97,132 @@ repo_crawler:
     # Sleep between requests to avoid rate limiting (seconds)
     sleep_between_requests: 1
 
+# ===== PR Extractor Settings =====
+pr_extractor:
+  # List of repositories to extract PRs from (format: owner/repo)
+  # Can be a list or comma-separated string
+  # Example:
+  #   repos:
+  #     - scikit-learn/scikit-learn
+  #     - pallets/flask
+  repos: []
 
-# ===== Entity Extractor Settings =====
-entity_extractor:
-  # Supported programming languages
-  # Currently supports: Python
-  languages:
-    - Python
-  
-  # Maximum number of entities per file
-  # -1 means no limit
-  max_entities_per_file: -1
-  
-  # Maximum total entities to extract from repository
-  # Limits memory usage for large repositories
-  max_entities_per_repo: 200
-  
-  # Directories to exclude from extraction
-  # These are checked with substring matching
-  dirs_exclude:
-    - test
-    - tests
-    - spec
-    - specs
-    - docs
-    - examples
-    - __pycache__
-    - .git
-    - venv
-    - .venv
-    - node_modules
-    - build
-    - dist
-  
-  # Directories to include in extraction (empty = include all)
-  # If specified, only directories matching these patterns are included
-  dirs_include: []
-  
-  # Only extract entities from main package (root folder with same name as repo)
-  # e.g., for numpy repo, only extract from numpy/ folder
-  # This is useful to focus on the main codebase and ignore auxiliary files
-  extract_from_main_package_only: true
-  
-  # Exclude test files from extraction
-  exclude_test_files: true
-  
-  # Exclude hidden files (starting with .)
-  exclude_hidden_files: true
-
-  # Minimum file line count
-  # Files with fewer lines will be skipped
-  min_file_line_count: 10
-  
-  # Maximum file line count
-  # Files with more lines will be skipped (-1 means no limit)
-  max_file_line_count: 1000
-  
-  # Minimum entity line count
-  # Filters out very small functions/classes
-  min_entity_line_count: 10
-  
-  # Maximum entity line count
-  # Filters out very large functions/classes
-  max_entity_line_count: 200
-  
-  # ===== Entity Type Filters =====
-  # Include function entities
-  include_functions: true
-  
-  # Include class entities
-  include_classes: true
-  
-  # ===== Entity Name Filters =====
-  # Exclude entities with these exact names
-  exclude_entity_names:
-    - __init__
-    - __str__
-    - __repr__
-  
-  # Exclude entities matching these regex patterns
-  exclude_entity_patterns:
-    - ^test_.*  # Exclude test functions
-    - ^_.*_$    # Exclude dunder methods (e.g., __eq__, __lt__)
-  
-  # ===== Documentation Requirements =====
-  # Require entities to have docstrings
-  require_docstring: false
-  
-  # ===== Control Flow Requirements =====
-  # Require entities to have these control flows (empty = no requirement)
-  # Available: has_if, has_if_else, has_loop, has_exception, has_switch
-  require_control_flows: []
-    # - has_if
-    # - has_loop
-  
-  # Exclude entities with these control flows
-  exclude_control_flows: []
-    # - has_exception
-  
-  # ===== Code Property Requirements =====
-  # Require entities to have these properties (empty = no requirement)
-  # Available properties from CodeProperty enum:
-  #   - has_return, has_function_call, has_assignment, has_import
-  #   - has_decorator, has_lambda, has_list_comprehension, has_list_indexing
-  #   - has_arithmetic, has_binary_op, has_bool_op, has_unary_op
-  #   - has_wrapper, has_parent, has_off_by_one
-  require_properties: []
-  
-  # Exclude entities with these properties
-  exclude_properties: 
-    - has_decorator
-  
-  # ===== Complexity Filters =====
-  # Minimum cyclomatic complexity (-1 = no limit)
-  # Complexity measures the number of decision points in code
-  min_complexity: 2
-  
-  # Maximum cyclomatic complexity (-1 = no limit)
-  max_complexity: -1
+  # Optional: load repositories from RepoCrawler output summary.
+  # If 'repos' above is empty and this path is set, PRExtractor will read
+  # the RepoCrawler summary.json and use its "repositories[*].full_name"
+  # as the repo list.
+  # You can point either to the summary.json file itself, or to the
+  # directory that contains it (RepoCrawler save_dir).
+  # For example, with repo_crawler.output.save_dir: taskdb/code_agent/repos,
+  # the corresponding summary file is taskdb/code_agent/repos/summary.json.
+  repos_from_repo_crawler_summary: taskdb/code_agent/repos/summary.json
   
   # Output settings
   output:
-    # Directory to save extracted entities
-    save_dir: taskdb/code_agent/extracted_entities
+    # Directory to save extracted PR data
+    save_dir: taskdb/code_agent/prs
     
-    # Save entities as JSON
-    save_json: true
-    
-    # Save extraction summary
-    save_summary: true
-
-    # Overwrite existing extracted entities
+    # Overwrite existing PR files if they exist
     overwrite_existing: false
-
-
-# ===== Triple Generation Settings =====
-triple_generation:
-  # Repository filtering
-  repo_filter:
-    stars:
-      min: 100
-      max: 10000
-    size:
-      max: 10240  # 10MB
-    updated_within_days: 730  # 2 years
-    topics:
-      - library
-      - tool
-      - cli
-      - data
-      - utility
-    exclude_keywords:
-      - tensorflow
-      - pytorch
-      - torch
-      - keras
-      - gpu
-      - cuda
-      - deep-learning
-      - machine-learning
-    exclude_topics:
-      - machine-learning
-      - deep-learning
-      - tensorflow
-      - pytorch
-    max_repos: 50
   
-  # File filtering
-  file_filter:
-    focus_main_package: true
-    exclude_directories:
-      - tests
-      - test
-      - docs
-      - examples
-      - scripts
-      - benchmarks
-    exclude_files:
-      - __init__.py
-      - setup.py
-      - conftest.py
-      - config.py
-    line_count:
-      min: 50
-      max: 2000
-      optimal_min: 100
-      optimal_max: 500
-    min_functions: 2
-    scoring:
-      line_count_optimal: 20
-      function_count: 10
-      function_count_max: 50
-      docstring: 5
-      not_test: 15
-      utility_penalty: -10
-    utility_keywords:
-      - util
-      - helper
-    max_files_per_repo: 10
+  # Task instance generation settings
+  # Whether to generate task instances from extracted PRs
+  generate_tasks: true
   
-  # Function filtering
-  function_filter:
-    skip_private: true
-    line_count:
-      min: 5
-      max: 200
-      optimal_min: 10
-      optimal_max: 100
-    max_arguments: 5
-    min_quality_score: 0.3
-    scoring:
-      line_count_optimal: 0.3
-      has_docstring: 0.2
-      has_type_hints: 0.1
-      has_control_flow: 0.2
-      has_return: 0.1
-      arg_count_ok: 0.1
+  # Directory to save task instances (defaults to ../tasks relative to prs directory)
+  task_output_dir: taskdb/code_agent/candidate_tasks
   
-  # Output settings
-  output:
-    target_triples: 100
-    quality_threshold: 0.5
-    cache_dir: triple_cache
-    refresh_repos: false
-
-
-
-# ===== Task Generation Settings =====
-
-task_generation:
-  # Root directory for generated tasks
-  taskdb_root: taskdb/
+  # PR filtering settings
+  # Maximum number of PRs to extract per repository (null = no limit)
+  max_pulls: 1000
   
-  # Task difficulty level (1-3)
-  # 1: Easy - Simple function implementations
-  # 2: Medium - Moderate complexity with dependencies
-  # 3: Hard - Complex logic and error handling
-  difficulty: 1
+  # Cutoff date for PRs to consider (format: YYYYMMDD, null = no cutoff)
+  # Only PRs created before this date will be extracted
+  cutoff_date: null
   
-  # LLM generation parameters
-  max_tokens: 8192      # Maximum tokens for LLM response
-  
-  # Test generation parameters
-  test_generation:
-    target_test_count: 4    # Target number of test functions (prefer this number)
-    min_test_count: 3       # Minimum acceptable test functions
-    max_test_count: 5       # Maximum allowed test functions
-  
-  # Logging and persistence
-  save_logs: true       # Save LLM responses and intermediate results
-  auto_save: true       # Automatically save tasks to taskdb
-
-# ===== Batch Processing Settings =====
-batch_processing:
-  # Number of tasks to generate in batch mode
-  num_tasks: 10
-  
-  # Error handling
-  skip_errors: false    # Continue processing on errors (true) or stop (false)
-  
-  # Maximum retry attempts for failed operations
-  max_retries: 5
-
-# ===== Sandbox Configuration =====
-sandbox:
-  # SandboxFusion URL (null = auto-detect from SANDBOX_FUSION_URL env var)
-  sandbox_url: null
-  
-  # Use Docker runner for code execution
-  use_docker_runner: true
-  
-  # Silent mode (suppress sandbox output)
-  silent: false
-
-
-# ===== Issue Generator Settings =====
-issue_generator:
-  # Path to extracted entities (defaults to entity_extractor.output.save_dir)
-  entity_dir: taskdb/code_agent/extracted_entities
-
-  # Optional custom prompt file; if null, uses built-in template
-  prompt_path: null
-
-  # LLM generation parameters
-  max_tokens: 512
-
-  # Maximum characters to include from the entity body in the prompt
-  body_excerpt_limit: 1200
-
-  # Number of workers to parallelize issue generation
-  workers: 4
-
-  # Overwrite existing issue.txt if present
-  overwrite_existing: false
-
-
-# ===== Task Generator Settings =====
-task_generator:
-  # Input settings
-  input:
-    # Directory containing extracted entities (each entity has entity.json and issue.txt)
-    entity_dir: taskdb/code_agent/extracted_entities
-
-    # Filenames to look for within each entity directory
-    entity_filename: entity.json
-    issue_filename: issue.txt
-
-  # Output settings
-  output:
-    # Directory to save generated tasks
-    save_dir: taskdb/code_agent/tasks
+  # GitHub API settings
+  github:
+    # GitHub token (reads from GITHUB_TOKEN env var if not set)
+    token: null
     
-    # Save format: 'json' or 'jsonl'
-    save_format: json
+    # Multiple tokens for parallelization (reads from GITHUB_TOKENS env var if not set)
+    # Can be a list or comma-separated string
+    tokens: null
   
-  # Task content settings
-  task_content:
-    # Include docstring in stub version
-    include_docstring: true
-    
-    # Include type hints in stub version
-    include_type_hints: true
-    
-    # Include decorators in stub version
-    include_decorators: true
+  # PR query settings
+  # PR state: "open", "closed", or "all"
+  state: closed
   
-  # Issue generation settings
-  issue_generation:
-    # Issue template: 'default', 'detailed', or 'minimal'
-    template: default
-    
-    # Include surrounding code context in issue
-    include_context: true
-    
-    # Number of context lines before/after entity
-    context_lines: 3
+  # Sort field: "created", "updated", "popularity"
+  sort: created
   
-  # Filtering settings
-  filters:
-    # Minimum entity line count
-    min_entity_lines: 5
-    
-    # Maximum entity line count
-    max_entity_lines: 200
-    
-    # Exclude entities with complexity < 2
-    exclude_simple_entities: true
+  # Sort direction: "asc" or "desc"
+  direction: desc
   
-  # Metadata settings
-  metadata:
-    # Include metadata in generated tasks
-    include_metadata: true
+  # Parallelization settings
+  # Whether to use parallel processing with multiple tokens
+  use_parallel: false
+
+
+# ===== Task Execution Settings =====
+task_execution:
+  # Output directory for task execution results
+  output_dir: taskdb/code_agent/results  # Required: Path to output directory
+  
+  # Maximum number of iterations for agent workflow
+  max_iteration_num: 10
+  
+  # Parallel processing settings
+  num_processes: 1  # Number of parallel processes (1 = serial execution)
+  
+  # Task timeout in seconds
+  task_timeout_seconds: 5400  # 90 minutes
+  
+  # Task input settings
+  # Task mapping file path (required)
+  # Supports both JSON and JSONL formats
+  tasks_map_file: taskdb/code_agent/candidate_tasks/nvbn-thefuck-task-instances.jsonl  # Required: Path to tasks map file
+  
+  # Root directory where repository caches and task directories will be created
+  setup_dir: taskdb/code_agent/setup  # Required: Path to setup directory
+  
+  # Task selection mode (mutually exclusive)
+  # Option 1: Process a single task
+  task_id: null  # Single task ID to process
+  
+  # Option 2: Process tasks from a list file
+  task_list_file: null  # Path to file containing task IDs (one per line)
+  
+  # Option 3: Process a batch of tasks
+  task_batch: -1  # Batch size (number of tasks per batch)
+  batch_index: -1  # Batch index (1-based, e.g., 1 for first batch)
+  
+  # Repository cache settings
+  cache:
+    # Whether to use existing cache (skip cloning if cache exists)
+    use_cache: true
     
-    # Include entity properties in metadata
-    include_entity_properties: true
+    # Cache directory naming format
+    # Available placeholders: {repo}
+    cache_name_format: "{repo}_cache"
+  
+  # Task directory settings
+  task_dir:
+    # Task directory naming format
+    # Available placeholders: {task_id}, {timestamp}
+    name_format: "{task_id}_{timestamp}"
+    
+    # Timestamp format for task directories
+    timestamp_format: "%Y-%m-%d_%H-%M-%S"
+  
+  # Agent configuration
+  agents:
+  
+    # Disable context retrieval agent
+    disable_context_retrieval: false
+
+    # Use Ubuntu-only base images for Dockerfile
+    using_ubuntu_only: true
+  
+  # Output organization
+  organize_output: false  # Whether to organize output after completion

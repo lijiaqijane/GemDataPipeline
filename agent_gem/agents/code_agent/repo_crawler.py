@@ -40,6 +40,8 @@ class RepoFilterConfig:
     exclude_keywords: List[str] = field(default_factory=list)
     exclude_topics: List[str] = field(default_factory=list)
     require_pytest: bool = True
+    # Full repo names (owner/repo) to exclude explicitly
+    exclude_repos: List[str] = field(default_factory=list)
     require_main_package: bool = False  # Require repo to have main package folder
     max_repos: int = 50
     max_pages: int = 10  # Maximum pages to search per query
@@ -155,6 +157,7 @@ class RepoCrawler:
             topics=filters.get('topics', []),
             exclude_keywords=filters.get('exclude_keywords', []),
             exclude_topics=filters.get('exclude_topics', []),
+            exclude_repos=filters.get('exclude_repos', []),
             require_pytest=filters.get('require_pytest', True),
             require_main_package=filters.get('require_main_package', False),
             max_repos=filters.get('max_repos', 50),
@@ -480,6 +483,17 @@ class RepoCrawler:
                         
                         # Skip duplicates
                         if repo_full_name in seen_repos:
+                            continue
+
+                        # Skip explicitly excluded repositories (case-insensitive match)
+                        if any(
+                            repo_full_name.lower() == excluded.lower()
+                            for excluded in self.filter_config.exclude_repos
+                        ):
+                            logger.debug(
+                                "[RepoCrawler] Excluding %s because it is in exclude_repos list",
+                                repo_full_name,
+                            )
                             continue
                         
                         # Extract basic info

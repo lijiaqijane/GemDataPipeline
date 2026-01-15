@@ -11,9 +11,9 @@ from agent_gem.core.validation import CodeValidator
 from agent_gem.sandbox import SandboxFusionExecutor
 
 from ..base import TaskContext
-from .sandbox import GeneralAgentSandboxExecutor, GeneralAgentSandboxFusionExecutor
+from .sandbox import GeneralAgentSandboxFusionExecutor
 
-SandboxType = GeneralAgentSandboxExecutor | GeneralAgentSandboxFusionExecutor
+SandboxType = GeneralAgentSandboxFusionExecutor
 
 if TYPE_CHECKING:  # pragma: no cover
     from agent_gem.generator import GenerationRequest  # noqa: F401
@@ -42,6 +42,34 @@ class ValidationMixin:
             return text[:limit] + "..."
         return text
 
+
+    @staticmethod
+    def _safe_metadata_json(payload: Any, *, max_chars: int = 4000) -> str:
+        if payload is None:
+            return "{}"
+
+        def _compact(value: Any, *, max_items: int, max_str: int) -> Any:
+            if isinstance(value, dict):
+                return {k: _compact(v, max_items=max_items, max_str=max_str) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_compact(v, max_items=max_items, max_str=max_str) for v in value[:max_items]]
+            if isinstance(value, str) and len(value) > max_str:
+                return value[:max_str] + "..."
+            return value
+
+        try:
+            text = json.dumps(payload, ensure_ascii=False, default=str)
+        except Exception:
+            return "{}"
+        if len(text) <= max_chars:
+            return text
+        for max_items, max_str in ((6, 200), (4, 120), (2, 80), (1, 60)):
+            compact = _compact(payload, max_items=max_items, max_str=max_str)
+            text = json.dumps(compact, ensure_ascii=False, default=str)
+            if len(text) <= max_chars:
+                return text
+        return json.dumps({"truncated": True}, ensure_ascii=False)
+
     @staticmethod
     def _verifier_is_broken(run: Any) -> bool:
         if run.verified is None:
@@ -60,6 +88,120 @@ class ValidationMixin:
             )
         )
 
+    @staticmethod
+    def _extract_file_paths_from_error(error_message: str, available_files: list[str]) -> list[str]:
+        """Extract file paths from error message that match available files.
+        
+        Args:
+            error_message: Error message text
+            available_files: List of available file paths from data_profile
+            
+        Returns:
+            List of file paths found in error message that match available files
+        """
+        if not error_message or not available_files:
+            return []
+        
+        found_paths: set[str] = set()
+        error_lower = error_message.lower()
+        
+        # Try to find file paths in error message
+        for file_path in available_files:
+            # Check if file path or filename appears in error message
+            file_name = file_path.split("/")[-1] if "/" in file_path else file_path
+            if file_path in error_message or file_name in error_lower:
+                found_paths.add(file_path)
+        
+        return sorted(found_paths)
+    
+    def _extract_file_paths_from_code(self, code: str, available_files: list[str]) -> list[str]:
+        """Extract file paths from solution/verification code that match available files.
+        
+        Args:
+            code: Solution or verification code
+            available_files: List of available file paths from data_profile
+            
+        Returns:
+            List of file paths found in code that match available files
+        """
+        if not code or not available_files:
+            return []
+        
+        import re
+        
+        found_paths: set[str] = set()
+        
+        # Step 1: Extract string literals from code that might be file paths
+        # Look for patterns like: "data/file.json", 'data/file.json', BASE_DIR / "data" / "file.json"
+        for file_path in available_files:
+            file_name = file_path.split("/")[-1] if "/" in file_path else file_path
+            
+            # Check for file path in string literals
+            if file_path in code or file_name in code:
+                # More precise: check if it's actually in a string literal or path expression
+                # Look for patterns: "data/file.json", 'data/file.json', / "file.json", / 'file.json'
+                patterns = [
+                    rf'["\']{re.escape(file_path)}["\']',  # "data/file.json"
+                    rf'["\']{re.escape(file_name)}["\']',  # "file.json"
+                    rf'/[\s]*["\']{re.escape(file_name)}["\']',  # / "file.json"
+                    rf'[\s]+["\']{re.escape(file_name)}["\']',  #  "file.json"
+                ]
+                for pattern in patterns:
+                    if re.search(pattern, code):
+                        found_paths.add(file_path)
+                        break
+        
+        # Step 2: Extract tool names from code and match with file prefixes using the same logic as tool synthesis
+        # Tool names are generated using _tool_prefix_from_path, so we need to use the same logic
+        tool_calls = CodeValidator.extract_tool_calls(code)
+        for tool_name in tool_calls:
+            # Extract prefix from tool name (remove get_ or list_ prefix)
+            if tool_name.startswith("get_"):
+                tool_prefix = tool_name[4:]  # Remove "get_"
+            elif tool_name.startswith("list_"):
+                tool_prefix = tool_name[5:]  # Remove "list_"
+            else:
+                continue  # Skip tools that don't follow the naming convention
+            
+            # For each available file, extract its prefix using the same logic as _tool_prefix_from_path
+            for file_path in available_files:
+                file_prefix = self._tool_prefix_from_path(file_path)
+                # Compare prefixes (normalize for comparison)
+                # The prefix matching should be flexible - check if tool_prefix matches file_prefix
+                if tool_prefix == file_prefix:
+                    found_paths.add(file_path)
+                # Also check if tool_prefix is a substring of file_prefix or vice versa
+                # (to handle cases where the prefix extraction might differ slightly)
+                elif tool_prefix in file_prefix or file_prefix in tool_prefix:
+                    # Additional check: ensure they share significant common parts
+                    tool_tokens = set(tool_prefix.split("_"))
+                    file_tokens = set(file_prefix.split("_"))
+                    # If they share at least 2 common tokens, consider it a match
+                    if len(tool_tokens & file_tokens) >= 2:
+                        found_paths.add(file_path)
+        
+        return sorted(found_paths)
+
+    @staticmethod
+    def _tool_selftest_missing_or_empty(tool_selftest: dict[str, Any] | None) -> bool:
+        if not tool_selftest:
+            return True
+        saw_ok = False
+        any_ok = False
+        any_fields = False
+        for info in tool_selftest.values():
+            if not isinstance(info, dict):
+                continue
+            if "ok" in info:
+                saw_ok = True
+                if info.get("ok") is True:
+                    any_ok = True
+            if info.get("fields"):
+                any_fields = True
+        if saw_ok:
+            return not any_ok
+        return not any_fields
+
     def _choose_repair_target(
         self,
         *,
@@ -68,7 +210,25 @@ class ValidationMixin:
         solution_repeat: int,
         verification_repeat: int,
     ) -> str:
-        if self._verifier_is_broken(run):
+        # Check if error is from verification or solution based on error message
+        if run.error:
+            error_lower = (run.error or "").lower()
+            # Check if error explicitly mentions verification/verify in traceback
+            if any(key in error_lower for key in ["in verify", "verify(", "def verify", "verification_src"]):
+                target = "verification"
+            # Check if error explicitly mentions solution/solve in traceback
+            elif any(key in error_lower for key in ["in solve", "solve(", "def solve", "solution_src", "line 187", "line 188"]):
+                # Common solution error patterns (line 187/188 are typical solution code lines)
+                target = "solution"
+            else:
+                # Default: if we have both error and verification_error,
+                # check which one came first
+                # If answer is None, error likely happened before solve() completed
+                # This could be solution exec error or solve() runtime error
+                # If answer is not None but verified is None, error likely happened in verify()
+                # But we can't check answer here, so default to solution for runtime errors
+                target = "solution"
+        elif self._verifier_is_broken(run):
             target = "verification"
         else:
             target = "solution"
@@ -186,18 +346,6 @@ class ValidationMixin:
                     "verification calls tools not in the declared tool_set; "
                     f"missing={sorted(verify_missing)} allowed={sorted(allowed_tools)}"
                 )
-                package = self._repair_package(
-                    request,
-                    package,
-                    ctx,
-                    error=last_error,
-                    records=records,
-                    repair_target="verification",
-                )
-                continue
-            verify_data_tools = sorted(set(verify_called_tools) - {submit_tool})
-            if not verify_data_tools:
-                last_error = "verification must call at least one data tool to cross-check outputs"
                 package = self._repair_package(
                     request,
                     package,
@@ -356,9 +504,7 @@ class ValidationMixin:
                     metadata_profile = data_profile
                 except Exception:
                     data_profile, tool_selftest = {}, {}
-                if not tool_selftest or all(
-                    not v.get("fields") for v in tool_selftest.values() if isinstance(v, dict)
-                ):
+                if self._tool_selftest_missing_or_empty(tool_selftest):
                     refreshed_selftest: dict[str, Any] = {}
                     try:
                         refreshed_selftest = self._self_test_tools(
@@ -375,51 +521,105 @@ class ValidationMixin:
                             update={
                                 "metadata": {
                                     **(package.metadata or {}),
-                                    "data_profile": json.dumps(data_profile, ensure_ascii=False)[:4000],
-                                    "tool_selftest": json.dumps(refreshed_selftest, ensure_ascii=False)[:4000],
+                                    "data_profile": self._safe_metadata_json(data_profile or {}),
+                                    "tool_selftest": self._safe_metadata_json(refreshed_selftest),
                                 }
                             }
                         )
                 if not augmented_once:
-                    new_specs, new_code, augmented = self._augment_toolset(
-                        request.topic or package.task.task_title,
-                        records,
-                        list(package.task.tool_set),
-                        data_profile or {},
-                        ctx,
-                        sandbox,
-                    )
-                    if augmented:
-                        augmented_once = True
-                        tools_code = (package.metadata or {}).get("tools_code", "")
-                        if new_code and new_code not in tools_code:
-                            tools_code = (tools_code + "\n\n" + new_code).strip()
-                        try:
-                            new_selftest = self._self_test_tools(new_specs, sandbox, request.topic, ctx)
-                        except Exception:
-                            new_selftest = tool_selftest
-                        package = package.copy(
-                            update={
-                                "task": package.task.copy(update={"tool_set": new_specs}),
-                                "metadata": {
-                                    **(package.metadata or {}),
-                                    "tool_selftest": json.dumps(new_selftest, ensure_ascii=False)[:4000],
-                                    "tools_code": tools_code[:5000] if tools_code else "",
-                                    "toolset_augmented": "true",
-                                },
-                            }
-                        )
-                        package = self._repair_package(
-                            request,
-                            package,
-                            ctx,
-                            error="toolset augmented; update solution to use new tools",
-                            records=records,
-                        )
-                        continue
-                if not tool_selftest or all(
-                    not v.get("fields") for v in tool_selftest.values() if isinstance(v, dict)
-                ):
+                    # Determine which files need augmentation based on errors or code analysis
+                    entries = self._iter_data_entries(data_profile or {})
+                    if not entries:
+                        # No data files available, skip augmentation
+                        pass
+                    else:
+                        available_file_paths = [entry["path"] for entry in entries]
+                        target_files: list[str] = []
+                        
+                        # Step 1: Try to extract file paths from error messages
+                        error_text = f"{last_error or ''} {run.error or ''} {run.verification_error or ''}".strip()
+                        if error_text:
+                            error_files = self._extract_file_paths_from_error(error_text, available_file_paths)
+                            if error_files:
+                                target_files.extend(error_files)
+                        
+                        # Step 2: If no files found from errors, analyze solution/verification code
+                        if not target_files:
+                            solution_files: list[str] = []
+                            if package.solution:
+                                solution_files = self._extract_file_paths_from_code(package.solution, available_file_paths)
+                            verify_files: list[str] = []
+                            if package.verification:
+                                verify_files = self._extract_file_paths_from_code(package.verification, available_file_paths)
+                            # Combine files from solution and verification, prioritizing solution
+                            target_files.extend(solution_files)
+                            for f in verify_files:
+                                if f not in target_files:
+                                    target_files.append(f)
+                        
+                        # Step 3: If still no files found, use first available file as fallback
+                        if not target_files:
+                            target_files = [available_file_paths[0]] if available_file_paths else []
+                        
+                        # Remove duplicates while preserving order
+                        seen: set[str] = set()
+                        unique_target_files: list[str] = []
+                        for f in target_files:
+                            if f not in seen:
+                                seen.add(f)
+                                unique_target_files.append(f)
+                        
+                        # Augment tools for each target file separately
+                        current_specs = list(package.task.tool_set)
+                        all_new_code_parts: list[str] = []
+                        augmented_any = False
+                        
+                        for target_file_path in unique_target_files:
+                            new_specs, new_code, augmented = self._augment_toolset(
+                                request.topic or package.task.task_title,
+                                records,
+                                current_specs,  # Use accumulated specs (including previously augmented)
+                                data_profile or {},
+                                ctx,
+                                sandbox,
+                                target_file_path=target_file_path,
+                            )
+                            if augmented:
+                                augmented_any = True
+                                current_specs = new_specs  # Update specs for next iteration
+                                if new_code and new_code not in "\n".join(all_new_code_parts):
+                                    all_new_code_parts.append(new_code)
+                        
+                        if augmented_any:
+                            augmented_once = True
+                            tools_code = (package.metadata or {}).get("tools_code", "")
+                            combined_new_code = "\n\n".join(all_new_code_parts).strip()
+                            if combined_new_code and combined_new_code not in tools_code:
+                                tools_code = (tools_code + "\n\n" + combined_new_code).strip()
+                            try:
+                                new_selftest = self._self_test_tools(current_specs, sandbox, request.topic, ctx)
+                            except Exception:
+                                new_selftest = tool_selftest
+                            package = package.copy(
+                                update={
+                                    "task": package.task.copy(update={"tool_set": current_specs}),
+                                    "metadata": {
+                                        **(package.metadata or {}),
+                                        "tool_selftest": self._safe_metadata_json(new_selftest),
+                                        "tools_code": tools_code[:5000] if tools_code else "",
+                                        "toolset_augmented": "true",
+                                    },
+                                }
+                            )
+                            package = self._repair_package(
+                                request,
+                                package,
+                                ctx,
+                                error="toolset augmented; update solution to use new tools",
+                                records=records,
+                            )
+                            continue
+                if self._tool_selftest_missing_or_empty(tool_selftest):
                     last_error = "tool_selftest_missing_or_empty; skipping tool resynthesis; verify/solution must use existing tools"
                     package = self._repair_package(
                         request,
@@ -468,44 +668,15 @@ class ValidationMixin:
                 package = package.copy(update={"metadata": cleaned_meta})
                 if new_files:
                     for rel in new_files:
+                        # Don't delete submitted_result.json - it needs to be persisted
+                        if rel == "submitted_result.json":
+                            continue
                         try:
                             target = sandbox.sandbox_dir / rel
                             if target.exists():
                                 target.unlink(missing_ok=True)
                         except Exception:
                             continue
-                    try:
-                        # Fold negative checks into the same difficulty folder (user preference).
-                        negative = sandbox.run_task(package, run_group=group_prefix)
-                        if negative.verified:
-                            last_error = "negative_check_failed"
-                            try:
-                                sandbox.annotate_run_record(
-                                    run_group=group_prefix,
-                                    run_id=run.run_id,
-                                    updates={
-                                        "result_persisted": False,
-                                        "result_persist_reason": last_error,
-                                        "task_candidate": False,
-                                        "task_candidate_reason": last_error,
-                                    },
-                                )
-                                sandbox.annotate_run_record(
-                                    run_group=group_prefix,
-                                    run_id=negative.run_id,
-                                    updates={
-                                        "result_persisted": False,
-                                        "result_persist_reason": last_error,
-                                        "task_candidate": False,
-                                        "task_candidate_reason": last_error,
-                                    },
-                                )
-                            except Exception:
-                                pass
-                            package = self._repair_package(request, package, ctx, error=last_error, records=records)
-                            continue
-                    except Exception:
-                        pass
                 try:
                     sandbox.annotate_run_record(
                         run_group=group_prefix,
@@ -555,7 +726,11 @@ class ValidationMixin:
                 continue
 
             if run.error or run.verification_error:
-                last_error = run.error or run.verification_error or "unknown_error"
+                # Prioritize solution error if both exist, since verification error may be secondary
+                if run.error:
+                    last_error = run.error
+                else:
+                    last_error = run.verification_error or "unknown_error"
                 target = self._choose_repair_target(
                     run=run,
                     attempt=attempt,
@@ -593,7 +768,7 @@ class ValidationMixin:
                     "metadata": {
                         **(package.metadata or {}),
                         "validation_error": last_error,
-                        "data_profile": json.dumps(metadata_profile, ensure_ascii=False)[:4000],
+                        "data_profile": self._safe_metadata_json(metadata_profile),
                     }
                 }
             )
@@ -898,9 +1073,11 @@ class ValidationMixin:
                     break
         
         if all_arrays_empty and any(isinstance(v, (list, dict)) for v in data.values()):
-            # If we have array/dict fields but they're all empty, it's not meaningful
             array_fields = [k for k, v in data.items() if isinstance(v, (list, dict))]
-            return False, f"All array/dict fields are empty: {array_fields}"
+            non_collection_values = [v for v in data.values() if not isinstance(v, (list, dict))]
+            non_collection_meaningful = any(_is_meaningful_value(v) for v in non_collection_values)
+            if not non_collection_meaningful:
+                return False, f"All array/dict fields are empty: {array_fields}"
         
         # Pattern 2: All counts are zero (common pattern: total_count: "0", hotels: [])
         count_fields = [k for k in data.keys() if "count" in k.lower() or "total" in k.lower() or "num" in k.lower()]

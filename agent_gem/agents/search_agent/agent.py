@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from os.path import exists
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
@@ -57,6 +59,8 @@ class SearchAgent(
     embedding: SentenceTransformer = None
     faiss_index: faiss.Index = None
     text_mapping: Dict = {}
+    _file_lock: threading.Lock = None
+    _index_lock: threading.Lock = None
 
     def generate(
         self, request: GenerationRequest, output_file: Optional[str] = None
@@ -97,6 +101,7 @@ class SearchAgent(
         )
 
         # Optional: Load embedding model and faiss index
+        idx = 0  # Initialize idx for all cases
         if request.embedding_path:
             self.embedding = SentenceTransformer(request.embedding_path)
             if exists(request.faiss_index_path):
@@ -108,9 +113,10 @@ class SearchAgent(
                 with open(request.text_mapping_path, "r") as f:
                     self.text_mapping = json.load(f)
                 idx = len(self.text_mapping)
-            else:
-                idx = 0
-            breakpoint()
+
+            # Initialize locks for thread-safe operations
+            self._file_lock = threading.Lock()
+            self._index_lock = threading.Lock()
 
         # Get tool call map wrapped with request constraints
         tool_call_map = self._get_tool_call_map_for_request(request)
@@ -127,79 +133,151 @@ class SearchAgent(
         )
         logger.info(f"Sampled {len(entities)} entities")
 
-        # Step 2: Question Construction
+        # Initialize locks if not already initialized (for cases without embedding)
+        if self._file_lock is None:
+            self._file_lock = threading.Lock()
+        if self._index_lock is None:
+            self._index_lock = threading.Lock()
+
+        # Get max_workers from request, default to 4
+        max_workers = getattr(request, "max_workers", 4)
+        if max_workers <= 0:
+            max_workers = 4
+
+        # Step 2 & 3: Parallel processing of entities and questions
         results: List[Dict[str, Any]] = []
-        for entity in entities:
-            logger.info(f"Constructing questions for entity: {entity.name}")
-            task_list = self._construct_question(
-                llm=self.llm,
-                tools=self._get_tools_info(),
-                tool_call_map=tool_call_map,
-                entity=entity,
-                num_tasks=request.num_tasks_each_entity,
-            )
+        idx_counter = (
+            [idx] if request.embedding_path else [0]
+        )  # Use list to allow modification in nested functions
 
-            logger.info(f"Generated {len(task_list)} questions for {entity.name}")
-
-            # Step 3: Answer Generation and Verification
-            for qa_pair in task_list:
-                logger.info(f"Generating answers for question: {qa_pair.question[:50]}...")
-
-                candidates = self._generate_answers(
+        def process_entity(entity: Entity) -> List[Dict[str, Any]]:
+            """Process a single entity: construct questions and generate answers."""
+            entity_results = []
+            try:
+                logger.info(f"Constructing questions for entity: {entity.name}")
+                task_list = self._construct_question(
                     llm=self.llm,
                     tools=self._get_tools_info(),
                     tool_call_map=tool_call_map,
-                    qa_pair=qa_pair,
+                    entity=entity,
+                    num_tasks=request.num_tasks_each_entity,
                 )
-                logger.info(f"Generated {len(candidates)} candidate answers")
+                logger.info(f"Generated {len(task_list)} questions for {entity.name}")
 
-                should_retain, verification_results = self._verify_candidates(
-                    llm=self.llm,
-                    qa_pair=qa_pair,
-                    candidates=candidates,
-                    require_all_incorrect=request.require_all_incorrect,
-                )
+                # Process questions in parallel
+                def process_qa_pair(qa_pair) -> Optional[Dict[str, Any]]:
+                    """Process a single question-answer pair."""
+                    try:
+                        logger.info(f"Generating answers for question: {qa_pair.question[:50]}...")
+                        candidates = self._generate_answers(
+                            llm=self.llm,
+                            tools=self._get_tools_info(),
+                            tool_call_map=tool_call_map,
+                            qa_pair=qa_pair,
+                        )
+                        logger.info(f"Generated {len(candidates)} candidate answers")
 
-                if should_retain:
-                    result_item = {
-                        "task_id": str(uuid.uuid4()),
-                        "question": qa_pair.question,
-                        "answer": qa_pair.answer,
-                        "entity": qa_pair.entity.name,
-                        "domain": qa_pair.entity.domain,
-                        "pageview": qa_pair.entity.pageview,
-                        "parent": qa_pair.entity.parent.name if qa_pair.entity.parent else None,
-                        "search_context": qa_pair.search_context,
-                        "all_search_context": qa_pair.all_search_context,
-                        "candidates": [candidate.answer for candidate in candidates],
-                        "verification_results": [result.is_correct for result in verification_results],
+                        should_retain, verification_results = self._verify_candidates(
+                            llm=self.llm,
+                            qa_pair=qa_pair,
+                            candidates=candidates,
+                            require_all_incorrect=request.require_all_incorrect,
+                        )
+
+                        if should_retain:
+                            result_item = {
+                                "task_id": str(uuid.uuid4()),
+                                "question": qa_pair.question,
+                                "answer": qa_pair.answer,
+                                "entity": qa_pair.entity.name,
+                                "domain": qa_pair.entity.domain,
+                                "pageview": qa_pair.entity.pageview,
+                                "parent": qa_pair.entity.parent.name if qa_pair.entity.parent else None,
+                                "search_context": qa_pair.search_context,
+                                "all_search_context": qa_pair.all_search_context,
+                                "candidates": [candidate.answer for candidate in candidates],
+                                "verification_results": [
+                                    result.is_correct for result in verification_results
+                                ],
+                            }
+                            logger.info(f"Retained QA pair for entity: {entity.name}")
+
+                            # Thread-safe file writing
+                            if output_file:
+                                with self._file_lock:
+                                    self._append_to_json_file(output_file, result_item)
+
+                            # Thread-safe embedding and index update
+                            if self.embedding and self.faiss_index:
+                                all_search_context = []
+                                chunk_to_original = {}  # Map chunks to original text
+                                for text in qa_pair.all_search_context:
+                                    chunks = self._chunk_context(text)
+                                    all_search_context.extend(chunks)
+                                    for chunk in chunks:
+                                        chunk_to_original[chunk] = text
+
+                                # Generate embeddings
+                                with torch.no_grad():
+                                    search_embeddings = self.embedding.encode(all_search_context)
+                                    if len(search_embeddings.shape) == 1:
+                                        search_embeddings = search_embeddings.reshape(1, -1)
+
+                                # Thread-safe index and mapping update
+                                with self._index_lock:
+                                    current_idx = idx_counter[0]
+                                    for chunk in all_search_context:
+                                        self.text_mapping[current_idx] = {
+                                            "chunk_text": chunk,
+                                            "original_text": chunk_to_original.get(chunk, ""),
+                                        }
+                                        current_idx += 1
+                                    idx_counter[0] = current_idx
+
+                                    self.faiss_index.add(search_embeddings)
+                                    torch.cuda.empty_cache()
+
+                                    # Save index and mapping periodically (every 10 items)
+                                    if current_idx % 10 == 0:
+                                        faiss.write_index(self.faiss_index, request.faiss_index_path)
+                                        with open(request.text_mapping_path, "w") as f:
+                                            json.dump(self.text_mapping, f, indent=2, ensure_ascii=False)
+
+                            return result_item
+                        return None
+                    except Exception as e:
+                        logger.error(f"Error processing QA pair: {e}", exc_info=True)
+                        return None
+
+                # Process questions in parallel
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_qa = {
+                        executor.submit(process_qa_pair, qa_pair): qa_pair for qa_pair in task_list
                     }
-                    results.append(result_item)
-                    logger.info(f"Retained QA pair for entity: {entity.name}")
+                    for future in as_completed(future_to_qa):
+                        result = future.result()
+                        if result:
+                            entity_results.append(result)
 
-                    if output_file:
-                        self._append_to_json_file(output_file, result_item)
+            except Exception as e:
+                logger.error(f"Error processing entity {entity.name}: {e}", exc_info=True)
 
-                    if self.embedding and self.faiss_index:
-                        all_search_context = []
-                        for text in qa_pair.all_search_context:
-                            chunks = self._chunk_context(text)
-                            all_search_context.extend(chunks)
-                            for chunk in chunks:
-                                self.text_mapping[idx] = {
-                                    "chunk_text": chunk,
-                                    "original_text": text,
-                                }
-                                idx += 1
-                        with torch.no_grad():
-                            search_embeddings = self.embedding.encode(all_search_context)
-                            if len(search_embeddings.shape) == 1:
-                                search_embeddings = search_embeddings.reshape(1, -1)
-                            self.faiss_index.add(search_embeddings)
-                        torch.cuda.empty_cache()
-                        faiss.write_index(self.faiss_index, request.faiss_index_path)
-                        with open(request.text_mapping_path, "w") as f:
-                            json.dump(self.text_mapping, f, indent=2, ensure_ascii=False)
+            return entity_results
+
+        # Process entities in parallel
+        logger.info(f"Starting parallel processing with {max_workers} workers")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_entity = {executor.submit(process_entity, entity): entity for entity in entities}
+            for future in as_completed(future_to_entity):
+                entity_results = future.result()
+                results.extend(entity_results)
+
+        # Final save of index and mapping if embedding is used
+        if self.embedding and self.faiss_index and request.faiss_index_path:
+            with self._index_lock:
+                faiss.write_index(self.faiss_index, request.faiss_index_path)
+                with open(request.text_mapping_path, "w") as f:
+                    json.dump(self.text_mapping, f, indent=2, ensure_ascii=False)
 
         logger.info(f"Generated {len(results)} verified question-answer pairs")
         return results
