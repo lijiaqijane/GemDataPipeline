@@ -25,10 +25,20 @@ except Exception:  # noqa: BLE001
     RawSweTask = None  # type: ignore[assignment]
     RawTask = None  # type: ignore[assignment]
 
+try:  # pragma: no cover - optional imports
+    from .pr_annotator import PRAnnotator, PRAnnotatorConfig, PRAnnotation
+except Exception:  # noqa: BLE001
+    PRAnnotator = None  # type: ignore[assignment]
+    PRAnnotatorConfig = None  # type: ignore[assignment]
+    PRAnnotation = None  # type: ignore[assignment]
+
 __all__ = [
     "CodeAgent",
     "EnvironmentSetupAgent",
     "TaskExecutor",
     "RawSweTask",
     "RawTask",
+    "PRAnnotator",
+    "PRAnnotatorConfig",
+    "PRAnnotation",
 ]

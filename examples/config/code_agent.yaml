@@ -16,12 +16,12 @@ repo_crawler:
     
     # Repository size in KB
     size:
-      max: 204800  # 200MB
+      max: 307200  # 300MB
     
     # Code line count range (estimated)
     line_count:
       min: 200
-      max: 50000
+      max: 500000
     
     # Recently updated within days
     updated_within_days: 730  # 2 years
@@ -62,12 +62,12 @@ repo_crawler:
     require_main_package: false
     
     # Maximum number of repositories to crawl
-    max_repos: 100
+    max_repos: 1000
     
     # Maximum number of pages to search per query (prevents infinite crawling)
     # Each page contains up to 30 results, so max_pages: 10 means max 300 results per query
     # Recommended: 5-20 pages depending on your needs
-    max_pages: 200
+    max_pages: 1000
   
   # Output settings
   output:
@@ -97,9 +97,9 @@ repo_crawler:
     # Sleep between requests to avoid rate limiting (seconds)
     sleep_between_requests: 1
 
-# ===== PR Extractor Settings =====
-pr_extractor:
-  # List of repositories to extract PRs from (format: owner/repo)
+# ===== PR Crawler Settings =====
+pr_crawler:
+  # List of repositories to crawl PRs from (format: owner/repo)
   # Can be a list or comma-separated string
   # Example:
   #   repos:
@@ -107,37 +107,38 @@ pr_extractor:
   #     - pallets/flask
   repos: []
 
-  # Optional: load repositories from RepoCrawler output summary.
-  # If 'repos' above is empty and this path is set, PRExtractor will read
-  # the RepoCrawler summary.json and use its "repositories[*].full_name"
-  # as the repo list.
+  # Optional: load repositories from RepoCrawler output directory by scanning
+  # subdirectories in format {owner}/{repo}/metadata.json.
+  # If 'repos' above is empty and this path is set, PRCrawler will scan
+  # the directory structure and extract repo names from existing folders.
+  # This is useful when you want to extract PRs only for repos that have
+  # already been crawled (with metadata.json present).
+  # Example: taskdb/code_agent/repos -> scans for scikit-learn/scikit-learn/metadata.json
+  repos_from_repo_crawler_dir: taskdb/code_agent/repos
+  
+  # Optional: load repositories from RepoCrawler output summary.json.
+  # If 'repos' above is empty and repos_from_repo_crawler_dir is not set,
+  # PRCrawler will read the RepoCrawler summary.json and use its
+  # "repositories[*].full_name" as the repo list.
   # You can point either to the summary.json file itself, or to the
   # directory that contains it (RepoCrawler save_dir).
-  # For example, with repo_crawler.output.save_dir: taskdb/code_agent/repos,
-  # the corresponding summary file is taskdb/code_agent/repos/summary.json.
+  # Note: repos_from_repo_crawler_dir takes precedence over this option.
   repos_from_repo_crawler_summary: taskdb/code_agent/repos/summary.json
   
   # Output settings
   output:
-    # Directory to save extracted PR data
+    # Directory to save crawled PR data
     save_dir: taskdb/code_agent/prs
     
     # Overwrite existing PR files if they exist
     overwrite_existing: false
   
-  # Task instance generation settings
-  # Whether to generate task instances from extracted PRs
-  generate_tasks: true
-  
-  # Directory to save task instances (defaults to ../tasks relative to prs directory)
-  task_output_dir: taskdb/code_agent/candidate_tasks
-  
   # PR filtering settings
-  # Maximum number of PRs to extract per repository (null = no limit)
+  # Maximum number of PRs to crawl per repository (null = no limit)
   max_pulls: 1000
   
   # Cutoff date for PRs to consider (format: YYYYMMDD, null = no cutoff)
-  # Only PRs created before this date will be extracted
+  # Only PRs created before this date will be crawled
   cutoff_date: null
   
   # GitHub API settings
@@ -164,6 +165,47 @@ pr_extractor:
   use_parallel: false
 
 
+# ===== PR Annotator Settings =====
+pr_annotator:
+  # Input settings
+  # Option 1: Specify a single input file
+  input_file: taskdb/code_agent/prs/bmaltais-kohya_ss-prs-valid.jsonl  # Path to valid PR JSONL file (e.g., taskdb/code_agent/prs/repo-prs-valid.jsonl)
+  
+  # Option 2: Specify a directory containing valid PR files
+  # PR Annotator will process all *-prs-valid.jsonl files in this directory
+  input_dir: taskdb/code_agent/prs
+  
+  # Output settings
+  output:
+    # Directory to save annotation results
+    save_dir: taskdb/code_agent/pr_annotations
+    
+    # Optional: specific output file name (if not set, auto-generated from input filename)
+    file_name: null
+  
+  # Processing settings
+  # Maximum number of PRs to annotate (null = no limit)
+  max_prs: null
+  
+  # Whether to resume from existing annotations (skip already annotated PRs)
+  resume: true
+  
+  # LLM settings
+  llm:
+    # Temperature for LLM (lower = more consistent, higher = more creative)
+    temperature: 0.3
+    
+    # Maximum tokens for LLM response
+    max_tokens: 2048
+  
+  # Retry settings
+  # Maximum number of retries for failed LLM annotations
+  max_retries: 3
+  
+  # Delay in seconds between retries
+  retry_delay: 1.0
+
+
 # ===== Task Execution Settings =====
 task_execution:
   # Output directory for task execution results
@@ -181,7 +223,7 @@ task_execution:
   # Task input settings
   # Task mapping file path (required)
   # Supports both JSON and JSONL formats
-  tasks_map_file: taskdb/code_agent/candidate_tasks/nvbn-thefuck-task-instances.jsonl  # Required: Path to tasks map file
+  tasks_map_file: taskdb/code_agent/candidate_tasks/scikit-learn-scikit-learn-task-instances.jsonl  # Required: Path to tasks map file
   
   # Root directory where repository caches and task directories will be created
   setup_dir: taskdb/code_agent/setup  # Required: Path to setup directory

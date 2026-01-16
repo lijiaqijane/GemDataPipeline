@@ -550,6 +550,47 @@ class TaskExecutor:
         logger.info(run_status_message)
         return run_ok
     
+    def cleanup_dangling_images(self, client: docker.DockerClient) -> None:
+        """
+        Remove all Docker images with <none> tag (dangling images).
+        
+        Args:
+            client: Docker client instance
+        """
+        try:
+            # Get all images including dangling ones
+            all_images = client.images.list(all=True)
+            removed_count = 0
+            
+            for image in all_images:
+                # Check if image has no tags or only <none> tags
+                # Dangling images have empty tags list or tags like '<none>:<none>'
+                is_dangling = (
+                    not image.tags or 
+                    all(tag.startswith('<none>') or tag == '<none>:<none>' for tag in image.tags)
+                )
+                
+                if is_dangling:
+                    try:
+                        client.images.remove(image.id, force=True)
+                        removed_count += 1
+                        logger.debug(f"Removed dangling image: {image.id[:12]}")
+                    except docker.errors.ImageNotFound:
+                        # Image already removed, skip
+                        pass
+                    except docker.errors.APIError as e:
+                        # Some images may be in use (e.g., used by containers), skip them
+                        logger.debug(f"Could not remove image {image.id[:12]}: {e}")
+                        pass
+                    except Exception as e:
+                        logger.warning(f"Unexpected error removing image {image.id[:12]}: {e}")
+                        pass
+            
+            if removed_count > 0:
+                logger.info(f"Cleaned up {removed_count} dangling image(s)")
+        except Exception as e:
+            logger.warning(f"Error cleaning up dangling images: {e}")
+
     def do_inference(
         self,
         python_task: Task,
@@ -596,6 +637,11 @@ class TaskExecutor:
         finally:
             if hasattr(python_task, 'remove_project'):
                 python_task.remove_project()
+            # Clean up dangling images before closing client
+            try:
+                self.cleanup_dangling_images(client)
+            except Exception as e:
+                logger.warning(f"Failed to cleanup dangling images: {e}")
             if client:
                 client.close()
         

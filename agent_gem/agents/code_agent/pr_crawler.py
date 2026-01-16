@@ -24,48 +24,43 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ExtractionStats:
-    """Statistics from PR extraction and task generation."""
+class CrawlingStats:
+    """Statistics from PR crawling and valid PR filtering."""
     
     total_repos: int = 0
-    total_prs_extracted: int = 0
-    total_task_instances: int = 0
-    total_task_instances_with_tests: int = 0
-    pr_files: List[Path] = field(default_factory=list)
-    task_files: List[Path] = field(default_factory=list)  # Files with tests only
-    task_files_all: List[Path] = field(default_factory=list)  # Files with all tasks (including no tests)
-    repo_stats: Dict[str, Dict[str, int]] = field(default_factory=dict)  # repo_name -> {prs, tasks, tasks_with_tests}
+    total_prs: int = 0
+    total_processed_prs: int = 0
+    total_valid_prs: int = 0
+    valid_pr_files: List[Path] = field(default_factory=list) 
+    repo_stats: Dict[str, Dict[str, int]] = field(default_factory=dict)  # repo_name -> {totalprs, processed_prs, valid_prs}
     
     def __str__(self) -> str:
         """Format statistics as a readable string."""
         lines = [
             "=" * 80,
-            "📊 Extraction Statistics",
+            "📊 Crawling Statistics",
             "=" * 80,
             f"Repositories processed: {self.total_repos}",
-            f"Total PRs extracted: {self.total_prs_extracted}",
-            f"Total task instances: {self.total_task_instances}",
-            f"Task instances with tests: {self.total_task_instances_with_tests}",
+            f"Total PRs crawled: {self.total_prs}",
+            f"Total processed PRs: {self.total_processed_prs}",
+            f"Total valid PRs: {self.total_valid_prs}",
             "",
             "Per Repository:",
         ]
         
         for repo_name, stats in self.repo_stats.items():
             lines.append(f"  {repo_name}:")
-            lines.append(f"    - PRs: {stats.get('prs', 0)}")
-            lines.append(f"    - Tasks: {stats.get('tasks', 0)}")
-            lines.append(f"    - Tasks with tests: {stats.get('tasks_with_tests', 0)}")
+            lines.append(f"    - Total PRs: {stats.get('total_prs', 0)}")
+            lines.append(f"    - Processed PRs: {stats.get('processed_prs', 0)}")
+            lines.append(f"    - Valid PRs: {stats.get('valid_prs', 0)}")
         
         lines.extend([
             "",
             "Output Files:",
-            f"  PR files: {len(self.pr_files)}",
-            f"  Task files (with tests only): {len(self.task_files)}",
-            f"  Task files (all, including no tests): {len(self.task_files_all)}",
+            f"  Valid PR files: {len(self.valid_pr_files)}",
             "",
             "Note:",
-            "  - Task files with '.jsonl' extension contain only tasks with tests",
-            "  - Task files with '.all.jsonl' extension contain all valid tasks (including those without tests)",
+            "  - Valid PR files with '.jsonl' extension contain only valid PRs",
             "=" * 80,
         ])
         
@@ -73,7 +68,7 @@ class ExtractionStats:
 
 
 @dataclass
-class PRExtractorConfig:
+class PRCrawlerConfig:
     """Configuration for PR extraction settings."""
     
     # Repository settings
@@ -81,14 +76,14 @@ class PRExtractorConfig:
     # Optional path to RepoCrawler summary.json; when provided and
     # 'repos' is empty, the repo list will be populated from this file.
     repos_from_repo_crawler_summary: Optional[str] = None
+    # Optional path to RepoCrawler output directory (e.g., taskdb/code_agent/repos);
+    # when provided and 'repos' is empty, the repo list will be populated by scanning
+    # subdirectories in format {owner}/{repo}/metadata.json
+    repos_from_repo_crawler_dir: Optional[str] = None
     
     # Output settings
     output_dir: str = "taskdb/code_agent/prs"
     overwrite_existing: bool = False
-    
-    # Task instance generation settings
-    generate_tasks: bool = True  # Whether to generate task instances from PRs
-    task_output_dir: Optional[str] = None  # Directory to save task instances (defaults to output_dir/../tasks)
     
     # PR filtering settings
     max_pulls: Optional[int] = None  # Maximum number of PRs to extract per repo
@@ -107,29 +102,29 @@ class PRExtractorConfig:
     use_parallel: bool = False  # Whether to use parallel processing with multiple tokens
 
 
-class PRExtractor:
+class PRCrawler:
     """
-    Pull Request Extractor for GitHub repositories.
+    Pull Request Crawler for GitHub repositories.
     
-    This class extracts pull request data from given repositories and saves them
+    This class crawls pull request data from given repositories and saves them
     in JSONL format.
     
     Example:
-        >>> config = PRExtractorConfig(repos=["scikit-learn/scikit-learn"])
-        >>> extractor = PRExtractor(config)
-        >>> extractor.extract_all()
+        >>> config = PRCrawlerConfig(repos=["scikit-learn/scikit-learn"])
+        >>> crawler = PRCrawler(config)
+        >>> crawler.crawl_all()
         
         # Or load from YAML
-        >>> extractor = PRExtractor.load_config_from_yaml("config/code_agent.yaml")
-        >>> extractor.extract_all()
+        >>> crawler = PRCrawler.load_config_from_yaml("config/code_agent.yaml")
+        >>> crawler.crawl_all()
     """
     
-    def __init__(self, config: PRExtractorConfig):
+    def __init__(self, config: PRCrawlerConfig):
         """
-        Initialize the PR extractor.
+        Initialize the PR crawler.
         
         Args:
-            config: PR extraction configuration
+            config: PR crawling configuration
         """
         self.config = config
         
@@ -149,34 +144,26 @@ class PRExtractor:
         # Prepare output directory
         self.output_dir = Path(config.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
         
-        # Prepare task output directory
-        if config.task_output_dir:
-            self.task_output_dir = Path(config.task_output_dir)
-        else:
-            # Default to ../tasks relative to prs directory
-            self.task_output_dir = self.output_dir.parent / "tasks"
-        self.task_output_dir.mkdir(parents=True, exist_ok=True)
-        
-        logger.info(f"[PRExtractor] Initialized with output directory: {self.output_dir}")
-        if config.generate_tasks:
-            logger.info(f"[PRExtractor] Task instances will be saved to: {self.task_output_dir}")
-        logger.info(f"[PRExtractor] Will extract PRs from {len(config.repos)} repositories")
+        logger.info(f"[PRCrawler] Initialized with output directory: {self.output_dir}")
+
+        logger.info(f"[PRCrawler] Will crawl PRs from {len(config.repos)} repositories")
         if self.github_token or self.github_tokens:
-            logger.info("[PRExtractor] Using authenticated GitHub API")
+            logger.info("[PRCrawler] Using authenticated GitHub API")
         else:
-            logger.warning("[PRExtractor] No GitHub token found, using unauthenticated API (lower rate limits)")
+            logger.warning("[PRCrawler] No GitHub token found, using unauthenticated API (lower rate limits)")
     
     @classmethod
-    def load_config_from_yaml(cls, yaml_path: str | Path) -> "PRExtractor":
+    def load_config_from_yaml(cls, yaml_path: str | Path) -> "PRCrawler":
         """
-        Load configuration from YAML file and create PRExtractor instance.
+        Load configuration from YAML file and create PRCrawler instance.
         
         Args:
             yaml_path: Path to the YAML configuration file
             
         Returns:
-            PRExtractor instance with loaded configuration
+            PRCrawler instance with loaded configuration
             
         Raises:
             FileNotFoundError: If the YAML file does not exist
@@ -189,17 +176,50 @@ class PRExtractor:
         with open(yaml_path, 'r') as f:
             config_data = yaml.safe_load(f)
         
-        if 'pr_extractor' not in config_data:
-            logger.warning("No 'pr_extractor' section in config, using defaults")
-            return cls(PRExtractorConfig())
+        if 'pr_crawler' not in config_data:
+            logger.warning("No 'pr_crawler' section in config, using defaults")
+            return cls(PRCrawlerConfig())
         
-        pr_config = config_data['pr_extractor']
+        pr_config = config_data['pr_crawler']
         
         # Parse repository list
         repos = pr_config.get('repos', [])
         if isinstance(repos, str):
             # Handle comma-separated string
             repos = [r.strip() for r in repos.split(',')]
+
+        # Optionally populate repos from RepoCrawler directory (scanning {owner}/{repo}/metadata.json)
+        repos_from_dir = pr_config.get('repos_from_repo_crawler_dir')
+        if (not repos) and repos_from_dir:
+            repos_dir_path = Path(repos_from_dir)
+            try:
+                if repos_dir_path.exists() and repos_dir_path.is_dir():
+                    # Scan for {owner}/{repo}/metadata.json pattern
+                    for owner_dir in repos_dir_path.iterdir():
+                        if owner_dir.is_dir() and not owner_dir.name.startswith('.'):
+                            for repo_dir in owner_dir.iterdir():
+                                if repo_dir.is_dir() and not repo_dir.name.startswith('.'):
+                                    metadata_file = repo_dir / "metadata.json"
+                                    if metadata_file.exists():
+                                        # Use directory structure as repo name
+                                        full_name = f"{owner_dir.name}/{repo_dir.name}"
+                                        repos.append(full_name)
+                    logger.info(
+                        "[PRCrawler] Loaded %d repositories from RepoCrawler directory: %s",
+                        len(repos),
+                        repos_dir_path,
+                    )
+                else:
+                    logger.warning(
+                        "[PRCrawler] repos_from_repo_crawler_dir path does not exist or is not a directory: %s",
+                        repos_dir_path,
+                    )
+            except Exception as e:
+                logger.error(
+                    "[PRCrawler] Failed to load repos from RepoCrawler directory %s: %s",
+                    repos_dir_path,
+                    e,
+                )
 
         # Optionally populate repos from RepoCrawler summary.json
         repos_from_summary = pr_config.get('repos_from_repo_crawler_summary')
@@ -218,18 +238,18 @@ class PRExtractor:
                         if isinstance(entry, dict) and "full_name" in entry
                     ]
                     logger.info(
-                        "[PRExtractor] Loaded %d repositories from RepoCrawler summary: %s",
+                        "[PRCrawler] Loaded %d repositories from RepoCrawler summary: %s",
                         len(repos),
                         summary_path,
                     )
                 else:
                     logger.warning(
-                        "[PRExtractor] repos_from_repo_crawler_summary path does not exist: %s",
+                        "[PRCrawler] repos_from_repo_crawler_summary path does not exist: %s",
                         summary_path,
                     )
             except Exception as e:
                 logger.error(
-                    "[PRExtractor] Failed to load repos from RepoCrawler summary %s: %s",
+                    "[PRCrawler] Failed to load repos from RepoCrawler summary %s: %s",
                     summary_path,
                     e,
                 )
@@ -258,13 +278,10 @@ class PRExtractor:
         # Parse parallelization settings
         use_parallel = pr_config.get('use_parallel', False)
         
-        # Parse task generation settings
-        generate_tasks = pr_config.get('generate_tasks', True)
-        task_output_dir = pr_config.get('task_output_dir')
-        
-        config = PRExtractorConfig(
+        config = PRCrawlerConfig(
             repos=repos,
             repos_from_repo_crawler_summary=repos_from_summary,
+            repos_from_repo_crawler_dir=repos_from_dir,
             output_dir=output_dir,
             overwrite_existing=overwrite_existing,
             max_pulls=max_pulls,
@@ -274,25 +291,21 @@ class PRExtractor:
             state=state,
             sort=sort,
             direction=direction,
-            use_parallel=use_parallel,
-            generate_tasks=generate_tasks,
-            task_output_dir=task_output_dir,
+            use_parallel=use_parallel
         )
         
         return cls(config)
     
-    def extract_prs_from_repo(
+    def crawl_prs_from_repo(
         self,
         repo_name: str,
-        output_path: Optional[Path] = None,
         token: Optional[str] = None,
     ) -> tuple[Path, int]:
         """
-        Extract all PRs from a single repository.
+        Crawl all PRs from a single repository.
         
         Args:
             repo_name: Repository name in format "owner/repo"
-            output_path: Optional output file path (defaults to output_dir/{repo}-prs.jsonl)
             token: Optional GitHub token (uses instance token if not provided)
             
         Returns:
@@ -308,16 +321,15 @@ class PRExtractor:
         repo = repo.strip()
         
         # Determine output path
-        if output_path is None:
-            repo_slug = repo_name.replace("/", "-")
-            filename = f"{repo_slug}-prs.jsonl"
-            if self.config.cutoff_date:
-                filename = filename.replace(".jsonl", f"-{self.config.cutoff_date}.jsonl")
-            output_path = self.output_dir / filename
+        repo_slug = repo_name.replace("/", "-")
+        filename = f"{repo_slug}-prs-all.jsonl"
+        if self.config.cutoff_date:
+            filename = filename.replace(".jsonl", f"-{self.config.cutoff_date}.jsonl")
+        output_path = self.output_dir / filename
         
         # Check if file already exists
         if output_path.exists() and not self.config.overwrite_existing:
-            logger.info(f"📁 PR data for {repo_name} already exists at {output_path}, skipping...")
+            logger.info(f"📁 Raw PRs for {repo_name} already exist at {output_path}, skipping...")
             # Count existing PRs
             pr_count = sum(1 for _ in open(output_path))
             return output_path, pr_count
@@ -325,7 +337,7 @@ class PRExtractor:
         # Use provided token or instance token
         use_token = token or self.github_token
         
-        logger.info(f"Extracting PRs from {repo_name}...")
+        logger.info(f"Crawling PRs from {repo_name}...")
         logger.info(f"Will save to {output_path}")
         
         # Create Repo object
@@ -338,7 +350,7 @@ class PRExtractor:
                 self.config.cutoff_date, "%Y%m%d"
             ).strftime("%Y-%m-%dT%H:%M:%SZ")
         
-        # Extract PRs
+        # Crawl PRs
         pr_count = 0
         with open(output_path, "w") as f:
             for i_pull, pull in enumerate(repo_obj.get_all_pulls(
@@ -366,49 +378,44 @@ class PRExtractor:
         logger.info(f"✅ Successfully extracted {pr_count} PRs from {repo_name} to {output_path}")
         return output_path, pr_count
     
-    def build_task_instances_from_pr_file(
+    def filter_valid_prs_from_pr_file(
         self,
         pr_file: Path,
-        task_output_path: Optional[Path] = None,
         token: Optional[str] = None,
-    ) -> tuple[Path, Path, int, int]:
+    ) -> tuple[Path, int, int, int]:
         """
-        Create task instances from a PR JSONL file.
+        Filter valid PRs from a PR JSONL file.
         
         Args:
             pr_file: Path to PR JSONL file
-            task_output_path: Optional output file path (defaults to task_output_dir/{repo}-task-instances.jsonl)
             token: Optional GitHub token (uses instance token if not provided)
             
         Returns:
-            Path to the task instances output file
+            Path to the valid PRs output file
         """
         if not pr_file.exists():
             raise FileNotFoundError(f"PR file not found: {pr_file}")
         
-        # Determine output path
-        if task_output_path is None:
-            # Extract repo name from PR filename (e.g., "pandas-prs.jsonl" -> "pandas")
-            repo_name = pr_file.stem.replace("-prs", "").replace(".jsonl", "")
-            if self.config.cutoff_date:
-                repo_name = repo_name.replace(f"-{self.config.cutoff_date}", "")
-            filename = f"{repo_name}-task-instances.jsonl"
-            task_output_path = self.task_output_dir / filename
+        # Extract repo name from PR filename (e.g., "pandas-prs.jsonl" -> "pandas")
+        repo_name = pr_file.stem.replace("-prs-all", "").replace(".jsonl", "")
+        if self.config.cutoff_date:
+            repo_name = repo_name.replace(f"-{self.config.cutoff_date}", "")
+        filename = f"{repo_name}-prs-valid.jsonl"
+        valid_output_path = self.output_dir / filename
         
         # Check if file already exists
-        all_output = task_output_path.parent / f"{task_output_path.stem}.all.jsonl"
-        if all_output.exists() and not self.config.overwrite_existing:
-            logger.info(f"📁 Task instances for {pr_file.name} already exist at {all_output}, skipping...")
-            # Count existing tasks
-            total_tasks = sum(1 for _ in open(all_output))
-            tasks_with_tests = sum(1 for _ in open(task_output_path)) if task_output_path.exists() else 0
-            return task_output_path, all_output, total_tasks, tasks_with_tests
+        if valid_output_path.exists() and not self.config.overwrite_existing:
+            logger.info(f"📁 Valid PRs for {pr_file.name} already exist at {valid_output_path}, skipping...")
+            # Count existing processed PRs
+            processed_prs = sum(1 for _ in open(pr_file))
+            valid_prs = sum(1 for _ in open(valid_output_path))
+            return valid_output_path, processed_prs, valid_prs
         
         # Use provided token or instance token
         use_token = token or self.github_token
         
-        logger.info(f"Building task instances from {pr_file.name}...")
-        logger.info(f"Will save to {task_output_path}")
+        logger.info(f"Filtering valid PRs from {pr_file.name}...")
+        logger.info(f"Will save to {valid_output_path}")
         
         def load_repo(repo_name: str) -> Repo:
             """Return repo object for a given repo name."""
@@ -416,14 +423,13 @@ class PRExtractor:
             return Repo(owner, repo, token=use_token)
         
         repos = {}
-        completed = 0
-        with_tests = 0
-        total_instances = 0
+        processed_prs = 0
+        valid_prs = 0
         seen_prs = set()
         
         # Continue where we left off if output file already exists
-        if all_output.exists():
-            with open(all_output) as f:
+        if valid_output_path.exists():
+            with open(valid_output_path) as f:
                 for line in f:
                     pr = json.loads(line)
                     if "instance_id" not in pr:
@@ -433,69 +439,61 @@ class PRExtractor:
                     instance_id = pr["instance_id"]
                     seen_prs.add(instance_id)
                     if self._is_valid_instance(pr):
-                        completed += 1
-                        if self._has_test_patch(pr):
-                            with_tests += 1
+                        valid_prs += 1
+                    processed_prs += 1
         
         logger.info(f"Will skip {len(seen_prs)} pull requests that have already been inspected")
         
-        # Write to .all file for all PRs
-        write_mode_all = "w" if not all_output.exists() else "a"
-        with open(all_output, write_mode_all) as all_output_file:
-            # Write to output file for PRs with test suites
-            write_mode = "w" if not task_output_path.exists() else "a"
-            with open(task_output_path, write_mode) as output_file:
-                for ix, line in enumerate(open(pr_file)):
-                    total_instances += 1
-                    pull = json.loads(line)
-                    
-                    if ix % 100 == 0:
-                        repo_full_name = pull.get("base", {}).get("repo", {}).get("full_name", "unknown")
-                        logger.info(
-                            f"[{repo_full_name}] (Up to {ix} checked) "
-                            f"{completed} valid, {with_tests} with tests."
-                        )
-                    
-                    # Construct instance fields
-                    repo_full_name = pull.get("base", {}).get("repo", {}).get("full_name")
-                    if not repo_full_name:
-                        # Fallback: try to get from pull directly
-                        repo_full_name = pull.get("head", {}).get("repo", {}).get("full_name")
-                    if not repo_full_name:
-                        logger.warning(f"Could not determine repo name from PR {pull.get('number')}, skipping")
-                        continue
-                    
-                    instance_id = (repo_full_name + "-" + str(pull["number"])).replace("/", "__")
-                    if instance_id in seen_prs:
-                        seen_prs -= {instance_id}
-                        continue
-                    
-                    if not self._is_valid_pull(pull):
-                        # Throw out invalid PRs
-                        continue
-                    
-                    # Create task instance
-                    if repo_full_name not in repos:
-                        repos[repo_full_name] = load_repo(repo_full_name)
-                    repo = repos[repo_full_name]
-                    
-                    instance = self._create_instance(repo, pull)
-                    if self._is_valid_instance(instance):
-                        # If valid, write to .all output file
-                        print(json.dumps(instance), end="\n", flush=True, file=all_output_file)
-                        completed += 1
-                        if self._has_test_patch(instance):
-                            # If has test suite, write to output file
-                            print(json.dumps(instance), end="\n", flush=True, file=output_file)
-                            with_tests += 1
+        # Write to valid PRs file
+        write_mode_all = "w" if not valid_output_path.exists() else "a"
+        with open(valid_output_path, write_mode_all) as output_file:
+            for ix, line in enumerate(open(pr_file)):
+                processed_prs += 1
+                pull = json.loads(line)
+                
+                if ix % 100 == 0:
+                    repo_full_name = pull.get("base", {}).get("repo", {}).get("full_name", "unknown")
+                    logger.info(
+                        f"[{repo_full_name}] (Up to {ix} checked) "
+                        f"{valid_prs} valid PRs."
+                    )
+                
+                # Construct instance fields
+                repo_full_name = pull.get("base", {}).get("repo", {}).get("full_name")
+                if not repo_full_name:
+                    # Fallback: try to get from pull directly
+                    repo_full_name = pull.get("head", {}).get("repo", {}).get("full_name")
+                if not repo_full_name:
+                    logger.warning(f"Could not determine repo name from PR {pull.get('number')}, skipping")
+                    continue
+                
+                instance_id = (repo_full_name + "-" + str(pull["number"])).replace("/", "__")
+                if instance_id in seen_prs:
+                    seen_prs -= {instance_id}
+                    continue
+                
+                if not self._is_valid_pull(pull):
+                    # Throw out invalid PRs
+                    continue
+                
+                # Create task instance
+                if repo_full_name not in repos:
+                    repos[repo_full_name] = load_repo(repo_full_name)
+                repo = repos[repo_full_name]
+                
+                instance = self._create_instance(repo, pull)
+                if self._is_valid_instance(instance):
+                    # If valid, write to .all output file
+                    print(json.dumps(instance), end="\n", flush=True, file=output_file)
+                    valid_prs += 1
+    
         
         logger.info(
-            f"[{', '.join(repos.keys())}] Total instances: {total_instances}, completed: {completed}, with tests: {with_tests}"
+            f"[{', '.join(repos.keys())}] Processed PRs: {processed_prs}, valid PRs: {valid_prs}"
         )
-        logger.info(f"✅ Successfully generated task instances:")
-        logger.info(f"   - With tests only: {task_output_path}")
-        logger.info(f"   - All tasks (including no tests): {all_output}")
-        return task_output_path, all_output, completed, with_tests
+        logger.info(f"✅ Successfully filtered PRs:")
+        logger.info(f"   - Valid prs: {valid_output_path}")
+        return valid_output_path, processed_prs, valid_prs
     
     def _create_instance(self, repo: Repo, pull: dict) -> dict:
         """
@@ -558,6 +556,9 @@ class PRExtractor:
             return False
         if instance.get("problem_statement") is None or instance.get("problem_statement") == "":
             return False
+        test_patch = instance.get("test_patch")
+        if test_patch is None or test_patch.strip() == "":
+            return False
         return True
     
     def _has_test_patch(self, instance: dict) -> bool:
@@ -575,77 +576,46 @@ class PRExtractor:
             return False
         return True
     
-    def extract_all(self) -> ExtractionStats:
+    def crawl_all(self) -> CrawlingStats:
         """
-        Extract PRs from all configured repositories and optionally generate task instances.
+        Crawl PRs from all configured repositories and filter valid PRs.
         
         If use_parallel is True and multiple tokens are available, this will
-        parallelize the extraction across tokens.
+        parallelize the crawling across tokens.
         
         Returns:
-            ExtractionStats object with extraction statistics
+            CrawlingStats object with crawling statistics
         """
-        stats = ExtractionStats()
+        stats = CrawlingStats()
         
         if not self.config.repos:
-            logger.warning("No repositories configured for extraction")
+            logger.warning("No repositories configured for crawling")
             return stats
         
         stats.total_repos = len(self.config.repos)
         
         # If parallel extraction is enabled and multiple tokens are available,
-        # keep the existing two-phase behavior (extract first, then build).
         if self.config.use_parallel and len(self.github_tokens) > 1:
-            pr_results = self._extract_all_parallel()
+            pr_results = self._crawl_all_parallel()
             
-            # Collect PR statistics
-            for repo_name, (pr_path, pr_count) in pr_results.items():
-                stats.total_prs_extracted += pr_count
-                stats.pr_files.append(pr_path)
+            # Collect statistics (valid PRs already filtered in parallel workers)
+            for repo_name, (valid_pr_path, total_prs, processed_prs, valid_prs) in pr_results.items():
+                stats.valid_pr_files.append(valid_pr_path)
+                stats.total_prs += total_prs
+                stats.total_processed_prs += processed_prs
+                stats.total_valid_prs += valid_prs
                 stats.repo_stats[repo_name] = {
-                    "prs": pr_count,
-                    "tasks": 0,
-                    "tasks_with_tests": 0,
+                    "total_prs": total_prs,
+                    "processed_prs": processed_prs,
+                    "valid_prs": valid_prs,
                 }
-            
-            # Generate task instances if enabled
-            if self.config.generate_tasks:
-                logger.info("Generating task instances from extracted PRs...")
-                for repo_name, (pr_path, _) in pr_results.items():
-                    try:
-                        (
-                            task_path,
-                            task_path_all,
-                            total_tasks,
-                            tasks_with_tests,
-                        ) = self.build_task_instances_from_pr_file(pr_path)
-                        stats.total_task_instances += total_tasks
-                        stats.total_task_instances_with_tests += tasks_with_tests
-                        stats.task_files.append(task_path)  # Files with tests only
-                        stats.task_files_all.append(
-                            task_path_all
-                        )  # Files with all tasks
-                        
-                        # Update repo stats
-                        if repo_name in stats.repo_stats:
-                            stats.repo_stats[repo_name]["tasks"] = total_tasks
-                            stats.repo_stats[repo_name]["tasks_with_tests"] = (
-                                tasks_with_tests
-                            )
-                    except Exception as e:
-                        logger.error(
-                            "Error generating task instances from %s: %s",
-                            pr_path,
-                            e,
-                            exc_info=True,
-                        )
-                        continue
+                
         else:
             # Sequential mode: after finishing PR extraction for each repo,
-            # immediately build its task instances (if enabled).
+            # immediately filter its valid PRs (if enabled).
             logger.info(
-                "[PRExtractor] Running in sequential mode: extracting PRs and "
-                "building task instances per repository."
+                "[PRCrawler] Running in sequential mode: crawling PRs and "
+                "filtering valid PRs per repository."
             )
             
             token = self.github_token or (
@@ -655,40 +625,23 @@ class PRExtractor:
             for repo_name in self.config.repos:
                 try:
                     repo_name = repo_name.strip().strip(",").strip()
-                    pr_path, pr_count = self.extract_prs_from_repo(
+                    raw_pr_path, total_prs = self.crawl_prs_from_repo(
                         repo_name, token=token
                     )
                     
-                    # Update PR statistics
-                    stats.total_prs_extracted += pr_count
-                    stats.pr_files.append(pr_path)
+                    valid_pr_path, processed_prs, valid_prs = self.filter_valid_prs_from_pr_file(raw_pr_path)
+                    stats.valid_pr_files.append(valid_pr_path)
+                    stats.total_prs += total_prs
+                    stats.total_processed_prs += processed_prs
+                    stats.total_valid_prs += valid_prs
                     stats.repo_stats[repo_name] = {
-                        "prs": pr_count,
-                        "tasks": 0,
-                        "tasks_with_tests": 0,
+                        "total_prs": total_prs,
+                        "processed_prs": processed_prs,
+                        "valid_prs": valid_prs,
                     }
-                    
-                    # Immediately build task instances for this repo if enabled
-                    if self.config.generate_tasks:
-                        (
-                            task_path,
-                            task_path_all,
-                            total_tasks,
-                            tasks_with_tests,
-                        ) = self.build_task_instances_from_pr_file(pr_path)
-                        
-                        stats.total_task_instances += total_tasks
-                        stats.total_task_instances_with_tests += tasks_with_tests
-                        stats.task_files.append(task_path)
-                        stats.task_files_all.append(task_path_all)
-                        
-                        stats.repo_stats[repo_name]["tasks"] = total_tasks
-                        stats.repo_stats[repo_name]["tasks_with_tests"] = (
-                            tasks_with_tests
-                        )
                 except Exception as e:
                     logger.error(
-                        "Error extracting PRs or generating tasks from %s: %s",
+                        "Error crawling PRs or filtering valid PRs from %s: %s",
                         repo_name,
                         e,
                         exc_info=True,
@@ -697,24 +650,36 @@ class PRExtractor:
         
         return stats
     
-    def _extract_all_sequential(self) -> Dict[str, tuple[Path, int]]:
-        """Extract PRs sequentially from all repositories."""
+    def _crawl_all_sequential(self) -> Dict[str, tuple[Path, int, int, int]]:
+        """Crawl PRs sequentially from all repositories and filter valid PRs immediately.
+        
+        Returns:
+            Dictionary mapping repo_name to (valid_output_path, total_prs, processed_prs, valid_prs)
+        """
         results = {}
         token = self.github_token or (self.github_tokens[0] if self.github_tokens else None)
         
         for repo_name in self.config.repos:
             try:
                 repo_name = repo_name.strip().strip(",").strip()
-                output_path, pr_count = self.extract_prs_from_repo(repo_name, token=token)
-                results[repo_name] = (output_path, pr_count)
+                output_path, total_prs = self.crawl_prs_from_repo(repo_name, token=token)
+                
+                # Immediately filter valid PRs after crawling PRs for this repo
+                processed_prs, valid_prs = 0, 0
+                try:
+                    valid_output_path, processed_prs, valid_prs = self.filter_valid_prs_from_pr_file(output_path)
+                except Exception as e:
+                    logger.error(f"Error filtering valid PRs from {output_path}: {e}", exc_info=True)
+                
+                results[repo_name] = (valid_output_path, total_prs, processed_prs, valid_prs)
             except Exception as e:
                 logger.error(f"Error extracting PRs from {repo_name}: {e}", exc_info=True)
                 continue
         
         return results
     
-    def _extract_all_parallel(self) -> Dict[str, tuple[Path, int]]:
-        """Extract PRs in parallel using multiple tokens."""
+    def _crawl_all_parallel(self) -> Dict[str, tuple[Path, int, int, int]]:
+        """Crawl PRs in parallel using multiple tokens."""
         from multiprocessing import Pool
         
         def split_repos(repos: List[str], n: int) -> List[List[str]]:
@@ -738,7 +703,7 @@ class PRExtractor:
         data_pooled = [
             {
                 "repos": repo_list,
-                "extractor_config": self.config,
+                "crawler_config": self.config,
                 "output_dir": str(self.output_dir),
                 "token": token,
             }
@@ -747,7 +712,7 @@ class PRExtractor:
         
         # Process in parallel
         with Pool(len(self.github_tokens)) as p:
-            worker_results = p.map(_extract_repos_worker, data_pooled)
+            worker_results = p.map(_crawl_prs_from_repo_worker, data_pooled)
         
         # Flatten results
         results = {}
@@ -757,23 +722,23 @@ class PRExtractor:
         return results
 
 
-def _extract_repos_worker(data: dict) -> Dict[str, tuple[Path, int]]:
+def _crawl_prs_from_repo_worker(data: dict) -> Dict[str, tuple[Path, int]]:
     """
-    Worker function for parallel PR extraction.
+    Worker function for parallel PR crawling and valid PR filtering.
     
     Args:
         data: Dictionary containing repos, config, output_dir, and token
         
     Returns:
-        Dictionary mapping repo_name to (output_path, pr_count)
+        Dictionary mapping repo_name to (valid_output_path, total_prs, processed_prs, valid_prs)
     """
     repos = data["repos"]
-    config = data["extractor_config"]
+    config = data["crawler_config"]
     output_dir = Path(data["output_dir"])
     token = data["token"]
     
     # Create a temporary extractor instance for this worker
-    worker_config = PRExtractorConfig(
+    worker_config = PRCrawlerConfig(
         repos=repos,
         repos_from_repo_crawler_summary=config.repos_from_repo_crawler_summary,
         output_dir=str(output_dir),
@@ -784,10 +749,8 @@ def _extract_repos_worker(data: dict) -> Dict[str, tuple[Path, int]]:
         state=config.state,
         sort=config.sort,
         direction=config.direction,
-        use_parallel=False,  # Don't parallelize within worker
-        generate_tasks=config.generate_tasks,
-        task_output_dir=config.task_output_dir,
+        use_parallel=False
     )
     
-    extractor = PRExtractor(worker_config)
-    return extractor._extract_all_sequential()
+    crawler = PRCrawler(worker_config)
+    return crawler._crawl_all_sequential()

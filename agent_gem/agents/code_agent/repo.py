@@ -109,65 +109,65 @@ class Repo:
         return list(resolved_issues_set)
 
     def get_all_loop(
-        self,
-        func: Callable,
-        per_page: int = 100,
-        num_pages: Optional[int] = None,
-        quiet: bool = False,
-        **kwargs,
-    ) -> Iterator:
-        """
-        Return all values from a paginated API endpoint.
-
-        Args:
-            func (callable): API function to call
-            per_page (int): number of values to return per page
-            num_pages (int): number of pages to return
-            quiet (bool): whether to print progress
-            **kwargs: keyword arguments to pass to API function
-        """
-        page = 1
-        args = {
-            "owner": self.owner,
-            "repo": self.name,
-            "per_page": per_page,
+            self,
+            func: Callable,
+            per_page: int = 100,
+            num_pages: Optional[int] = None,
+            quiet: bool = False,
             **kwargs,
-        }
-        while True:
-            try:
-                # Get values from API call
-                values = func(**args, page=page)
-                yield from values
-                if len(values) == 0:
-                    break
-                if not quiet:
-                    rl = self.api.rate_limit.get()
-                    logger.info(
-                        f"[{self.owner}/{self.name}] Processed page {page} ({per_page} values per page). "
-                        f"Remaining calls: {rl.resources.core.remaining}"
-                    )
-                if num_pages is not None and page >= num_pages:
-                    break
-                page += 1
-            except Exception as e:
-                # Rate limit handling
-                logger.error(
-                    f"[{self.owner}/{self.name}] Error processing page {page} "
-                    f"w/ token {self.token[:10]} - {e}"
-                )
-                while True:
-                    rl = self.api.rate_limit.get()
-                    if rl.resources.core.remaining > 0:
+        ) -> Iterator:
+            """
+            Return all values from a paginated API endpoint.
+
+            Args:
+                func (callable): API function to call
+                per_page (int): number of values to return per page
+                num_pages (int): number of pages to return
+                quiet (bool): whether to print progress
+                **kwargs: keyword arguments to pass to API function
+            """
+            page = 1
+            args = {
+                "owner": self.owner,
+                "repo": self.name,
+                "per_page": per_page,
+                **kwargs,
+            }
+            while True:
+                try:
+                    # Get values from API call
+                    values = func(**args, page=page)
+                    yield from values
+                    if len(values) == 0:
                         break
-                    logger.info(
-                        f"[{self.owner}/{self.name}] Waiting for rate limit reset "
-                        f"for token {self.token[:10]}, checking again in 5 minutes"
+                    if not quiet:
+                        rl = self.api.rate_limit.get()
+                        logger.info(
+                            f"[{self.owner}/{self.name}] Processed page {page} ({per_page} values per page). "
+                            f"Remaining calls: {rl.resources.core.remaining}"
+                        )
+                    if num_pages is not None and page >= num_pages:
+                        break
+                    page += 1
+                except Exception as e:
+                    # Rate limit handling
+                    logger.error(
+                        f"[{self.owner}/{self.name}] Error processing page {page} "
+                        f"w/ token {self.token[:10]} - {e}"
                     )
-                    time.sleep(60 * 5)
-        if not quiet:
-            logger.info(
-                f"[{self.owner}/{self.name}] Processed {(page - 1) * per_page + len(values)} values"
-            )
+                    while True:
+                        rl = self.api.rate_limit.get()
+                        if rl.resources.core.remaining > 0:
+                            break
+                        logger.info(
+                            f"[{self.owner}/{self.name}] Waiting for rate limit reset "
+                            f"for token {self.token[:10]}, checking again in 5 minutes"
+                        )
+                        time.sleep(60 * 5)
+            if not quiet:
+                logger.info(
+                    f"[{self.owner}/{self.name}] Processed {(page - 1) * per_page + len(values)} values"
+                )
 
     def get_all_issues(
         self,
