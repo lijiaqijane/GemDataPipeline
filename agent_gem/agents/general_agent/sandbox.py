@@ -152,21 +152,32 @@ class ToolProxy(dict):
 
 tools = {{}}
 try:
-    spec = importlib.util.spec_from_file_location("generated_tools", "tools.py")
+    # Use absolute path to ensure __file__ is correctly set in the module
+    import os
+    tools_file_path = os.path.abspath("tools.py")
+    spec = importlib.util.spec_from_file_location("generated_tools", tools_file_path)
     if spec and spec.loader:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+        # Ensure BASE_DIR is correctly set to the directory containing tools.py and data/
+        # This is the working directory where the archive was extracted in SandboxFusion
+        if hasattr(module, 'BASE_DIR'):
+            module.BASE_DIR = Path(tools_file_path).parent
+        # Get all callable functions from module (including those decorated with @mcp.tool())
         for key in dir(module):
             if key.startswith("_"):
                 continue
             value = getattr(module, key)
-            if callable(value):
+            # Check if it's callable (function, method, or callable object)
+            # This includes functions decorated with @mcp.tool()
+            if callable(value) and not isinstance(value, type):
                 tools[key] = value
 except Exception:
     pass
 
 {extra_helpers}# User requirement: all required tools MUST be implemented by the agent in tools.py.
-missing = [name for name in {json.dumps(required_tools)} if name not in tools or not callable(tools.get(name))]
+required_tools_list = {required_tools}
+missing = [name for name in required_tools_list if name not in tools or not callable(tools.get(name))]
 if missing:
     print(json.dumps({{"error": f"missing_required_tools: {{missing}}"}}, ensure_ascii=False))
     raise SystemExit(0)
@@ -238,7 +249,9 @@ def _wrap_tool(name, fn):
         started_at = time.time()
         normalized_args = args
         normalized_kwargs = kwargs
-        if name != "submit_result" and not kwargs and len(args) == 1 and isinstance(args[0], dict):
+        # Check if this is a submit_result function (including submit_result_difficulty_X)
+        is_submit_result = name == "submit_result" or name.startswith("submit_result_")
+        if not is_submit_result and not kwargs and len(args) == 1 and isinstance(args[0], dict):
             normalized_args = ()
             normalized_kwargs = args[0]
         normalized_args, normalized_kwargs = _coerce_enum_args(fn, normalized_args, normalized_kwargs)
@@ -250,7 +263,7 @@ def _wrap_tool(name, fn):
             return result
         try:
             result = fn(*normalized_args, **normalized_kwargs)
-            if name != "submit_result":
+            if not is_submit_result:
                 result = {{"result": result}}
         except Exception as exc:
             ended_at = time.time()

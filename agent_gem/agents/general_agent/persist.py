@@ -97,9 +97,8 @@ def persist_quadruple_format(
     # Filter records to only include those with existing files
     filtered_records = _filter_records_by_existing_files(records, sandbox_dir)
 
-    # Get tools_interface from the task's sandbox
-    first_meta = first_package.metadata if packages_list else {}
-    tools_interface = first_meta.get("tools_code", "")
+    # Get tools_interface from the task's sandbox tools.py file
+    tools_interface = ""
     if packages_list:
         tools_path = task_dir / "_sandbox" / "tools.py"
         if tools_path.exists():
@@ -133,10 +132,8 @@ def persist_quadruple_format(
         # Clean metadata: remove fields that are duplicated elsewhere
         clean_meta = {**(package.metadata or {})}
         fields_to_remove = {
-            "tools_code",  # Already in tools.interface
             "pre_state_hash",  # Already in task.state_hash.pre
             "post_state_hash",  # Already in task.state_hash.post
-            "tools_code_preview",  # Redundant preview
         }
         for field in fields_to_remove:
             clean_meta.pop(field, None)

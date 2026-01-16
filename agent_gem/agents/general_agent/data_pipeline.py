@@ -373,6 +373,7 @@ class DataPipelineMixin:
             "Return ONLY JSON.\n"
             f"Topic: {topic}\n"
         )
+        self.logger.info("LLM call: Generating web search queries for data seeding")
         raw = self.llm.simple_complete(prompt, temperature=0.3, max_tokens=self.MAX_LLM_TOKENS_FOR_QUERIES)
         parsed = self._extract_json(raw)
 

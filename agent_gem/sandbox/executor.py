@@ -686,6 +686,9 @@ class SandboxFusionExecutor(SandboxExecutor):
             if path.is_dir():
                 target.mkdir(parents=True, exist_ok=True)
                 continue
+            # Skip temporary shell scripts created by SandboxFusion
+            if path.is_file() and path.name.startswith("tmp") and path.suffix == ".sh":
+                continue
             if rel.as_posix() == "logs/tool_calls.jsonl":
                 try:
                     content = path.read_text(encoding="utf-8")
@@ -702,13 +705,6 @@ class SandboxFusionExecutor(SandboxExecutor):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(path), str(target))
         shutil.rmtree(tmp_dir, ignore_errors=True)
-
-        # Consolidate temp scripts from SandboxFusion runs
-        tmp_scripts_dir = self.logs_dir / "tmp_scripts"
-        tmp_scripts_dir.mkdir(parents=True, exist_ok=True)
-        for path in self.sandbox_dir.iterdir():
-            if path.is_file() and path.name.startswith("tmp") and path.suffix == ".sh":
-                shutil.move(str(path), str(tmp_scripts_dir / path.name))
 
     def _run_remote(
         self,

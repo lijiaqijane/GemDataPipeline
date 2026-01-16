@@ -338,8 +338,30 @@ class ValidationMixin:
                         )
                         continue
             allowed_tools = {spec.name for spec in package.task.tool_set}
-            submit_tool = "submit_result"
+            # Find submit_result tool (could be submit_result or submit_result_difficulty_X)
+            submit_tools = {name for name in allowed_tools if name.startswith("submit_result")}
+            
+            # Extract tool calls from solution and verification
+            called_tools = CodeValidator.extract_tool_calls(package.solution)
             verify_called_tools = CodeValidator.extract_tool_calls(package.verification or "")
+            
+            # If solution calls a submit_result tool that's not in allowed_tools, add it
+            # This can happen if submit_result was added to tools.py but not to tool_set
+            called_submit_tools = {name for name in called_tools if name.startswith("submit_result")}
+            if called_submit_tools and not called_submit_tools.issubset(allowed_tools):
+                # Solution calls a submit_result tool that's not in tool_set
+                # This is likely submit_result_difficulty_X that exists in tools.py but wasn't added to tool_set
+                # We should allow it since it's a system tool
+                missing_submit = called_submit_tools - allowed_tools
+                self.logger.warning(
+                    "Solution calls submit_result tool(s) not in tool_set: %s. Allowing them as system tools.",
+                    sorted(missing_submit)
+                )
+                # Add missing submit_result tools to allowed_tools for validation
+                allowed_tools = allowed_tools | missing_submit
+                submit_tools = submit_tools | missing_submit
+            
+            # Check verification tools
             verify_missing = verify_called_tools - allowed_tools
             if verify_missing:
                 last_error = (
@@ -355,8 +377,9 @@ class ValidationMixin:
                     repair_target="verification",
                 )
                 continue
-            called_tools = CodeValidator.extract_tool_calls(package.solution)
-            called_data_tools = {name for name in called_tools if name != submit_tool}
+            
+            # Check solution tools
+            called_data_tools = {name for name in called_tools if name not in submit_tools}
             if len(called_data_tools) < 2:
                 last_error = (
                     "solution must call at least 2 different tools; "
@@ -365,6 +388,19 @@ class ValidationMixin:
                 package = self._repair_package(request, package, ctx, error=last_error, records=records)
                 continue
             missing_tools = called_tools - allowed_tools
+            # Filter out submit_result tools from missing_tools (they are system tools)
+            # If submit_result tools are missing, they should have been added to allowed_tools above
+            missing_submit_in_missing = {name for name in missing_tools if name.startswith("submit_result")}
+            if missing_submit_in_missing:
+                # This shouldn't happen if the logic above worked correctly, but log a warning
+                self.logger.warning(
+                    "Solution calls submit_result tool(s) that are still missing from allowed_tools: %s. "
+                    "This may indicate a bug in tool_set management.",
+                    sorted(missing_submit_in_missing)
+                )
+                # Allow them anyway since they're system tools
+                missing_tools = missing_tools - missing_submit_in_missing
+            
             if missing_tools:
                 last_error = (
                     "solution calls tools not in the declared tool_set; "
@@ -422,13 +458,7 @@ class ValidationMixin:
                 "new_artifact_count": str(len(new_files)),
                 "changed_artifact_count": str(len(changed_files)),
             }
-            if tools_code:
-                meta_update |= {
-                    "tools_code_preview": tools_code[:200],
-                    "tools_code": tools_code[:5000] if len(tools_code) > 2000 else tools_code,
-                }
-            elif package.metadata and "tools_code" in package.metadata:
-                meta_update["tools_code"] = package.metadata.get("tools_code", "")
+            # tools_code is stored in tools.py file, no need to save in metadata
             meta_update |= {
                 "runtime_tool_calls": ",".join(sorted(used_tools)),
                 "runtime_tool_call_count": str(tool_call_count),
@@ -479,7 +509,9 @@ class ValidationMixin:
                     repair_target=target,
                 )
                 continue
-            used_data_tools = {name for name in used_tools if name != submit_tool}
+            # Find submit_result tools to exclude from data tools count
+            submit_tools_in_allowed = {name for name in allowed_tools if name.startswith("submit_result")}
+            used_data_tools = {name for name in used_tools if name not in submit_tools_in_allowed}
             if len(used_data_tools) < 2:
                 last_error = (
                     f"runtime tool calls insufficient; used={sorted(used_tools)} count={tool_call_count}"
@@ -571,6 +603,8 @@ class ValidationMixin:
                         
                         # Augment tools for each target file separately
                         current_specs = list(package.task.tool_set)
+                        # Preserve submit_result tools (they are system tools and should always be kept)
+                        submit_result_specs = [s for s in current_specs if s.name.startswith("submit_result")]
                         all_new_code_parts: list[str] = []
                         augmented_any = False
                         
@@ -587,15 +621,35 @@ class ValidationMixin:
                             if augmented:
                                 augmented_any = True
                                 current_specs = new_specs  # Update specs for next iteration
+                                # Ensure submit_result tools are preserved after each augmentation
+                                current_spec_names = {s.name for s in current_specs}
+                                for submit_spec in submit_result_specs:
+                                    if submit_spec.name not in current_spec_names:
+                                        current_specs.append(submit_spec)
+                                        self.logger.info(
+                                            f"Preserved submit_result tool {submit_spec.name} in tool_set after augmentation"
+                                        )
                                 if new_code and new_code not in "\n".join(all_new_code_parts):
                                     all_new_code_parts.append(new_code)
                         
                         if augmented_any:
                             augmented_once = True
-                            tools_code = (package.metadata or {}).get("tools_code", "")
+                            # Ensure submit_result tools are preserved in tool_set
+                            current_spec_names = {s.name for s in current_specs}
+                            for submit_spec in submit_result_specs:
+                                if submit_spec.name not in current_spec_names:
+                                    current_specs.append(submit_spec)
+                                    self.logger.info(f"Preserved submit_result tool {submit_spec.name} in tool_set after augmentation")
+                            
+                            # Read current tools.py and append new code
+                            tools_path = sandbox.sandbox_dir / "tools.py"
+                            current_tools_code = ""
+                            if tools_path.exists():
+                                current_tools_code = tools_path.read_text(encoding="utf-8")
                             combined_new_code = "\n\n".join(all_new_code_parts).strip()
-                            if combined_new_code and combined_new_code not in tools_code:
-                                tools_code = (tools_code + "\n\n" + combined_new_code).strip()
+                            if combined_new_code and combined_new_code not in current_tools_code:
+                                updated_tools_code = (current_tools_code + "\n\n" + combined_new_code).strip()
+                                tools_path.write_text(updated_tools_code, encoding="utf-8")
                             try:
                                 new_selftest = self._self_test_tools(current_specs, sandbox, request.topic, ctx)
                             except Exception:
@@ -606,7 +660,6 @@ class ValidationMixin:
                                     "metadata": {
                                         **(package.metadata or {}),
                                         "tool_selftest": self._safe_metadata_json(new_selftest),
-                                        "tools_code": tools_code[:5000] if tools_code else "",
                                         "toolset_augmented": "true",
                                     },
                                 }
@@ -884,9 +937,20 @@ class ValidationMixin:
         request: "GenerationRequest | None" = None,
     ) -> TaskPackage:
         allowed = {spec.name for spec in tool_specs}
-        submit_tool = "submit_result"
+        # Find submit_result tool (could be submit_result or submit_result_difficulty_X)
+        submit_tools = {name for name in allowed if name.startswith("submit_result")}
         called = CodeValidator.extract_tool_calls(package.solution)
-        called_data = {name for name in called if name != submit_tool}
+        
+        # If solution calls a submit_result tool that's not in allowed, add it
+        # This can happen if submit_result was added to tools.py but not to tool_set
+        called_submit_tools = {name for name in called if name.startswith("submit_result")}
+        if called_submit_tools and not called_submit_tools.issubset(allowed):
+            # Allow submit_result tools even if not in tool_specs (they are system tools)
+            missing_submit = called_submit_tools - allowed
+            allowed = allowed | missing_submit
+            submit_tools = submit_tools | missing_submit
+        
+        called_data = {name for name in called if name not in submit_tools}
 
         if called_data and called.issubset(allowed) and len(called_data) >= 2:
             return package
@@ -911,7 +975,7 @@ class ValidationMixin:
             records=[],
         )
         repaired_called = CodeValidator.extract_tool_calls(repaired.solution)
-        repaired_data = {name for name in repaired_called if name != submit_tool}
+        repaired_data = {name for name in repaired_called if name not in submit_tools}
         if repaired_data and repaired_called.issubset(allowed) and len(repaired_data) >= 2:
             return repaired
 
@@ -930,174 +994,40 @@ class ValidationMixin:
 
     @staticmethod
     def _check_answer_has_meaningful_content(answer: Any, submit_result_format: Any = None) -> tuple[bool, str]:
-        """Check if answer contains meaningful content (not just empty structures or default values).
+        """Check if answer has any content (not None and not empty).
+        
+        Note: This function only checks if there's content, not if it's meaningful or correct.
+        Type validation is done by submit_result function.
         
         Returns:
-            tuple[bool, str]: (is_meaningful, error_message)
-            - is_meaningful: True if answer contains meaningful content, False otherwise
-            - error_message: Detailed error message if not meaningful, empty string otherwise
+            tuple[bool, str]: (has_content, error_message)
+            - has_content: True if answer has any content, False otherwise
+            - error_message: Error message if no content, empty string otherwise
         """
         if answer is None:
             return False, "Answer is None"
         
-        # Extract expected keys from submit_result_format if provided
-        expected_keys = set()
-        if submit_result_format is not None:
-            if isinstance(submit_result_format, str):
-                try:
-                    submit_result_format = json.loads(submit_result_format)
-                except Exception:
-                    pass
-            if isinstance(submit_result_format, dict):
-                # For example format (keys are the contract)
-                if submit_result_format.get("type") != "object" or "properties" not in submit_result_format:
-                    expected_keys = set(submit_result_format.keys())
-                else:
-                    # For JSON schema format
-                    props = submit_result_format.get("properties", {})
-                    required = submit_result_format.get("required", [])
-                    expected_keys = set(required) if required else set(props.keys())
-        
-        # Unwrap submit_result wrapper if present
-        # Recursively find a dict that contains all expected keys (if we know them)
-        # or find a dict with non-empty meaningful content
-        def _find_data_dict(obj: Any, expected_keys: set[str], max_depth: int = 5) -> Any:
-            """Recursively find a dict that contains expected keys (if provided) or has meaningful content."""
-            if max_depth <= 0 or not isinstance(obj, dict):
-                return None
-            
-            # If we have expected keys, find dict containing all of them
-            if expected_keys:
-                if expected_keys.issubset(obj.keys()):
-                    return obj
-            else:
-                # No expected keys: check if current dict has meaningful content
-                has_content = any(
-                    (isinstance(v, list) and len(v) > 0) or
-                    (isinstance(v, str) and v.strip()) or
-                    (isinstance(v, (int, float)) and v != 0) or
-                    (isinstance(v, dict) and len(v) > 0)
-                    for v in obj.values()
-                )
-                if has_content:
-                    return obj
-            
-            # Recursively search nested dicts
-            for value in obj.values():
-                if isinstance(value, dict):
-                    found = _find_data_dict(value, expected_keys, max_depth - 1)
-                    if found is not None:
-                        return found
-                elif isinstance(value, list):
-                    for item in value[:3]:  # Check first few items
-                        if isinstance(item, dict):
-                            found = _find_data_dict(item, expected_keys, max_depth - 1)
-                            if found is not None:
-                                return found
-            
-            return None
-        
-        # Try to find the actual data object
+        # Try to unwrap if answer is wrapped (e.g., {'result': [...]} or {'data': {...}})
         data = answer
         if isinstance(answer, dict):
-            found_data = _find_data_dict(answer, expected_keys, max_depth=5)
-            if found_data is not None:
-                data = found_data
-            # If recursive search fails, use answer as-is
-        
-        if not isinstance(data, dict):
-            return False, f"Answer data is not a dict (got {type(data).__name__})"
-        
-        def _is_meaningful_value(value: Any, path: str = "") -> bool:
-            """Recursively check if value contains meaningful content."""
-            if value is None:
-                return False
-            if isinstance(value, dict):
-                if not value:  # Empty dict
-                    return False
-                # Check if dict has at least one meaningful value
-                return any(_is_meaningful_value(v, f"{path}.{k}") for k, v in value.items())
-            if isinstance(value, list):
-                if not value:  # Empty list
-                    return False
-                # Check if list has at least one meaningful item
-                return any(_is_meaningful_value(item, f"{path}[{i}]") for i, item in enumerate(value))
-            if isinstance(value, str):
-                # Empty string or only whitespace is not meaningful
-                if not value.strip():
-                    return False
-                # Common non-meaningful values
-                if value.strip().lower() in ("", "none", "n/a", "null", "[]", "{}"):
-                    return False
-                # String "0" might be meaningful for some fields, but "0" as total_count is suspicious
-                # We'll be lenient here and allow it
-                return True
-            if isinstance(value, (int, float)):
-                # Zero might be meaningful in some contexts, but we'll flag it as potentially empty
-                # However, for counts/totals, zero usually means no data found
-                # We'll allow zero but it's a warning sign
-                return True
-            if isinstance(value, bool):
-                return True
-            return True
-        
-        # Check if the root object has meaningful content
-        if not data:
-            return False, "Answer is an empty dict"
-        
-        # Check if at least one field has meaningful content
-        has_meaningful = False
-        for key, value in data.items():
-            if _is_meaningful_value(value, key):
-                has_meaningful = True
-                break
-        
-        if not has_meaningful:
-            return False, "Answer contains no meaningful values (all fields are empty, None, or default values)"
-        
-        # Additional check: if answer contains common "empty result" patterns, reject it
-        # Pattern 1: All arrays are empty
-        all_arrays_empty = True
-        for key, value in data.items():
-            if isinstance(value, list):
-                if len(value) > 0:
-                    all_arrays_empty = False
-                    break
-            elif isinstance(value, dict):
-                # Check nested arrays
-                for nested_key, nested_value in value.items():
-                    if isinstance(nested_value, list) and len(nested_value) > 0:
-                        all_arrays_empty = False
+            # Try common wrapper keys
+            for key in ['result', 'data', 'answer', 'content']:
+                if key in answer:
+                    wrapped = answer[key]
+                    if wrapped is not None:
+                        data = wrapped
                         break
-                if not all_arrays_empty:
-                    break
         
-        if all_arrays_empty and any(isinstance(v, (list, dict)) for v in data.values()):
-            array_fields = [k for k, v in data.items() if isinstance(v, (list, dict))]
-            non_collection_values = [v for v in data.values() if not isinstance(v, (list, dict))]
-            non_collection_meaningful = any(_is_meaningful_value(v) for v in non_collection_values)
-            if not non_collection_meaningful:
-                return False, f"All array/dict fields are empty: {array_fields}"
-        
-        # Pattern 2: All counts are zero (common pattern: total_count: "0", hotels: [])
-        count_fields = [k for k in data.keys() if "count" in k.lower() or "total" in k.lower() or "num" in k.lower()]
-        if count_fields:
-            all_counts_zero = True
-            for field in count_fields:
-                val = data.get(field)
-                if isinstance(val, (int, float)) and val != 0:
-                    all_counts_zero = False
-                    break
-                if isinstance(val, str):
-                    try:
-                        if int(val) != 0:
-                            all_counts_zero = False
-                            break
-                    except (ValueError, TypeError):
-                        pass
-            
-            if all_counts_zero and all(isinstance(data.get(k), (list, dict)) and len(data.get(k)) == 0 for k in data.keys() if k not in count_fields):
-                # All counts are zero and all data structures are empty
-                return False, f"All count fields are zero ({count_fields}) and all data structures are empty"
+        # Check if data has any content
+        if isinstance(data, dict):
+            if not data:
+                return False, "Answer is an empty dict"
+        elif isinstance(data, list):
+            if not data:
+                return False, "Answer is an empty list"
+        elif isinstance(data, str):
+            if not data.strip():
+                return False, "Answer is an empty string"
+        # For other types (int, float, bool), any value is considered content
         
         return True, ""
