@@ -185,6 +185,10 @@ class EntitySamplerMixin(PromptMixin):
                 return entities
 
             # Build Entity objects from the JSON items
+            if not isinstance(data, list):
+                logger.error(f"Expected JSON array but got {type(data)}: {data}")
+                return entities
+
             for item in data:
                 if not isinstance(item, dict):
                     continue

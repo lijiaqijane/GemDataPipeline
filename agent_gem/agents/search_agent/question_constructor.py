@@ -67,25 +67,23 @@ class QuestionConstructorMixin(PromptMixin):
             logger.info(f"Constructing question {task_idx + 1}/{num_tasks} for entity: {entity.name}")
 
             # Get relevant context for the entity
-            max_context_retries = 3
+            max_retries = 3
             context = None
             search_context = None
-            for context_attempt in range(max_context_retries):
+            for context_attempt in range(max_retries):
                 try:
                     context, search_context = self._get_entity_context(llm, tools, tool_call_map, entity)
                     if context and isinstance(context, dict) and context.get("obscure_info"):
                         break  # Success, exit retry loop
                     logger.warning(
-                        f"Context retrieval attempt {context_attempt + 1}/{max_context_retries} for {entity.name}: No obscure info found"
+                        f"Context retrieval attempt {context_attempt + 1}/{max_retries} for {entity.name}: No obscure info found"
                     )
                 except Exception as e:
                     logger.warning(
-                        f"Context retrieval attempt {context_attempt + 1}/{max_context_retries} for {entity.name}: {e}"
+                        f"Context retrieval attempt {context_attempt + 1}/{max_retries} for {entity.name}: {e}"
                     )
-                if context_attempt == max_context_retries - 1:
-                    logger.error(
-                        f"Failed to get context for {entity.name} after {max_context_retries} attempts"
-                    )
+                if context_attempt == max_retries - 1:
+                    logger.error(f"Failed to get context for {entity.name} after {max_retries} attempts")
 
             obscure_info = context.get("obscure_info", "") if isinstance(context, dict) else ""
 
@@ -95,7 +93,6 @@ class QuestionConstructorMixin(PromptMixin):
                 )
                 continue
 
-            max_retries = 3
             for attempt in range(max_retries):
                 try:
                     prompt = self.QUESTION_CONSTRUCTOR_PROMPT.format(

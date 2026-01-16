@@ -49,12 +49,6 @@ def add_search_synthesize_subparser(
         help="Number of tasks to generate for each entity",
     )
     search_parser.add_argument(
-        "--num_answer_agent",
-        type=int,
-        default=1,
-        help="Number of answer agents to use",
-    )
-    search_parser.add_argument(
         "--require_all_incorrect",
         action="store_true",
         default=False,
@@ -105,7 +99,7 @@ def add_search_synthesize_subparser(
     search_parser.add_argument(
         "--num_iterations",
         type=int,
-        default=2,
+        default=1,
         help="Number of iterations for entity sampling and search depth",
     )
 
@@ -127,7 +121,7 @@ def handle_search_synthesize(args: argparse.Namespace) -> None:
             num_domains=args.num_domains,
             num_entities_each_domain=args.num_entities_each_domain,
             num_tasks_each_entity=args.num_tasks_each_entity,
-            num_answer_agent=args.num_answer_agent,
+            num_iterations=args.num_iterations,
             require_all_incorrect=args.require_all_incorrect,
             search_depth=args.search_depth,
             search_breadth=args.search_breadth,

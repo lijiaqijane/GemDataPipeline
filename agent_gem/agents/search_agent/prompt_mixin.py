@@ -192,10 +192,10 @@ Return the result strictly in the following JSON format.
 ```
 """
 
-    DOMAIN_SAMPLER_PROMPT = """Task: Generate a strictly numbered list of exactly {num_domains} distinct, specific domains.
+    DOMAIN_SAMPLER_PROMPT = """# Task: Generate one distinct, specific domain.
 
-Constraints:
-1. QUANTITY: The output list must contain EXACTLY {num_domains} items.
+# Constraints
+1. QUANTITY: The output must contain EXACTLY one item.
 2. SPECIFICITY: Use highly specific sub-fields (e.g., "Quantum Cryptography" instead of "Science").
 3. DIVERSITY: Ensure maximum categorical variance. The list MUST span across unrelated pillars such as:
    - Natural Sciences & Engineering
@@ -207,15 +207,12 @@ Constraints:
    Avoid clustering (e.g., do not provide multiple items within "Information Technology").
 4. FORMAT: Return ONLY a valid JSON array of strings.
 
-Example Output (if num_domains=3):
-
+# Example Output:
 [
-"Sub-field A",
-"Sub-field B",
-"Sub-field C"
+"Sub-field A"
 ]
 
-Your Output (Quantity: {num_domains}):
+Your Output:
 """
 
 
