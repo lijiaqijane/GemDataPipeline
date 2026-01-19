@@ -20,11 +20,8 @@ logger = logging.getLogger(__name__)
 
 class ToolSynthesisMixin:
     """Tool generation, compilation, and registration helpers."""
-    _SUBMIT_RESULT_TOOL = "submit_result"
-    _SUBMITTED_RESULT_FILE = "submitted_result.json"
     _MAX_REGEN_ATTEMPTS = 5
     _MAX_FIELD_INVENTORY_SIZE = 2600
-    _MAX_FIELD_VALUES = 5
     _FILTERED_TOOL_NAMES = {"bash", "search", "python_runner"}
 
     @staticmethod
@@ -308,8 +305,50 @@ class ToolSynthesisMixin:
         return True, reasons
 
     @staticmethod
+    def _fix_type_annotations(code: str) -> str:
+        """Fix common type annotation errors, especially 'any' -> 'Any'."""
+        # Fix lowercase 'any' in type annotations (should be 'Any' from typing)
+        # Match patterns like: dict[str, any], list[dict[str, any]], -> dict[str, Any], etc.
+        import re
+        # Pattern to match type annotations with lowercase 'any'
+        # Match: dict[str, any], list[any], dict[any, str], etc.
+        # Only replace 'any' that appears in type annotation contexts (inside brackets/parentheses)
+        # This avoids replacing 'any()' function calls
+        fixed = re.sub(r'\bany\b(?=\s*[\]\)])', 'Any', code)
+        # Also handle cases like: -> any, : any, etc. (but not any(...) function calls)
+        fixed = re.sub(r'(->\s*|:\s*)\bany\b(?!\s*\()', r'\1Any', fixed)
+        
+        # If we fixed any occurrences, ensure 'Any' is imported
+        if fixed != code and 'from typing import' in fixed:
+            # Check if Any is already imported
+            if 'Any' not in re.findall(r'from typing import\s+[^#\n]+', fixed):
+                # Add Any to existing typing import
+                fixed = re.sub(
+                    r'(from typing import\s+)([^#\n]+)',
+                    lambda m: m.group(1) + (m.group(2) + ', Any' if 'Any' not in m.group(2) else m.group(2)),
+                    fixed,
+                    count=1
+                )
+        elif fixed != code:
+            # No typing import exists, add it at the top (after __future__ imports if any)
+            lines = fixed.split('\n')
+            insert_idx = 0
+            for i, line in enumerate(lines):
+                if line.startswith('from __future__'):
+                    insert_idx = i + 1
+                elif line.startswith('import ') or line.startswith('from '):
+                    insert_idx = i
+                    break
+            lines.insert(insert_idx, 'from typing import Any')
+            fixed = '\n'.join(lines)
+        
+        return fixed
+
+    @staticmethod
     def _sanitize_tool_decorators(code: str) -> str:
         """Normalize tool decorators and drop non-literal args to avoid import-time errors."""
+        # First fix type annotations
+        code = ToolSynthesisMixin._fix_type_annotations(code)
         try:
             tree = ast.parse(code)
         except Exception:
@@ -452,43 +491,6 @@ class ToolSynthesisMixin:
         return ast.unparse(tree)
 
     @staticmethod
-    def _ensure_submit_result_raw(code: str) -> str:
-        """Force submit_result to persist and return raw result without wrappers."""
-        try:
-            tree = ast.parse(code)
-        except Exception:
-            return code
-        submit_node = None
-        for node in tree.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "submit_result":
-                submit_node = node
-                break
-        canonical_body = ast.parse(
-            "\n".join(
-                [
-                    "output_path = BASE_DIR / \"submitted_result.json\"",
-                    "with open(output_path, 'w', encoding='utf-8') as f:",
-                    "    json.dump(result, f, indent=2, ensure_ascii=False, default=str)",
-                    "return result",
-                ]
-            )
-        ).body
-        if submit_node is None:
-            submit_src = (
-                "@mcp.tool(description=\"Submit and persist a result to submitted_result.json\")\n"
-                "def submit_result(result):\n"
-                "    output_path = BASE_DIR / \"submitted_result.json\"\n"
-                "    with open(output_path, 'w', encoding='utf-8') as f:\n"
-                "        json.dump(result, f, indent=2, ensure_ascii=False, default=str)\n"
-                "    return result\n"
-            )
-            submit_tree = ast.parse(submit_src)
-            tree.body.extend(submit_tree.body)
-        else:
-            submit_node.body = canonical_body
-        return ast.unparse(tree)
-
-    @staticmethod
     def _summarize_import_error(stdout: str, stderr: str) -> str:
         """Return a compact import failure message to avoid echoing bad code."""
         text = f"{stdout}\n{stderr}"
@@ -545,8 +547,6 @@ class ToolSynthesisMixin:
         """Validate output shapes based on tool naming conventions."""
         errors: list[str] = []
         for spec in specs:
-            if spec.name == ToolSynthesisMixin._SUBMIT_RESULT_TOOL:
-                continue
             schema = spec.output_schema
             if not isinstance(schema, dict):
                 errors.append(f"tool_output_schema_missing:{spec.name}")
@@ -565,8 +565,6 @@ class ToolSynthesisMixin:
         errors: list[str] = []
         banned_names = {"query", "q", "text", "search", "keyword", "term"}
         for spec in specs:
-            if spec.name == ToolSynthesisMixin._SUBMIT_RESULT_TOOL:
-                continue
             params = spec.parameters or {}
             props = params.get("properties") if isinstance(params, dict) else None
             if not isinstance(props, dict):
@@ -636,23 +634,6 @@ class ToolSynthesisMixin:
                 break
         cleaned = "\n".join(lines[start:]).strip()
         return cleaned.replace("```", "").strip()
-
-    def _submit_result_spec(self) -> ToolSpec:
-        def submit_result(result: Any) -> Any:
-            """Submit the final answer payload from solve()."""
-            return result
-
-        return ToolSpec.from_function(
-            submit_result,
-            name=self._SUBMIT_RESULT_TOOL,
-            description="Submit the final answer payload.",
-            meta={"system": True},
-        )
-
-    def _ensure_submit_result_tool(self, tool_specs: list[ToolSpec]) -> list[ToolSpec]:
-        if any(spec.name == self._SUBMIT_RESULT_TOOL for spec in tool_specs):
-            return tool_specs
-        return tool_specs + [self._submit_result_spec()]
 
     def _iter_data_entries(self, data_profile: dict[str, Any]) -> list[dict[str, Any]]:
         """Iterate over data entries, only processing JSON files."""
@@ -1190,6 +1171,8 @@ class ToolSynthesisMixin:
             f"- `{list_tool_name}` returns list[str] (may have 0 parameters).\n",
             f"- `{main_tool_name}` returns list[dict] or dict (should have 2-4+ parameters for filtering).\n",
             "- Add type hints; use stable defaults (\"\", 0, []) instead of None.\n",
+            "- Use 'Any' (capitalized) from typing module, NOT 'any' (lowercase built-in function).\n",
+            "  Always import: 'from typing import Any' and use 'Any' in type annotations like dict[str, Any].\n",
             f"- Parameters: Be DIVERSE and TOPIC-SPECIFIC. Derive from File data structure and topic semantics.\n",
             "  Vary names across tools; use JSON-serializable types (str, int, bool, list[str], Optional[...]), NOT Enum.\n",
             "- Returns: list[dict[str, Any]] or dict[str, Any] (avoid TypedDict).\n",
@@ -1242,6 +1225,7 @@ class ToolSynthesisMixin:
                 required_fields=required_fields,
                 all_errors=attempt_errors or None,
             )
+            self.logger.info(f"LLM call: Synthesizing tools for file '{entry['path']}' (attempt {attempt}/{self._MAX_REGEN_ATTEMPTS})")
             raw = self.llm.simple_complete(prompt, temperature=0.55, max_tokens=max_tokens)
             ctx.add_step(
                 {
@@ -1278,8 +1262,6 @@ class ToolSynthesisMixin:
             missing = {list_tool_name, main_tool_name} - names
             if missing:
                 errors.append("tool_names_missing")
-            if "submit_result" in names or "def submit_result" in code:
-                errors.append("submit_result_disallowed")
             typed_dict_names = self._typed_dict_class_names(code)
             for func in funcs:
                 node = func["node"]
@@ -1408,6 +1390,19 @@ class ToolSynthesisMixin:
     ) -> str:
         body = "\n\n".join(fragment.strip() for fragment in fragments if fragment.strip()).strip()
         body = self._sanitize_tool_decorators(body)
+        
+        # Remove all mcp = FastMCP(...) declarations from body fragments
+        # We'll add a single instance at the module level later
+        import re
+        # Match patterns like: mcp = FastMCP("Tools") or mcp = FastMCP('Tools')
+        body = re.sub(r'^\s*mcp\s*=\s*FastMCP\([^)]+\)\s*$', '', body, flags=re.MULTILINE)
+        # Also remove any standalone FastMCP imports that might be in fragments
+        body = re.sub(r'^\s*from\s+mcp\.server\.fastmcp\s+import\s+FastMCP\s*$', '', body, flags=re.MULTILINE)
+        body = re.sub(r'^\s*import\s+mcp\s*$', '', body, flags=re.MULTILINE)
+        # Clean up multiple consecutive empty lines
+        body = re.sub(r'\n\s*\n\s*\n+', '\n\n', body)
+        body = body.strip()
+        
         known_paths: set[str] = set()
         # Only process JSON files
         for entry in data_profile.get("json", []):
@@ -1465,7 +1460,6 @@ class ToolSynthesisMixin:
                 body,
             ]
         ).strip()
-        module_code = self._ensure_submit_result_raw(module_code)
         module_code = self._normalize_typeddict_imports(module_code)
         return module_code.strip() + "\n"
 
@@ -1573,9 +1567,6 @@ class ToolSynthesisMixin:
         if output_keys:
             enriched: list[ToolSpec] = []
             for spec in filtered:
-                if spec.name == self._SUBMIT_RESULT_TOOL:
-                    enriched.append(spec)
-                    continue
                 meta = dict(spec.meta or {})
                 keys = output_keys.get(spec.name)
                 if keys:
@@ -1587,17 +1578,14 @@ class ToolSynthesisMixin:
         if param_errors:
             raise RuntimeError(f"tools.py parameter validation failed: {param_errors}")
 
-        non_submit = [spec for spec in filtered if spec.name != self._SUBMIT_RESULT_TOOL]
-        if len(non_submit) < 2:
+        if len(filtered) < 2:
             raise RuntimeError("tools.py validation failed: too_few_data_tools")
-        if not any(spec.name.startswith("list_") for spec in non_submit):
+        if not any(spec.name.startswith("list_") for spec in filtered):
             raise RuntimeError("tools.py validation failed: missing_list_discovery_tool")
 
         output_errors = self._validate_tool_output_schema(filtered)
         if output_errors:
             raise RuntimeError(f"tools.py output schema validation failed: {output_errors}")
-
-        filtered = self._ensure_submit_result_tool(filtered)
 
         # Ensure mcp is installed before import test
         mcp_installed, mcp_error = self._ensure_mcp_installed(sandbox)
@@ -1785,19 +1773,26 @@ class ToolSynthesisMixin:
 
         # Validate: tool code must be data-driven (read local files) and avoid embedding datasets.
         code_ok, reasons = self._validate_tool_code(code)
+        
+        # Special case: if this is tool augmentation (tools.py already exists),
+        # ignore missing_mcp_instance error since mcp is already defined in the existing file
+        tools_path = sandbox_dir / "tools.py"
+        if not code_ok and tools_path.exists():
+            # Filter out missing_mcp_instance if tools.py already exists (augmentation mode)
+            reasons = [r for r in reasons if r != "missing_mcp_instance"]
+            if not reasons:
+                code_ok = True
+        
         if not code_ok:
             raise RuntimeError(f"tools.py invalid (not data-driven): {reasons}")
 
-        # Validate: submit_result must be implemented by the agent and persist the payload
-        # only when the toolset expects it (e.g., full tool synthesis vs. augmentation).
-        requires_submit_result = any(spec.name == self._SUBMIT_RESULT_TOOL for spec in tool_specs)
-        if requires_submit_result:
-            if "def submit_result" not in code:
-                raise RuntimeError("tools.py missing required submit_result implementation (agent-authored).")
-            if self._SUBMITTED_RESULT_FILE not in code:
-                raise RuntimeError(
-                    f"tools.py submit_result must persist to {self._SUBMITTED_RESULT_FILE} (agent-authored)."
-                )
+        # Validate: submit_result must NOT be present during tool synthesis phase
+        # It will be added later after task description and submit_result_format are generated
+        if "def submit_result" in code:
+            raise RuntimeError(
+                "tools.py must NOT contain submit_result function during tool synthesis. "
+                "submit_result will be added later after task description is generated."
+            )
 
         # Validate: required tool functions should exist in the module source.
         try:
@@ -2007,8 +2002,6 @@ class ToolSynthesisMixin:
             return False
 
         for spec in tool_specs:
-            if spec.name == self._SUBMIT_RESULT_TOOL:
-                continue
             node = func_nodes.get(spec.name)
             if node is None:
                 profile[spec.name] = {"ok": False, "error": "missing_function"}
@@ -2022,7 +2015,7 @@ class ToolSynthesisMixin:
             else:
                 profile[spec.name] = {"ok": True}
 
-        tool_names = [spec.name for spec in tool_specs if spec.name != self._SUBMIT_RESULT_TOOL]
+        tool_names = [spec.name for spec in tool_specs]
         samples = self._collect_tool_samples(sandbox, tool_names)
         for name, info in samples.items():
             if not isinstance(info, dict):
@@ -2303,8 +2296,6 @@ PY"""
             return True, ["selftest_missing"]
         union_fields = set()
         for name, info in tool_selftest.items():
-            if name == self._SUBMIT_RESULT_TOOL:
-                continue
             if not isinstance(info, dict):
                 continue
             if info.get("ok") is False or info.get("error"):
@@ -2329,7 +2320,6 @@ PY"""
         Returns:
             (success, error_reasons) tuple. If success is False, error_reasons contains error messages.
         """
-        tool_specs = self._ensure_submit_result_tool(list(tool_specs))
         tools_path = sandbox.sandbox_dir / "tools.py"
         module = None
         import_error = None
@@ -2345,6 +2335,7 @@ PY"""
                 logger.warning("Failed to import generated tools.py", exc_info=True)
 
         registration_errors: list[str] = []
+        registered_tool_names = set()
         for spec in tool_specs:
             registered = False
             if module and hasattr(module, spec.name):
@@ -2358,6 +2349,7 @@ PY"""
                         )
                     )
                     registered = True
+                    registered_tool_names.add(spec.name)
             if not registered:
                 # User requirement: ALL tool implementations must be agent-authored.
                 error_msg = f"Missing agent-authored tool implementation in tools.py: {spec.name}"
@@ -2373,12 +2365,11 @@ PY"""
         if registration_errors:
             return False, registration_errors
 
-        sandbox.set_tool_call_allowlist({spec.name for spec in tool_specs})
+        sandbox.set_tool_call_allowlist(registered_tool_names)
         ctx.add_step(
             {
                 "type": "tool_registration",
-                "registered_tools": [spec.name for spec in tool_specs],
-                "tools_code_preview": (tools_code or "")[:300],
+                "registered_tools": list(registered_tool_names),  # Only include actually registered tools
             }
         )
         self.writer.record_steps(ctx.task_id, self.agent_type, ctx.history)
@@ -2432,13 +2423,14 @@ PY"""
             merged_file_data_json = merged_file_data_json[:self._MAX_FIELD_INVENTORY_SIZE] + "..."
         
         base_rules = (
-            "- CRITICAL: File paths must be absolute. Use BASE_DIR = Path(__file__).parent and BASE_DIR / \"data\" / \"file.json\".\n"
+            "- File paths must be absolute. Use BASE_DIR / \"data\" / \"file.json\".\n"
             "- Avoid generic free-text parameters; use enums derived from real fields.\n"
             "- Use @mcp.tool(description=...) with a plain string literal.\n"
             "- Implement real logic; no stubs, no pass/raise placeholders.\n"
             "- Avoid TypedDict/custom class return annotations; use list[dict[str, Any]] or dict[str, Any].\n"
+            "- Use 'Any' (capitalized) from typing module, NOT 'any' (lowercase built-in function).\n"
+            "  Always import: 'from typing import Any' and use 'Any' in type annotations like dict[str, Any].\n"
             "- Keep return types stable; if a field is missing, use a type-appropriate default (e.g., \"\" for strings, 0 for numbers, [] for lists) instead of None.\n"
-            "- Do NOT define submit_result here.\n"
             f"- Parameters: Be DIVERSE and TOPIC-SPECIFIC. Derive from File data structure and topic semantics.\n"
             "  Vary names across tools; use JSON-serializable types (str, int, bool, list[str], Optional[...]), NOT Enum.\n"
             "- Tools should have 2-4+ parameters for filtering (except list tools which may have 0 parameters).\n"
@@ -2458,31 +2450,41 @@ PY"""
                 f"{error_context}"
                 "You are augmenting an existing toolset to make a task solvable and verifiable.\n"
                 "Return Python code defining 1-2 NEW tools decorated with @mcp.tool(), avoiding duplicates.\n"
-                "Include `from mcp.server.fastmcp import FastMCP` and `mcp = FastMCP(\"Tools\")` in the output.\n"
+                "The tools.py module already defines `mcp = FastMCP(\"Tools\")`. Do NOT redefine the mcp instance.\n"
                 "Do NOT call mcp.run() or start any server.\n"
                 "Hard rules:\n"
                 f"{base_rules}"
                 "Constraints:\n"
                 f"- Tool names must be unique, snake_case, and NOT {', '.join(repr(name) for name in self._FILTERED_TOOL_NAMES)}.\n"
                 "- Implement real logic that reads ONLY local JSON files; no stubs, no pass/raise placeholders.\n"
-                "- Deterministic: set random.seed(0) if any randomness is used.\n"
                 "Only output a single Python code block.\n"
                 f"File data structure (JSON): {merged_file_data_json}\n"
-                "IMPORTANT: When reading the file with json.load(), the JSON structure is directly at the top level.\n"
+                "When reading the file with json.load(), the JSON structure is directly at the top level.\n"
                 "The file does NOT have a 'data' wrapper. Access fields directly from the loaded dict (e.g., data.get('sections', []), data.get('title', '')).\n"
                 f"Topic: {topic}\n"
                 f"File path: {target_entry['path']}\n"
                 f"Existing tools: {sorted(existing_names)}\n"
             )
+            self.logger.info(f"LLM call: Augmenting tools for file '{target_entry['path']}' (attempt {attempt}/{self._MAX_REGEN_ATTEMPTS})")
             raw = self.llm.simple_complete(prompt, temperature=0.55, max_tokens=max_tokens)
             ctx.add_step({"type": "tool_augmentation", "attempt": attempt, "content": raw})
 
             tools_code = self._sanitize_llm_code(raw)
+            # Fix type annotation errors (any -> Any)
+            tools_code = self._fix_type_annotations(tools_code)
             last_tools_code = tools_code or ""
             if not tools_code:
                 attempt_errors = ["empty_tool_code"]
                 ctx.add_step(
                     {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
+                )
+                # Log why this augmentation attempt failed
+                self.logger.warning(
+                    "Tool augmentation failed on attempt %s/%s for file '%s': %s",
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    target_entry["path"],
+                    "; ".join(attempt_errors),
                 )
                 continue
 
@@ -2492,6 +2494,13 @@ PY"""
                 attempt_errors = [f"parse_failed:{exc}"]
                 ctx.add_step(
                     {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
+                )
+                self.logger.warning(
+                    "Tool augmentation failed on attempt %s/%s for file '%s': %s",
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    target_entry["path"],
+                    "; ".join(attempt_errors),
                 )
                 continue
 
@@ -2507,6 +2516,13 @@ PY"""
                 ctx.add_step(
                     {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
                 )
+                self.logger.warning(
+                    "Tool augmentation failed on attempt %s/%s for file '%s': %s",
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    target_entry["path"],
+                    "; ".join(attempt_errors),
+                )
                 continue
 
             specs = self._extract_mcp_tools_from_python(tools_code)
@@ -2514,6 +2530,13 @@ PY"""
                 attempt_errors = ["no_tools_found"]
                 ctx.add_step(
                     {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
+                )
+                self.logger.warning(
+                    "Tool augmentation failed on attempt %s/%s for file '%s': %s",
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    target_entry["path"],
+                    "; ".join(attempt_errors),
                 )
                 continue
 
@@ -2540,9 +2563,19 @@ PY"""
                 ctx.add_step(
                     {"type": "tool_augmentation_validation_failed", "attempt": attempt, "errors": attempt_errors}
                 )
+                self.logger.warning(
+                    "Tool augmentation failed on attempt %s/%s for file '%s': %s",
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    target_entry["path"],
+                    "; ".join(attempt_errors),
+                )
                 continue
 
             code_ok, code_reasons = self._validate_tool_code(tools_code)
+            if not code_ok and code_reasons and all(r == "missing_mcp_instance" for r in code_reasons):
+                code_ok = True
+                code_reasons = []
             if not code_ok:
                 prompt_errors: list[str] = []
                 for reason in code_reasons:
@@ -2555,15 +2588,19 @@ PY"""
                         "tool_code_reasons": code_reasons,
                     }
                 )
+                self.logger.warning(
+                    "Tool augmentation failed on attempt %s/%s for file '%s' due to invalid tool code: %s",
+                    attempt,
+                    self._MAX_REGEN_ATTEMPTS,
+                    target_entry["path"],
+                    "; ".join(code_reasons),
+                )
                 continue
 
             output_keys = self._extract_tool_output_keys(tools_code)
             if output_keys:
                 enriched: list[ToolSpec] = []
                 for spec in new_specs:
-                    if spec.name == self._SUBMIT_RESULT_TOOL:
-                        enriched.append(spec)
-                        continue
                     meta = dict(spec.meta or {})
                     keys = output_keys.get(spec.name)
                     if keys:
@@ -2593,11 +2630,17 @@ PY"""
             sandbox.execute_bash('python -c "import tools; print(\'TOOLS_IMPORT_OK\')"')
 
             self._register_task_tools(new_specs, sandbox, ctx, tools_code=tools_code)
-            combined_specs = self._ensure_submit_result_tool(existing_specs + new_specs)
-            return combined_specs, tools_code, True
+            return existing_specs + new_specs, tools_code, True
 
         ctx.add_step(
             {"type": "tool_augmentation_failed", "errors": attempt_errors or ["unknown_failure"]}
+        )
+        # Final log when all augmentation attempts have failed for this file
+        self.logger.error(
+            "Tool augmentation exhausted all %s attempts for file '%s' and still failed. Last errors: %s",
+            self._MAX_REGEN_ATTEMPTS,
+            target_entry["path"],
+            "; ".join(attempt_errors or ["unknown_failure"]),
         )
         return existing_specs, last_tools_code, False
 

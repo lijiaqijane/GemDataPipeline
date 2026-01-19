@@ -48,6 +48,7 @@ class CandidateAnswer:
 
     answer: str
     generator_config: AgentConfig
+    all_search_context: List[str]
 
 
 class AnswerGeneratorMixin(PromptMixin):
@@ -70,8 +71,19 @@ class AnswerGeneratorMixin(PromptMixin):
             AgentConfig(
                 name="conservative",
                 system_prompt=(
-                    "You are a careful assistant that verifies facts with web search "
-                    "before answering. Prefer precision over coverage."
+                    "You are a careful assistant that verifies facts with web search before answering. Prefer precision over coverage. When answering questions:\n"
+                    "1. Use the available search tool to find relevant and reliable information.\n"
+                    "2. Synthesize information from multiple sources when needed.\n"
+                    "3. Provide an accurate answer based on your search results, and put your final answer in \\boxed{} format.\n"
+                    "4. You are asked to perform search only once to find the answer in each turn. Each time you search, think about what information you need to find next turn based on what you have already found.\n"
+                    "5. As much as possible, use the search tool instead of relying on your own knowledge.\n"
+                    "\n"
+                    "For example:\n"
+                    '- If the answer is "American", write: \\boxed{American}\n'
+                    '- If the answer is "yes", write: \\boxed{yes}\n'
+                    '- If the answer is a year like "1985", write: \\boxed{1985}\n'
+                    "\n"
+                    "Remember to search thoroughly and provide your final answer clearly within the \\boxed{} format."
                 ),
                 temperature=0.3,
                 max_tokens=1024,
@@ -79,8 +91,19 @@ class AnswerGeneratorMixin(PromptMixin):
             AgentConfig(
                 name="balanced",
                 system_prompt=(
-                    "You are a helpful assistant that uses web search results to provide "
-                    "accurate and comprehensive answers."
+                    "You are a balanced assistant that combines careful fact-checking with comprehensive coverage. When answering questions:\n"
+                    "1. Use the available search tool to gather information from multiple perspectives and sources.\n"
+                    "2. Balance accuracy with breadth - don't sacrifice precision for completeness.\n"
+                    "3. Provide well-rounded answers that consider different viewpoints, and put your final answer in \\boxed{} format.\n"
+                    "4. You can perform multiple searches if needed to build a complete picture, but prioritize efficient information gathering.\n"
+                    "5. Use search results as your primary knowledge source while maintaining objectivity.\n"
+                    "\n"
+                    "For example:\n"
+                    "- If exploring a topic with multiple aspects, provide balanced coverage: \\boxed{comprehensive answer}\n"
+                    "- When there are competing theories, present evidence for each: \\boxed{balanced analysis}\n"
+                    "- For complex questions, synthesize diverse information: \\boxed{well-rounded conclusion}\n"
+                    "\n"
+                    "Remember to search strategically and provide balanced, comprehensive answers within the \\boxed{} format."
                 ),
                 temperature=0.7,
                 max_tokens=1024,
@@ -88,8 +111,19 @@ class AnswerGeneratorMixin(PromptMixin):
             AgentConfig(
                 name="creative",
                 system_prompt=(
-                    "You are a creative assistant that uses web search to gather rich "
-                    "context and then writes detailed and engaging answers."
+                    "You are an innovative assistant that leverages web search to fuel creative thinking and generate engaging narratives. When answering questions:\n"
+                    "1. Use the available search tool to discover unique insights, historical context, and inspiring examples.\n"
+                    "2. Transform factual information into compelling, well-structured responses that captivate the reader.\n"
+                    "3. Provide creative answers that go beyond basic facts, weaving information into engaging stories, and put your final answer in \\boxed{} format.\n"
+                    "4. Feel free to make multiple targeted searches to uncover the most interesting angles and connections.\n"
+                    "5. Use search results as inspiration while adding your own creative interpretation and analysis.\n"
+                    "\n"
+                    "For example:\n"
+                    "- Transform dry facts into engaging narratives: \\boxed{creative storytelling}\n"
+                    "- Connect seemingly unrelated concepts: \\boxed{innovative connections}\n"
+                    "- Present information in novel, memorable ways: \\boxed{engaging presentation}\n"
+                    "\n"
+                    "Remember to search creatively and craft your answers into compelling, innovative responses within the \\boxed{} format."
                 ),
                 temperature=0.9,
                 max_tokens=1024,
@@ -121,7 +155,7 @@ class AnswerGeneratorMixin(PromptMixin):
         configs = self._default_agent_configs() if agent_configs is None else agent_configs
 
         for config in configs:
-            logger.debug(f"Generating answer with config: {config.name}")
+            logger.info(f"Generating answer with config: {config.name}")
             candidate = self._generate_with_config(llm, tools, tool_call_map, qa_pair, config)
             if candidate:
                 candidates.append(candidate)
@@ -153,14 +187,7 @@ class AnswerGeneratorMixin(PromptMixin):
         try:
             messages = [
                 {"role": "system", "content": config.system_prompt},
-                {
-                    "role": "user",
-                    "content": (
-                        f"Question: {qa_pair.question}\n\n"
-                        "Please provide a comprehensive answer to the question, "
-                        'and output the answer in the following format: {"answer": "[answer]"}'
-                    ),
-                },
+                {"role": "user", "content": qa_pair.question},
             ]
 
             # Use chat completion with agent tools
@@ -172,28 +199,30 @@ class AnswerGeneratorMixin(PromptMixin):
                 max_tokens=config.max_tokens,
             )
 
-            # Try to extract answer from JSON object in the model output
+            # Try to extract answer from boxed format or JSON in the model output
             try:
-                answer_json = answer.strip()
-                # Handle markdown code blocks
-                if answer_json.startswith("```"):
-                    match = re.search(r"```(?:json)?\s*(.*?)\s*```", answer_json, re.DOTALL)
-                    if match:
-                        answer_json = match.group(1)
+                answer_text = answer.strip()
 
-                answer_obj = json.loads(answer_json)
-                answer = answer_obj.get("answer", "").strip()
-            except (json.JSONDecodeError, KeyError, AttributeError) as e:
-                # Fallback: use the answer as-is if JSON parsing fails
-                logger.debug(f"Failed to parse JSON from answer, using raw answer: {e}")
+                # First try to extract from \boxed{} format (highest priority)
+                boxed_match = re.search(r"\\boxed\{([^}]+)\}", answer_text)
+                if boxed_match:
+                    answer = boxed_match.group(1).strip()
+                else:
+                    # If no boxed format found, return None
+                    logger.debug("No \\boxed{} format found in answer")
+                    answer = None
+
+            except Exception as e:
+                # If parsing fails, return None
+                logger.debug(f"Failed to extract boxed answer: {e}")
+                answer = None
 
             if not answer:
                 logger.warning(f"Empty answer generated for config: {config.name}")
-                return None
-
             return CandidateAnswer(
                 answer=answer,
                 generator_config=config,
+                all_search_context=search_context,
             )
         except Exception as e:
             logger.error(f"Error generating answer with config {config.name}: {e}")

@@ -54,3 +54,4 @@ sandbox/
 search_output/
 search_output*.json
 cache
+search_cache.json

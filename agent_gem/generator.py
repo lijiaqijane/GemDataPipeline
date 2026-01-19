@@ -32,7 +32,6 @@ class GenerationRequest:
     num_domains: int = 10
     num_entities_each_domain: int = 1
     num_tasks_each_entity: int = 1
-    num_answer_agent: int = 1
     search_depth: int = 2
     search_breadth: int = 2
     require_all_incorrect: bool = False
@@ -40,6 +39,7 @@ class GenerationRequest:
     faiss_index_path: Optional[str] = None
     text_mapping_path: Optional[str] = None
     max_workers: int = 4  # Maximum number of worker threads for parallel processing
+    num_iterations: int = 1  # Number of iterations for entity sampling and search depth
 
 
 class EnvironmentGenerator:

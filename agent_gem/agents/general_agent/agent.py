@@ -108,6 +108,11 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                 logger.info("Step 2/5: found %d data files (need %d+), seeding database from web search and real pages...", 
                            json_file_count, MIN_DATA_FILES)
                 records = self._seed_database(request.topic, ctx, sandbox)
+                # Re-inspect data sources after seeding to update data_profile with newly created files
+                logger.info("Step 2/5: re-inspecting data sources after seeding...")
+                data_profile = self._inspect_data_sources(sandbox, ctx)
+                json_file_count_after = len(data_profile.get("json", []))
+                logger.info("Step 2/5: found %d data files after seeding.", json_file_count_after)
 
             # Check if tools.py already exists, skip synthesis if it does
             tools_path = sandbox.sandbox_dir / "tools.py" if sandbox else None
@@ -118,8 +123,6 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                     tools_code = tools_path.read_text(encoding="utf-8")
                     # Extract tool specs from existing tools.py
                     task_tool_specs = ToolSynthesisMixin._extract_mcp_tools_from_python(tools_code)
-                    # Add submit_result tool if not present
-                    task_tool_specs = self._ensure_submit_result_tool(task_tool_specs)
                     # Run self-test on existing tools
                     tool_selftest = self._self_test_tools(task_tool_specs, sandbox, request.topic, ctx, data_profile)
                     logger.info(f"Loaded {len(task_tool_specs)} existing tools from tools.py")
@@ -150,6 +153,8 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
             # Check if format-based regeneration is needed
             expected_fields = self._expected_fields_from_format(package.task.submit_result_format)
             if expected_fields:
+                # Save original tool_specs to check if they changed
+                original_tool_specs = task_tool_specs
                 task_tool_specs, tools_code, tool_selftest = self._ensure_tools_meet_format_requirements(
                     request.topic,
                     records,
@@ -161,18 +166,59 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                     tool_selftest,
                     expected_fields,
                 )
-                # Re-propose task after regeneration
-                package = self._propose_task(
-                    task_id,
-                    request,
-                    records,
-                    task_tool_specs,
-                    ctx,
-                    tools_code=tools_code,
-                    data_profile=data_profile,
-                    tool_selftest=tool_selftest,
-                    sandbox_dir=sandbox.sandbox_dir if sandbox else None,
+                # Only regenerate solution and verification if tools actually changed
+                # This avoids unnecessary regeneration when tools already meet requirements
+                tools_changed = (
+                    len(task_tool_specs) != len(original_tool_specs) or
+                    {s.name for s in task_tool_specs} != {s.name for s in original_tool_specs}
                 )
+                if tools_changed:
+                    logger.info("Tools were regenerated, regenerating solution and verification")
+                    # Only regenerate solution and verification with new tools, keep task_content and submit_result_format
+                    # This avoids regenerating task_content and submit_result_format which don't depend on tools
+                    solution_code, verification_code = self._generate_agent_solution_and_verification(
+                        request=request,
+                        ctx=ctx,
+                        task_content=package.task.task_content,
+                        submit_result_format=package.task.submit_result_format,
+                        tool_specs=task_tool_specs,
+                        records=records,
+                        tool_selftest=tool_selftest,
+                        submit_result_function_name=None,  # Will be determined from tool_specs
+                    )
+                    # Update package with new solution and verification, but keep original task_content and submit_result_format
+                    from agent_gem.core.task_schema import TaskDefinition
+                    updated_task = TaskDefinition(
+                        task_id=package.task.task_id,
+                        task_title=package.task.task_title,
+                        task_content=package.task.task_content,  # Keep original
+                        submit_result_format=package.task.submit_result_format,  # Keep original
+                        tool_set=task_tool_specs,  # Update with new tools
+                        evaluation_criteria=package.task.evaluation_criteria,
+                        difficulty_level=package.task.difficulty_level,
+                    )
+                    package = TaskPackage(
+                        id=package.id,
+                        task=updated_task,
+                        solution=solution_code,  # New solution
+                        verification=verification_code,  # New verification
+                        agent_type=package.agent_type,
+                        metadata=package.metadata,
+                        task_path=package.task_path,
+                        use_docker=package.use_docker,
+                        validated=package.validated,
+                        validation_reason=package.validation_reason,
+                    )
+                else:
+                    # Tools didn't change, just update tool_set in package
+                    logger.info("Tools already meet requirements, no regeneration needed")
+                    package = package.copy(
+                        update={
+                            "task": package.task.copy(
+                                update={"tool_set": task_tool_specs}
+                            ),
+                        }
+                    )
             if package.metadata is None:
                 package.metadata = {}
             package = package.copy(
@@ -223,7 +269,11 @@ class GeneralAgent(DataPipelineMixin, ToolSynthesisMixin, TaskBuilderMixin, Vali
                     sandbox_dir=sandbox.sandbox_dir if sandbox else None,
                 )
                 refined = self._ensure_substantive_task(task_tool_specs, refined, ctx=ctx, request=request)
-                current_tools_code = (package.metadata or {}).get("tools_code", tools_code)
+                # Read tools_code directly from tools.py file instead of metadata
+                current_tools_code = tools_code
+                tools_path = sandbox.sandbox_dir / "tools.py" if sandbox else None
+                if tools_path and tools_path.exists():
+                    current_tools_code = tools_path.read_text(encoding="utf-8")
                 package = self._ensure_valid(
                     request,
                     refined,

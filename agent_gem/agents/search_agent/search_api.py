@@ -60,6 +60,15 @@ def initialize_resources(model_path: str, index_path: str, mapping_path: str):
 
     print(f"Loading Faiss Index from {index_path}...")
     index = faiss.read_index(index_path)
+    num_gpus = faiss.get_num_gpus()
+    if num_gpus > 0:
+        co = faiss.GpuMultipleClonerOptions()
+        co.useFloat16 = True
+        co.shard = True
+        index = faiss.index_cpu_to_all_gpus(index, co=co)
+        print(f"FAISS index moved to {num_gpus} GPU(s)")
+    else:
+        print("faiss-gpu not available, using CPU")
 
     print(f"Loading Text Mapping from {mapping_path}...")
     with open(mapping_path, "r", encoding="utf-8") as f:

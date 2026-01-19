@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from agent_gem.llm import LLMClient, _format_tool_result
+from agent_gem.llm import LLMClient
 from agent_gem.tools import SearchTool
 
 from .entity_sampler import Entity
@@ -62,38 +62,50 @@ class QuestionConstructorMixin(PromptMixin):
             List of QuestionAnswerPair objects
         """
         tasks: List[QuestionAnswerPair] = []
-        max_retries = 2
 
         for task_idx in range(num_tasks):
             logger.info(f"Constructing question {task_idx + 1}/{num_tasks} for entity: {entity.name}")
 
-            for retry in range(max_retries):
-                # Get relevant context for the entity
-                context, search_context = self._get_entity_context(llm, tools, tool_call_map, entity.name)
-                obscure_info = context.get("obscure_info", "") if isinstance(context, dict) else ""
-                if obscure_info:
-                    break
+            # Get relevant context for the entity
+            max_retries = 3
+            context = None
+            search_context = None
+            for context_attempt in range(max_retries):
+                try:
+                    context, search_context = self._get_entity_context(llm, tools, tool_call_map, entity)
+                    if context and isinstance(context, dict) and context.get("obscure_info"):
+                        break  # Success, exit retry loop
+                    logger.warning(
+                        f"Context retrieval attempt {context_attempt + 1}/{max_retries} for {entity.name}: No obscure info found"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Context retrieval attempt {context_attempt + 1}/{max_retries} for {entity.name}: {e}"
+                    )
+                if context_attempt == max_retries - 1:
+                    logger.error(f"Failed to get context for {entity.name} after {max_retries} attempts")
+
+            obscure_info = context.get("obscure_info", "") if isinstance(context, dict) else ""
 
             if not obscure_info:
-                logger.warning(f"No obscure info found for entity: {entity.name}")
+                logger.warning(
+                    f"Error constructing question {task_idx + 1}/{num_tasks} for {entity.name}: No obscure information found"
+                )
                 continue
 
-            entity_info = f"Entity: {entity.name}\nDomain: {entity.domain}"
-            prompt = self.QUESTION_CONSTRUCTOR_PROMPT.format(
-                entity_name=entity.name,
-                entity_info=entity_info,
-                context=obscure_info,
-            )
-
-            for retry in range(max_retries):
+            for attempt in range(max_retries):
                 try:
+                    prompt = self.QUESTION_CONSTRUCTOR_PROMPT.format(
+                        entity_name=entity.name,
+                        context=obscure_info,
+                    )
                     messages = [
-                        {"role": "system", "content": self.SYSTEM_PROMPT},
                         {"role": "user", "content": prompt},
                     ]
                     response = llm.chat_completion(
                         messages=messages,
-                        temperature=0.8,
+                        temperature=1.0,
+                        top_p=0.95,
                         max_tokens=2048,
                     )
 
@@ -111,17 +123,22 @@ class QuestionConstructorMixin(PromptMixin):
                             )
                         )
                         logger.info(
-                            f"Successfully generated question {task_idx + 1}/{num_tasks} for {entity.name}"
+                            f"Successfully constructing question {task_idx + 1}/{num_tasks} for {entity.name}"
                         )
-                        break
+                        break  # Success, exit retry loop
                     else:
                         logger.warning(
-                            f"Invalid response format for entity {entity.name}, retry {retry + 1}/{max_retries}"
+                            f"Error constructing question {task_idx + 1}/{num_tasks} for {entity.name} (attempt {attempt + 1}/{max_retries}): Invalid response format"
                         )
 
                 except Exception as e:
                     logger.warning(
-                        f"Error generating QA pair for {entity.name} (retry {retry + 1}/{max_retries}): {e}"
+                        f"Error constructing question {task_idx + 1}/{num_tasks} for {entity.name} (attempt {attempt + 1}/{max_retries}): {e}"
+                    )
+
+                if attempt == max_retries - 1:
+                    logger.error(
+                        f"Failed to construct question {task_idx + 1}/{num_tasks} for {entity.name} after {max_retries} attempts"
                     )
 
         return tasks
@@ -131,7 +148,7 @@ class QuestionConstructorMixin(PromptMixin):
         llm: LLMClient,
         tools: List[Dict[str, Any]],
         tool_call_map: Dict[str, str],
-        entity_name: str,
+        entity: Entity,
     ) -> str:
         """Get relevant context for the given entity by searching and filtering.
 
@@ -148,19 +165,18 @@ class QuestionConstructorMixin(PromptMixin):
         try:
             messages = [
                 {
-                    "role": "system",
-                    "content": "You are a helpful assistant that gets context for a given entity.",
-                },
-                {
                     "role": "user",
-                    "content": self.RETRIEVE_CONTEXT_PROMPT.format(entity_name=entity_name),
-                },
+                    "content": self.RETRIEVE_CONTEXT_PROMPT.format(
+                        entity_name=entity.name, entity_domain=entity.domain
+                    ),
+                }
             ]
             response, search_context = llm.chat_with_agent(
                 messages=messages,
                 tools=tools,
                 tool_call_map=tool_call_map,
-                temperature=0.8,
+                temperature=1.0,
+                top_p=0.95,
                 max_tokens=2048,
                 max_sub_turns=100,
                 is_summary=True,
@@ -168,7 +184,7 @@ class QuestionConstructorMixin(PromptMixin):
             res = self._parse_output(response)
             return res, search_context
         except Exception as e:
-            logger.error(f"Error getting context for {entity_name}: {e}")
+            logger.error(f"Error getting context for {entity.name}: {e}")
             return "", ""
 
     def _parse_output(self, llm_response: str) -> Optional[Dict[str, Any]]:
@@ -185,7 +201,6 @@ class QuestionConstructorMixin(PromptMixin):
         try:
             json_str = llm_response.strip()
             if not json_str:
-                logger.warning("Empty LLM response")
                 return None
 
             # Handle markdown code blocks

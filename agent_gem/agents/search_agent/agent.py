@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import faiss
+import ftfy
 import torch
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
 from agent_gem.tools import MediaWikiTool, SearchTool, VisitTool
 
@@ -50,7 +52,7 @@ class SearchAgent(
     description = "Search agent that generates tasks and answers using search tools"
 
     search_tool = SearchTool(
-        cache_path=Path(os.getenv("SEARCH_CACHE_PATH", "")),
+        cache_path=Path(os.getenv("SEARCH_CACHE_PATH", "search_cache.json")),
         api_key=os.getenv("SERPER_API_KEY"),
     )
     visit_tool = VisitTool(api_key=os.getenv("JINA_API_KEY"))
@@ -121,15 +123,19 @@ class SearchAgent(
         # Get tool call map wrapped with request constraints
         tool_call_map = self._get_tool_call_map_for_request(request)
 
+        # Get max_workers from request, default to 4
+        max_workers = getattr(request, "max_workers", 4)
+        if max_workers <= 0:
+            max_workers = 4
+
         # Step 1: Entity Sampling
-        entities = self.sample_entities(
+        entities = self._sample_entities(
             llm=self.llm,
-            tools=self._get_tools_info(),
-            tool_call_map=tool_call_map,
             num_entities_each_domain=request.num_entities_each_domain,
             domains=request.domain,
-            num_iterations=request.search_depth,
+            num_iterations=request.num_iterations,
             entities_per_entity=request.search_breadth,
+            max_workers=5,  # indicates the number of threads to use for parallel processing
         )
         logger.info(f"Sampled {len(entities)} entities")
 
@@ -138,11 +144,6 @@ class SearchAgent(
             self._file_lock = threading.Lock()
         if self._index_lock is None:
             self._index_lock = threading.Lock()
-
-        # Get max_workers from request, default to 4
-        max_workers = getattr(request, "max_workers", 4)
-        if max_workers <= 0:
-            max_workers = 4
 
         # Step 2 & 3: Parallel processing of entities and questions
         results: List[Dict[str, Any]] = []
@@ -186,19 +187,25 @@ class SearchAgent(
 
                         if should_retain:
                             result_item = {
-                                "task_id": str(uuid.uuid4()),
-                                "question": qa_pair.question,
-                                "answer": qa_pair.answer,
-                                "entity": qa_pair.entity.name,
-                                "domain": qa_pair.entity.domain,
-                                "pageview": qa_pair.entity.pageview,
-                                "parent": qa_pair.entity.parent.name if qa_pair.entity.parent else None,
-                                "search_context": qa_pair.search_context,
-                                "all_search_context": qa_pair.all_search_context,
-                                "candidates": [candidate.answer for candidate in candidates],
-                                "verification_results": [
-                                    result.is_correct for result in verification_results
-                                ],
+                                "environment": {
+                                    "category": qa_pair.entity.domain,
+                                    "records": {
+                                        "search_context": qa_pair.search_context,
+                                        "construct_context": qa_pair.all_search_context,
+                                        "answer_context": [
+                                            candidate.all_search_context for candidate in candidates
+                                        ],
+                                    },
+                                    "record_count": len(qa_pair.all_search_context)
+                                    + sum([len(candidate.all_search_context) for candidate in candidates]),
+                                },
+                                "tools": ["search", "visit"],
+                                "tasks": {
+                                    "task_id": str(uuid.uuid5(uuid.NAMESPACE_DNS, qa_pair.question)),
+                                    "question": qa_pair.question,
+                                    "answer": qa_pair.answer,
+                                    "entity": qa_pair.entity.name,
+                                },
                             }
                             logger.info(f"Retained QA pair for entity: {entity.name}")
 
@@ -207,26 +214,31 @@ class SearchAgent(
                                 with self._file_lock:
                                     self._append_to_json_file(output_file, result_item)
 
+                            all_search_context = qa_pair.all_search_context
+                            for candidate in candidates:
+                                all_search_context.extend(candidate.all_search_context)
+                            # Remove all empty string entries from all_search_context
+                            all_search_context = [c for c in all_search_context if len(c) > 20]
                             # Thread-safe embedding and index update
                             if self.embedding and self.faiss_index:
-                                all_search_context = []
+                                all_context = []
                                 chunk_to_original = {}  # Map chunks to original text
-                                for text in qa_pair.all_search_context:
+                                for text in all_search_context:
                                     chunks = self._chunk_context(text)
-                                    all_search_context.extend(chunks)
+                                    all_context.extend(chunks)
                                     for chunk in chunks:
                                         chunk_to_original[chunk] = text
 
                                 # Generate embeddings
                                 with torch.no_grad():
-                                    search_embeddings = self.embedding.encode(all_search_context)
+                                    search_embeddings = self.embedding.encode(all_context)
                                     if len(search_embeddings.shape) == 1:
                                         search_embeddings = search_embeddings.reshape(1, -1)
 
                                 # Thread-safe index and mapping update
                                 with self._index_lock:
                                     current_idx = idx_counter[0]
-                                    for chunk in all_search_context:
+                                    for chunk in all_context:
                                         self.text_mapping[current_idx] = {
                                             "chunk_text": chunk,
                                             "original_text": chunk_to_original.get(chunk, ""),
@@ -268,7 +280,9 @@ class SearchAgent(
         logger.info(f"Starting parallel processing with {max_workers} workers")
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_entity = {executor.submit(process_entity, entity): entity for entity in entities}
-            for future in as_completed(future_to_entity):
+            for future in tqdm(
+                as_completed(future_to_entity), total=len(entities), desc="Processing entities"
+            ):
                 entity_results = future.result()
                 results.extend(entity_results)
 
@@ -377,20 +391,19 @@ class SearchAgent(
         """
         messages = [
             {
-                "role": "system",
-                "content": self.SYSTEM_PROMPT,
-            },
-            {
                 "role": "user",
                 "content": self.DOMAIN_SAMPLER_PROMPT.format(num_domains=1),
-            },
+            }
         ]
-        domains = []
+        domains: List[str] = []
         while len(domains) < num_domains:
-            response = self.llm.chat_completion(messages=messages, temperature=1.2)
-            domain = json.loads(response)[0]
-            if domain not in domains:
-                domains.append(domain)
+            try:
+                response = self.llm.chat_completion(messages=messages, temperature=1.0, top_p=0.95)
+                domain = json.loads(response)[0]
+                if domain not in domains:
+                    domains.append(domain)
+            except Exception as e:
+                continue
         return domains
 
     def _append_to_json_file(self, file_path: str, new_item: Dict[str, Any]) -> None:
@@ -435,6 +448,16 @@ class SearchAgent(
         chunks = []
         chunk_size = 1024
         overlap = 128
+
+        import re
+
+        def _remove_urls(text: str) -> str:
+            url_pattern = r"https?://[^\s]+"
+            return re.sub(url_pattern, "", text)
+
+        context = _remove_urls(context)
+        context = ftfy.fix_text(context)
+
         for i in range(0, len(context), chunk_size - overlap):
             chunks.append(context[i : i + chunk_size])
         return chunks
