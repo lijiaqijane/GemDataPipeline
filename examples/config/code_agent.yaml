@@ -1,138 +1,309 @@
 # Code Agent Configuration
-# This file controls the entire pipeline: triple generation + task generation
+# This file controls the entire pipeline: triple generation + task generation + repo crawling
 
-# ===== Triple Generation Settings =====
-triple_generation:
-  # Repository filtering
-  repo_filter:
+# ===== Repo Crawler Settings =====
+repo_crawler:
+  # Repository filtering criteria
+  filters:
+    # Programming languages to search for (e.g., Python, JavaScript, Go, Rust)
+    languages:
+      - Python
+    
+    # Star count range
     stars:
-      min: 100
-      max: 10000
-    size:
-      max: 10240  # 10MB
-    updated_within_days: 730  # 2 years
-    topics:
-      - library
-      - tool
-      - cli
-      - data
-      - utility
-    exclude_keywords:
-      - tensorflow
-      - pytorch
-      - torch
-      - keras
-      - gpu
-      - cuda
-      - deep-learning
-      - machine-learning
-    exclude_topics:
-      - machine-learning
-      - deep-learning
-      - tensorflow
-      - pytorch
-    max_repos: 50
-  
-  # File filtering
-  file_filter:
-    focus_main_package: true
-    exclude_directories:
-      - tests
-      - test
-      - docs
-      - examples
-      - scripts
-      - benchmarks
-    exclude_files:
-      - __init__.py
-      - setup.py
-      - conftest.py
-      - config.py
-    line_count:
       min: 50
-      max: 2000
-      optimal_min: 100
-      optimal_max: 500
-    min_functions: 2
-    scoring:
-      line_count_optimal: 20
-      function_count: 10
-      function_count_max: 50
-      docstring: 5
-      not_test: 15
-      utility_penalty: -10
-    utility_keywords:
-      - util
-      - helper
-    max_files_per_repo: 10
-  
-  # Function filtering
-  function_filter:
-    skip_private: true
+      max: 1000000
+    
+    # Repository size in KB
+    size:
+      max: 307200  # 300MB
+    
+    # Code line count range (estimated)
     line_count:
-      min: 5
-      max: 200
-      optimal_min: 10
-      optimal_max: 100
-    max_arguments: 5
-    min_quality_score: 0.3
-    scoring:
-      line_count_optimal: 0.3
-      has_docstring: 0.2
-      has_type_hints: 0.1
-      has_control_flow: 0.2
-      has_return: 0.1
-      arg_count_ok: 0.1
+      min: 200
+      max: 500000
+    
+    # Recently updated within days
+    updated_within_days: 730  # 2 years
+    
+    # Required topics/tags
+    topics: []
+    
+    # Exclude repositories with these keywords
+    exclude_keywords: []
+    
+    # Exclude repositories with these topics
+    exclude_topics: []
+
+    # Explicitly exclude these repositories by full name (owner/repo)
+    # Example:
+    #   exclude_repos:
+    #     - psf/requests
+    #     - numpy/numpy
+    exclude_repos:
+      - astropy/astropy
+      - django/django
+      - matplotlib/matplotlib
+      - mwaskom/seaborn
+      - pallets/flask
+      - psf/requests
+      - pydata/xarray
+      - pylint-dev/pylint
+      - pytest-dev/pytest
+      - scikit-learn/scikit-learn
+      - sphinx-doc/sphinx
+      - sympy/sympy
+    
+    # Check for pytest test files
+    require_pytest: false
+    
+    # Require repository to have main package (folder with same name as repo in root directory)
+    # e.g., numpy repo must have numpy/ folder in root
+    require_main_package: false
+    
+    # Maximum number of repositories to crawl
+    max_repos: 1000
+    
+    # Maximum number of pages to search per query (prevents infinite crawling)
+    # Each page contains up to 30 results, so max_pages: 10 means max 300 results per query
+    # Recommended: 5-20 pages depending on your needs
+    max_pages: 1000
   
   # Output settings
   output:
-    target_triples: 100
-    quality_threshold: 0.5
-    cache_dir: triple_cache
-    refresh_repos: false
+    # Directory to save repository information and code
+    save_dir: taskdb/code_agent/repos
+    
+    # Save repository metadata as JSON
+    save_metadata: true
+    
+    # Clone repository codebase
+    clone_codebase: false
+    
+    # Use shallow clone (depth=1) to save space
+    shallow_clone: true
+    
+    # Save README.md
+    save_readme: true
+  
+  # GitHub API settings
+  github:
+    # GitHub token (reads from GITHUB_TOKEN env var if not set)
+    token: null
+    
+    # Request timeout in seconds
+    timeout: 30
+    
+    # Sleep between requests to avoid rate limiting (seconds)
+    sleep_between_requests: 1
 
-# ===== Task Generation Settings =====
-task_generation:
-  # Root directory for generated tasks
-  taskdb_root: taskdb/
-  
-  # Task difficulty level (1-3)
-  # 1: Easy - Simple function implementations
-  # 2: Medium - Moderate complexity with dependencies
-  # 3: Hard - Complex logic and error handling
-  difficulty: 1
-  
-  # LLM generation parameters
-  max_tokens: 8192      # Maximum tokens for LLM response
-  
-  # Test generation parameters
-  test_generation:
-    target_test_count: 4    # Target number of test functions (prefer this number)
-    min_test_count: 3       # Minimum acceptable test functions
-    max_test_count: 5       # Maximum allowed test functions
-  
-  # Logging and persistence
-  save_logs: true       # Save LLM responses and intermediate results
-  auto_save: true       # Automatically save tasks to taskdb
+# ===== PR Crawler Settings =====
+pr_crawler:
+  # List of repositories to crawl PRs from (format: owner/repo)
+  # Can be a list or comma-separated string
+  # Example:
+  #   repos:
+  #     - scikit-learn/scikit-learn
+  #     - pallets/flask
+  repos: []
 
-# ===== Batch Processing Settings =====
-batch_processing:
-  # Number of tasks to generate in batch mode
-  num_tasks: 10
+  # Optional: load repositories from RepoCrawler output directory by scanning
+  # subdirectories in format {owner}/{repo}/metadata.json.
+  # If 'repos' above is empty and this path is set, PRCrawler will scan
+  # the directory structure and extract repo names from existing folders.
+  # This is useful when you want to extract PRs only for repos that have
+  # already been crawled (with metadata.json present).
+  # Example: taskdb/code_agent/repos -> scans for scikit-learn/scikit-learn/metadata.json
+  repos_from_repo_crawler_dir: taskdb/code_agent/repos
   
-  # Error handling
-  skip_errors: false    # Continue processing on errors (true) or stop (false)
+  # Optional: load repositories from RepoCrawler output summary.json.
+  # If 'repos' above is empty and repos_from_repo_crawler_dir is not set,
+  # PRCrawler will read the RepoCrawler summary.json and use its
+  # "repositories[*].full_name" as the repo list.
+  # You can point either to the summary.json file itself, or to the
+  # directory that contains it (RepoCrawler save_dir).
+  # Note: repos_from_repo_crawler_dir takes precedence over this option.
+  repos_from_repo_crawler_summary: taskdb/code_agent/repos/summary.json
   
-  # Maximum retry attempts for failed operations
-  max_retries: 5
+  # Output settings
+  output:
+    # Directory to save crawled PR data
+    save_dir: taskdb/code_agent/prs
+    
+    # Overwrite existing PR files if they exist
+    overwrite_existing: false
+  
+  # PR filtering settings
+  # Maximum number of PRs to crawl per repository (null = no limit)
+  max_pulls: 1000
+  
+  # Cutoff date for PRs to consider (format: YYYYMMDD, null = no cutoff)
+  # Only PRs created before this date will be crawled
+  cutoff_date: null
+  
+  # GitHub API settings
+  github:
+    # GitHub token (reads from GITHUB_TOKEN env var if not set)
+    token: null
+    
+    # Multiple tokens for parallelization (reads from GITHUB_TOKENS env var if not set)
+    # Can be a list or comma-separated string
+    tokens: null
+  
+  # PR query settings
+  # PR state: "open", "closed", or "all"
+  state: closed
+  
+  # Sort field: "created", "updated", "popularity"
+  sort: created
+  
+  # Sort direction: "asc" or "desc"
+  direction: desc
+  
+  # Parallelization settings
+  # Whether to use parallel processing with multiple tokens
+  use_parallel: false
 
-# ===== Sandbox Configuration =====
-sandbox:
-  # SandboxFusion URL (null = auto-detect from SANDBOX_FUSION_URL env var)
-  sandbox_url: null
+
+# ===== PR Annotator Settings =====
+pr_annotator:
+  # Input settings
+  # Option 1: Specify a single input file
+  input_file: null  # Path to valid PR JSONL file (e.g., taskdb/code_agent/prs/repo-prs-valid.jsonl)
   
-  # Use Docker runner for code execution
-  use_docker_runner: true
+  # Option 2: Specify a directory containing valid PR files
+  # PR Annotator will process all *-prs-valid.jsonl files in this directory
+  input_dir: taskdb/code_agent/prs
   
-  # Silent mode (suppress sandbox output)
-  silent: false
+  # Output settings
+  output:
+    # Directory to save annotation results
+    save_dir: taskdb/code_agent/pr_annotations
+    
+    # Optional: specific output file name (if not set, auto-generated from input filename)
+    file_name: null
+  
+  # Processing settings
+  # Maximum number of PRs to annotate (null = no limit)
+  max_prs: null
+  
+  # Whether to resume from existing annotations (skip already annotated PRs)
+  resume: true
+  
+  # LLM settings
+  llm:
+    # Temperature for LLM (lower = more consistent, higher = more creative)
+    temperature: 0.3
+    
+    # Maximum tokens for LLM response
+    max_tokens: 2048
+    
+    # Maximum prompt length in tokens (null = no limit)
+    # If prompt exceeds this length, the PR will be skipped without calling LLM
+    max_prompt_length: 32768  # e.g., 20000 (20K tokens)
+  
+  # Retry settings
+  # Maximum number of retries for failed LLM annotations
+  max_retries: 3
+  
+  # Delay in seconds between retries
+  retry_delay: 1.0
+
+
+# ===== Environment Setup Agent Settings =====
+task_execution:
+  # Output directory for task execution results
+  output_dir: taskdb/code_agent/results  # Required: Path to output directory
+  
+  # Maximum number of iterations for agent workflow
+  max_iteration_num: 10
+  
+  # Parallel processing settings
+  num_processes: 8  # Number of parallel processes (1 = serial execution)
+  
+  # Task ordering
+  shuffle_tasks: true  # Whether to shuffle task order randomly (true/false)
+  
+  # Task timeout in seconds
+  task_timeout_seconds: 1800  # 30 minutes
+  
+  # Option 2: PR valid files
+  # Option 2a: Specify a single prs-valid.jsonl file
+  prs_valid_file: null  # Path to a single prs-valid.jsonl file (e.g., taskdb/code_agent/prs/repo-prs-valid.jsonl)
+  
+  # Option 2b: Specify a directory containing prs-valid.jsonl files
+  prs_valid_dir: taskdb/code_agent/prs/  # Directory containing *-prs-valid.jsonl files (e.g., taskdb/code_agent/prs)
+  
+  # PR annotation filtering (optional, only used when loading from PR files)
+  # Directory containing PR annotation files (*-prs-annotated.jsonl)
+  pr_annotations_dir: null  # e.g., taskdb/code_agent/pr_annotations
+  
+  # Filter criteria for PR annotations (optional)
+  # Only PRs matching all criteria will be included
+  filter_criteria: 
+    pr_category: ["bug_fix", "feature_request"]  # Only bug fixes and feature requests
+    issue_difficulty: ["easy", "medium", "hard"]  # Only easy, medium or hard difficulty
+    issue_description_reasonable: true  # Issue description must be reasonable
+    gold_patch_solves_issue: true  # Gold patch must solve the issue
+    test_patch_designed_for_issue: true  # Test patch must be designed for the issue
+    requires_gpu: false  # Code must require GPU resources to run
+    num_gold_files_changed_max: null  # Maximum number of files in gold patch
+    num_gold_files_changed_min: null  # Minimum number of files in gold patch
+    num_test_files_changed_max: null  # Maximum number of files in test patch
+    num_test_files_changed_min: null  # Minimum number of files in test patch
+    require_annotation: true  # If true, only include PRs with annotations
+  
+  # Root directory where repository caches and task directories will be created
+  setup_dir: taskdb/code_agent/cache  # Required: Path to setup directory
+  
+  # Repository cache settings
+  cache:
+    # Whether to use existing cache (skip cloning if cache exists)
+    use_cache: true
+    
+    # Cache directory naming format
+    # Available placeholders: {repo}
+    cache_name_format: "{repo}_cache"
+  
+  # Task directory settings
+  task_dir:
+    # Task directory naming format
+    # Available placeholders: {task_id}, {timestamp}
+    name_format: "{task_id}_{timestamp}"
+    
+    # Timestamp format for task directories
+    timestamp_format: "%Y-%m-%d_%H-%M-%S"
+  
+  # Agent configuration
+  agents:
+  
+    # Disable context retrieval agent
+    disable_context_retrieval: true
+
+    # Use Ubuntu-only base images for Dockerfile
+    using_ubuntu_only: true
+  
+    # Default LLM settings for all agents (can be overridden per-agent)
+    llm_temperature: 0.2  # Default temperature (0.0 = deterministic, higher = more creative)
+    llm_max_tokens: 8192  # Default max_tokens (null = use ModelAdapter default: 8192)
+  
+    # Per-agent LLM configuration (optional, overrides defaults)
+    # If not specified, uses the default values above
+    context_retrieval_agent:
+      temperature: null  # null = use default
+      max_tokens: null    # null = use default
+    
+    write_docker_agent:
+      temperature: null
+      max_tokens: null
+    
+    write_eval_script_agent:
+      temperature: null
+      max_tokens: null
+    
+    test_analysis_agent:
+      temperature: null
+      max_tokens: null
+  
+  # Output organization
+  organize_output: false  # Whether to organize output after completion
