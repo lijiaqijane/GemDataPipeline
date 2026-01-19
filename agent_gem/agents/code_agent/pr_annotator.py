@@ -7,6 +7,7 @@ This module provides functionality to annotate PRs using LLM, including:
 - Whether issue description is reasonable
 - Whether gold patch solves the core issue
 - Whether test patch is designed for the issue
+- Whether the code requires GPU resources to run
 """
 
 from __future__ import annotations
@@ -24,6 +25,14 @@ import yaml
 
 from agent_gem.llm import LLMClient
 
+# Try to import tiktoken for accurate token counting
+try:
+    import tiktoken
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+    tiktoken = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,6 +46,7 @@ class PRAnnotation:
     issue_description_reasonable: bool
     gold_patch_solves_issue: bool
     test_patch_designed_for_issue: bool
+    requires_gpu: bool  # Whether the code requires GPU resources to run
     num_gold_files_changed: int  # Number of files changed in gold patch
     num_test_files_changed: int  # Number of files changed in test patch
     reasoning: Optional[str] = None  # Optional reasoning from LLM
@@ -61,6 +71,7 @@ class PRAnnotatorConfig:
     # LLM settings
     llm_temperature: float = 0.3  # Lower temperature for more consistent annotations
     llm_max_tokens: int = 2048  # Max tokens for LLM response
+    max_prompt_length: Optional[int] = None  # Maximum prompt length in tokens (None = no limit)
     
     # Retry settings
     max_retries: int = 3  # Maximum number of retries for failed LLM annotations
@@ -77,6 +88,7 @@ class PRAnnotator:
     - Whether issue description is reasonable
     - Whether gold patch solves the core issue
     - Whether test patch is designed for the issue
+    - Whether the code requires GPU resources to run
     
     Example:
         >>> config = PRAnnotatorConfig(input_file="taskdb/code_agent/prs/repo-prs-valid.jsonl")
@@ -99,6 +111,26 @@ class PRAnnotator:
         
         # Initialize LLM client
         self.llm = LLMClient.from_env()
+        
+        # Initialize tokenizer for token counting
+        self.tokenizer = None
+        if TIKTOKEN_AVAILABLE and config.max_prompt_length is not None:
+            try:
+                # Try to get encoding for the model (default to cl100k_base for GPT-4)
+                model_name = self.llm.config.model.lower()
+                if "gpt-4" in model_name or "gpt-3.5" in model_name:
+                    encoding_name = "cl100k_base"
+                elif "gpt-3" in model_name:
+                    encoding_name = "p50k_base"
+                else:
+                    # Default to cl100k_base for most modern models
+                    encoding_name = "cl100k_base"
+                
+                self.tokenizer = tiktoken.get_encoding(encoding_name)
+                logger.info(f"[PRAnnotator] Using tiktoken encoding: {encoding_name}")
+            except Exception as e:
+                logger.warning(f"[PRAnnotator] Failed to initialize tiktoken: {e}. Will use character-based estimation.")
+                self.tokenizer = None
         
         # Prepare output directory
         self.output_dir = Path(config.output_dir)
@@ -151,6 +183,7 @@ class PRAnnotator:
         llm = annotator_config.get('llm', {})
         llm_temperature = llm.get('temperature', 0.3)
         llm_max_tokens = llm.get('max_tokens', 2048)
+        max_prompt_length = llm.get('max_prompt_length')
         
         # Parse retry settings
         max_retries = annotator_config.get('max_retries', 3)
@@ -165,6 +198,7 @@ class PRAnnotator:
             resume=resume,
             llm_temperature=llm_temperature,
             llm_max_tokens=llm_max_tokens,
+            max_prompt_length=max_prompt_length,
             max_retries=max_retries,
             retry_delay=retry_delay,
         )
@@ -212,6 +246,7 @@ Please provide annotations in the following JSON format:
     "issue_description_reasonable": true or false,
     "gold_patch_solves_issue": true or false,
     "test_patch_designed_for_issue": true or false,
+    "requires_gpu": true or false,
     "reasoning": "Brief explanation of your annotations"
 }}
 
@@ -224,6 +259,7 @@ Guidelines:
 3. Issue description reasonable: true if the problem statement clearly describes the issue, false if it's vague or unclear
 4. Gold patch solves issue: true if the patch directly addresses the core problem described in the issue
 5. Test patch designed for issue: true if the test patch specifically tests the issue being fixed
+6. Requires GPU: true if the code to solve this issue requires GPU resources (e.g., deep learning models, CUDA operations, GPU-accelerated computations, neural network training/inference). Consider both the gold patch and test patch. false if the code can run on CPU only.
 
 Please respond with ONLY the JSON object, no additional text."""
         
@@ -267,7 +303,7 @@ Please respond with ONLY the JSON object, no additional text."""
             # Validate required fields
             required_fields = [
                 'pr_category', 'issue_difficulty', 'issue_description_reasonable',
-                'gold_patch_solves_issue', 'test_patch_designed_for_issue'
+                'gold_patch_solves_issue', 'test_patch_designed_for_issue', 'requires_gpu'
             ]
             for field in required_fields:
                 if field not in data:
@@ -293,6 +329,10 @@ Please respond with ONLY the JSON object, no additional text."""
             
             if not isinstance(data['test_patch_designed_for_issue'], bool):
                 logger.warning(f"test_patch_designed_for_issue must be boolean")
+                return None
+            
+            if not isinstance(data['requires_gpu'], bool):
+                logger.warning(f"requires_gpu must be boolean")
                 return None
             
             return data
@@ -333,6 +373,23 @@ Please respond with ONLY the JSON object, no additional text."""
         
         return len(files)
     
+    def _count_tokens(self, text: str) -> int:
+        """
+        Count the number of tokens in a text string.
+        
+        Args:
+            text: Text string to count tokens for
+            
+        Returns:
+            Number of tokens
+        """
+        if self.tokenizer:
+            # Use tiktoken for accurate token counting
+            return len(self.tokenizer.encode(text))
+        else:
+            # Fallback: rough estimation (approximately 4 characters per token)
+            return len(text) // 4
+    
     def annotate_pr(self, pr_data: dict) -> Optional[PRAnnotation]:
         """
         Annotate a single PR using LLM with retry mechanism.
@@ -354,13 +411,23 @@ Please respond with ONLY the JSON object, no additional text."""
         num_gold_files_changed = self._count_files_in_patch(gold_patch)
         num_test_files_changed = self._count_files_in_patch(test_patch)
         
+        # Create prompt
+        prompt = self._create_annotation_prompt(pr_data)
+        
+        # Check prompt token count before calling LLM
+        if self.config.max_prompt_length is not None:
+            prompt_tokens = self._count_tokens(prompt)
+            if prompt_tokens > self.config.max_prompt_length:
+                logger.warning(
+                    f"Prompt token count ({prompt_tokens}) exceeds maximum ({self.config.max_prompt_length} tokens) "
+                    f"for PR {instance_id}. Skipping annotation."
+                )
+                return None
+        
         # Retry mechanism
         last_exception = None
         for attempt in range(self.config.max_retries + 1):
             try:
-                # Create prompt
-                prompt = self._create_annotation_prompt(pr_data)
-                
                 # Call LLM
                 messages = [
                     {"role": "system", "content": "You are an expert code reviewer. Provide accurate annotations in JSON format."},
@@ -395,6 +462,7 @@ Please respond with ONLY the JSON object, no additional text."""
                     issue_description_reasonable=annotation_data['issue_description_reasonable'],
                     gold_patch_solves_issue=annotation_data['gold_patch_solves_issue'],
                     test_patch_designed_for_issue=annotation_data['test_patch_designed_for_issue'],
+                    requires_gpu=annotation_data['requires_gpu'],
                     num_gold_files_changed=num_gold_files_changed,
                     num_test_files_changed=num_test_files_changed,
                     reasoning=annotation_data.get('reasoning'),
@@ -404,6 +472,21 @@ Please respond with ONLY the JSON object, no additional text."""
                 
             except Exception as e:
                 last_exception = e
+                error_str = str(e)
+                
+                # Check if it's an input length exceeded error - don't retry for this
+                if any(keyword in error_str for keyword in [
+                    "exceeds the maximum length",
+                    "InvalidParameter",
+                    "Input length",
+                    "maximum length"
+                ]):
+                    logger.warning(
+                        f"Input length exceeded for PR {instance_id}. "
+                        f"Error: {error_str}. Skipping (will not retry)."
+                    )
+                    return None
+                
                 if attempt < self.config.max_retries:
                     logger.warning(f"Error annotating PR {instance_id} (attempt {attempt + 1}/{self.config.max_retries + 1}): {e}")
                     continue
@@ -552,6 +635,7 @@ Please respond with ONLY the JSON object, no additional text."""
                                         'issue_description_reasonable': annotation.issue_description_reasonable,
                                         'gold_patch_solves_issue': annotation.gold_patch_solves_issue,
                                         'test_patch_designed_for_issue': annotation.test_patch_designed_for_issue,
+                                        'requires_gpu': annotation.requires_gpu,
                                         'num_gold_files_changed': annotation.num_gold_files_changed,
                                         'num_test_files_changed': annotation.num_test_files_changed,
                                         'reasoning': annotation.reasoning,

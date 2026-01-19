@@ -69,6 +69,8 @@ class ModelAdapter:
         self._app_model = None
         self._initialized = False
         self._use_llm_client = LLM_CLIENT_AVAILABLE
+        # Per-agent configuration: agent_name -> {temperature, max_tokens}
+        self._agent_configs: dict[str, dict[str, float | int]] = {}
     
     def _initialize_model(self):
         """Initialize the model from LLMClient or app.model.common."""
@@ -85,11 +87,29 @@ class ModelAdapter:
         
         self._initialized = True
     
+    def set_agent_config(self, agent_name: str, temperature: float | None = None, max_tokens: int | None = None):
+        """
+        Set configuration for a specific agent.
+        
+        Args:
+            agent_name: Name of the agent (e.g., "context_retrieval_agent")
+            temperature: Temperature for this agent (None = use default)
+            max_tokens: Max tokens for this agent (None = use default)
+        """
+        if agent_name not in self._agent_configs:
+            self._agent_configs[agent_name] = {}
+        if temperature is not None:
+            self._agent_configs[agent_name]["temperature"] = temperature
+        if max_tokens is not None:
+            self._agent_configs[agent_name]["max_tokens"] = max_tokens
+        logger.debug(f"Set config for agent {agent_name}: temperature={temperature}, max_tokens={max_tokens}")
+    
     def call(
         self,
         messages: list[dict],
         tools: Any = None,
         response_format: Literal["text", "json_object"] | None = None,
+        agent_name: str | None = None,
         **kwargs,
     ) -> tuple[str, float, int, int]:
         """
@@ -99,7 +119,8 @@ class ModelAdapter:
             messages: List of message dictionaries
             tools: Optional tools for function calling (not supported by LLMClient yet)
             response_format: Response format ("text" or "json_object")
-            **kwargs: Additional arguments
+            agent_name: Optional agent name to use agent-specific config
+            **kwargs: Additional arguments (temperature, max_tokens can override agent config)
         
         Returns:
             Tuple of (content, cost, input_tokens, output_tokens)
@@ -108,8 +129,22 @@ class ModelAdapter:
             self._initialize_model()
         
         response_format = response_format or self.config.response_format
-        temperature = kwargs.get("temperature", self.config.temperature)
-        max_tokens = kwargs.get("max_tokens", self.config.max_tokens)
+        
+        # Get temperature: kwargs > agent config > default config
+        if "temperature" in kwargs:
+            temperature = kwargs["temperature"]
+        elif agent_name and agent_name in self._agent_configs and "temperature" in self._agent_configs[agent_name]:
+            temperature = self._agent_configs[agent_name]["temperature"]
+        else:
+            temperature = self.config.temperature
+        
+        # Get max_tokens: kwargs > agent config > default config
+        if "max_tokens" in kwargs:
+            max_tokens = kwargs["max_tokens"]
+        elif agent_name and agent_name in self._agent_configs and "max_tokens" in self._agent_configs[agent_name]:
+            max_tokens = self._agent_configs[agent_name]["max_tokens"]
+        else:
+            max_tokens = self.config.max_tokens
         
         if self._use_llm_client and self._llm_client:
             # Use LLMClient
@@ -121,7 +156,7 @@ class ModelAdapter:
                     response = self._llm_client._client.chat.completions.create(
                         model=self._llm_client.config.model,
                         messages=messages,
-                        # temperature=temperature,
+                        temperature=temperature,
                         max_tokens=max_tokens,
                         response_format={"type": "json_object"},
                     )

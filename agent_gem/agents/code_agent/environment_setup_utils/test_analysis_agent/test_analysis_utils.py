@@ -225,7 +225,7 @@ def run(msg_thread: MessageThread,disable_context_retrieval:bool) -> tuple[str, 
     else:
         msg_thread.add_user(ANALYZE_PROMPT)
     res_text, *_ = get_model_adapter().call(
-        msg_thread.to_msg(), response_format="json_object"
+        msg_thread.to_msg(), response_format="json_object", agent_name="test_analysis_agent"
     )
 
     msg_thread.add_model(res_text, [])  # no tools

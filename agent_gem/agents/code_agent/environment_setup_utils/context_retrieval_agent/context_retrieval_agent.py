@@ -172,7 +172,7 @@ class ContextRetrievalAgent(BaseAgent):
             
             # Get model response
             model_adapter = get_model_adapter()
-            res_text, *_ = model_adapter.call(self.msg_thread.to_msg())
+            res_text, *_ = model_adapter.call(self.msg_thread.to_msg(), agent_name="context_retrieval_agent")
             
             self.add_model_message(res_text, tools=[])
             

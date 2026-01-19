@@ -1,19 +1,19 @@
 """
-Test script for TaskExecutor.
+Run script for EnvironmentSetupAgent.
 
-This script demonstrates how to use the TaskExecutor to run tasks.
+This script demonstrates how to use the EnvironmentSetupAgent to run tasks.
+It replaces the previous run_task_executor.py functionality.
 """
 
 import argparse
 import logging
 import sys
-import yaml
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from agent_gem.agents.code_agent.task_executor import TaskExecutor
+from agent_gem.agents.code_agent.environment_setup_agent import EnvironmentSetupAgent
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run task executor for SWE-bench tasks"
+        description="Run EnvironmentSetupAgent for SWE-bench tasks"
     )
     
     # Configuration file
@@ -52,12 +52,12 @@ def main():
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
         
-        # Load configuration and create task executor
-        executor = TaskExecutor.load_config_from_yaml(str(config_path))
+        # Load configuration and create environment setup agent
+        agent = EnvironmentSetupAgent.load_config_from_yaml(str(config_path))
         
         # Setup and run tasks
         logger.info("Setting up and running tasks...")
-        executor.setup_and_run_tasks()
+        agent.setup_and_run_tasks()
         
         logger.info("Task execution completed!")
         

@@ -245,7 +245,7 @@ def write_dockerfile_with_retries(
         
         # Call model
         model_adapter = get_model_adapter()
-        res_text, *_ = model_adapter.call(new_thread.to_msg())
+        res_text, *_ = model_adapter.call(new_thread.to_msg(), agent_name="write_docker_agent")
         
         new_thread.add_model(res_text, [])
         

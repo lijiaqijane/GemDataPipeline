@@ -455,7 +455,7 @@ def browse_file_run(content: str, custom_query: str) -> tuple[str, MessageThread
     msg_thread.add_user(f"File content:\n{content}\n")  # Truncate to prevent overflow
     msg_thread.add_user(f"Custom query from user:\n{custom_query}\n") 
     res_text, *_ = get_model_adapter().call(
-        msg_thread.to_msg()
+        msg_thread.to_msg(), agent_name="context_retrieval_agent"
     )
     msg_thread.add_model(res_text, [])
     return res_text, msg_thread
@@ -507,7 +507,7 @@ def run_proxy(text: str) -> tuple[str, MessageThread]:
     msg_thread.add_system(PROXY_PROMPT)
     msg_thread.add_user(f'<analysis>\n{text}</analysis>')
     res_text, *_ = get_model_adapter().call(
-        msg_thread.to_msg(), response_format="json_object"
+        msg_thread.to_msg(), response_format="json_object", agent_name="context_retrieval_agent"
     )
 
     msg_thread.add_model(res_text, [])  # no tools

@@ -156,7 +156,7 @@ def write_eval_script_with_retries(
         raw_dockerfile_file = pjoin(output_dir, f"agent_eval_script_raw_{i}")
 
         # actually calling model
-        res_text, *_ = get_model_adapter().call(new_thread.to_msg())
+        res_text, *_ = get_model_adapter().call(new_thread.to_msg(), agent_name="write_eval_script_agent")
 
         new_thread.add_model(res_text, [])  # no tools
 

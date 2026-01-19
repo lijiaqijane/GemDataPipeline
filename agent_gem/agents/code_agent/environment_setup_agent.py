@@ -48,6 +48,7 @@ class EnvironmentSetupAgent:
         max_iteration_num: int,
         disable_context_retrieval: bool = False,
         using_ubuntu_only: bool = False,
+        agent_configs: dict[str, dict[str, float | int]] | None = None,
     ):
         """
         Initialize the environment setup agent.
@@ -60,6 +61,8 @@ class EnvironmentSetupAgent:
             max_iteration_num: Maximum number of iterations
             disable_context_retrieval: Whether to disable context retrieval
             using_ubuntu_only: Whether to use Ubuntu-only base images
+            agent_configs: Optional dict mapping agent names to their LLM configs
+                          Format: {"agent_name": {"temperature": 0.2, "max_tokens": 4096}}
         """
         self.task = task
         self.output_dir = os.path.abspath(output_dir)
@@ -67,10 +70,21 @@ class EnvironmentSetupAgent:
         self.client = client
         self.max_iteration_num = max_iteration_num
         self.start_time = start_time
+        self.disable_context_retrieval = disable_context_retrieval
+        self.using_ubuntu_only = using_ubuntu_only
         
         self.test_files = self.get_test_files()
         self.repo_basic_info = self.get_repository_basic_info()
         self.workflow_finish_status = False
+        
+        # Set agent-specific LLM configurations
+        if agent_configs:
+            model_adapter = get_model_adapter()
+            for agent_name, config in agent_configs.items():
+                temperature = config.get("temperature")
+                max_tokens = config.get("max_tokens")
+                model_adapter.set_agent_config(agent_name, temperature, max_tokens)
+                logger.info(f"Set LLM config for {agent_name}: temperature={temperature}, max_tokens={max_tokens}")
         
         # Initialize agents
         self.agents_dict = {
@@ -88,7 +102,6 @@ class EnvironmentSetupAgent:
             ),
         }
         self.set_agent_status('all', False)
-        self.disable_context_retrieval = disable_context_retrieval
         
         if disable_context_retrieval:
             self.set_agent_status("context_retrieval_agent", True)
