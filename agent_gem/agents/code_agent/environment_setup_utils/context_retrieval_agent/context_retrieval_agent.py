@@ -1,0 +1,284 @@
+"""
+Context Retrieval Agent.
+
+This module provides the ContextRetrievalAgent for gathering repository context,
+adapted from app.agents.context_retrieval_agent.context_retrieval_agent.
+"""
+
+from __future__ import annotations
+
+import os
+import json
+import inspect
+import logging
+from pathlib import Path
+from os.path import join as pjoin
+
+from ..base_agent import BaseAgent
+from ..task_adapter import Task
+from ..message_thread import FunctionCallIntent
+from . import context_retrieval_utils
+from .context_retrieval_utils import (
+    RepoBrowseManager,
+    SYSTEM_PROMPT,
+    USER_PROMPT,
+    parse_function_invocation,
+)
+
+from ..model_adapter import get_model_adapter
+
+logger = logging.getLogger(__name__)
+
+
+class ContextRetrievalAgent(BaseAgent):
+    """Agent for retrieving context information from repositories."""
+    
+    api_functions: list[str] = [
+        "browse_folder",
+        "search_files_by_keyword",
+        "browse_file_for_environment_info"
+    ]
+    
+    def __init__(
+        self,
+        task: Task,
+        output_dir: str,
+        repo_basic_info: str,
+        max_context_retrieval_round: int = 10,
+    ):
+        """
+        Initialize the context retrieval agent.
+        
+        Args:
+            task: Task instance
+            output_dir: Output directory for agent results
+            repo_basic_info: Basic repository information
+            max_context_retrieval_round: Maximum number of retrieval rounds
+        """
+        super().__init__(agent_id="ContextRetrievalAgent")
+        self.task = task
+        self.output_dir = os.path.abspath(output_dir)
+        self.run_count = 0
+        self.repo_browse_manager = RepoBrowseManager(self.task.project_path)
+        self.root_structure = self.browse_folder('/', '1')[0]
+        self.root_structure_info = (
+            f' Root directory structure of target repository: {self.root_structure}\n\n'
+        )
+        self.repo_basic_info = repo_basic_info
+
+        self.max_context_retrieval_round = max_context_retrieval_round
+        self.init_msg_thread()
+    
+    def init_msg_thread(self) -> None:
+        """Initialize the message thread with system and user prompts."""
+        self.msg_thread = self.msg_thread.__class__()  # Create new thread
+        self.add_system_message(SYSTEM_PROMPT)
+        self.add_user_message(self.repo_basic_info)
+        self.add_user_message(self.root_structure_info)
+        user_prompt = USER_PROMPT
+        self.add_user_message(user_prompt)
+    
+    def browse_folder(self, path: str, depth: str) -> tuple[str, str, bool]:
+        """
+        Browse and return the folder structure for a given path.
+        
+        Args:
+            path: The folder path to browse, relative to the project root
+            depth: The number of folder levels to include (as string)
+        
+        Returns:
+            Tuple of (structure string, summary, success)
+        """
+        depth_int = int(depth)
+        return self.repo_browse_manager.browse_folder(path, depth_int)
+    
+    def search_files_by_keyword(self, keyword: str) -> str:
+        """Search for files in the repository whose names contain the given keyword.
+        
+        Args:
+            keyword: The keyword to search for in file names
+            
+        Returns:
+            A formatted string showing the matching files (up to 10), or a message if too many files are found.
+        """
+        return self.repo_browse_manager.search_files_by_keyword(keyword)
+    
+    def browse_file_for_environment_info(
+        self, file_path: str, custom_query: str
+    ) -> tuple[str, str, bool]:
+        """
+        Browse a file and extract environment setup information.
+        
+        Args:
+            file_path: The path to the file to browse
+            custom_query: Custom query for extraction
+        
+        Returns:
+            Tuple of (extracted info, summary, success)
+        """
+        try:
+            if not file_path.startswith(self.task.project_path):
+                file_path = pjoin(self.task.project_path, file_path)
+            extracted_info, summary, success = (
+                self.repo_browse_manager.browse_file_for_environment_info(
+                    file_path, custom_query
+                )
+            )
+            return extracted_info, summary, success
+        except Exception as e:
+            logger.error(f"Error while browsing file {file_path}: {e}")
+            return "", f"Error extracting env info: {e}", False
+    
+    def proxy_apis(self, text: str) -> tuple[str | None, str, list]:
+        """Proxy APIs to another agent."""
+        tool_output, new_thread = context_retrieval_utils.proxy_apis_with_retries(text)
+        if tool_output is None:
+            summary = "The tool returned nothing. The main agent probably did not provide enough clues."
+        else:
+            summary = "The tool returned the selected search APIs in json format generated by another agent."
+        return tool_output, summary, new_thread
+    
+    def run_task(self, print_callback=None) -> tuple[str, str, bool]:
+        """
+        Execute the context retrieval task.
+        
+        Args:
+            print_callback: Optional callback for printing progress
+        
+        Returns:
+            Tuple of (output, summary, success)
+        """
+        self.run_count += 1
+        context_retrieval_round = -1
+        task_output = None
+        summary = None
+        success = None
+        
+        self.reset_tool_sequence()
+        
+        while True:
+            context_retrieval_round += 1
+            context_retrieval_output_dir = self.get_latest_context_retrieval_output_dir()
+            os.makedirs(context_retrieval_output_dir, exist_ok=True)
+            conversation_file = pjoin(
+                context_retrieval_output_dir, f"conversation_{context_retrieval_round}.json"
+            )
+            self.msg_thread.save_to_file(conversation_file)
+            
+            logger.info(
+                f"Task {self.task.task_id} Iteration ROUND {self.iteration_num} "
+                f"CONTEXT RETRIEVAL ROUND {context_retrieval_round}"
+            )
+            
+            # Get model response
+            model_adapter = get_model_adapter()
+            res_text, *_ = model_adapter.call(self.msg_thread.to_msg(), agent_name="context_retrieval_agent")
+            
+            self.add_model_message(res_text, tools=[])
+            
+            # Parse action from response
+            selected_apis, _, proxy_threads = self.proxy_apis(res_text)
+            
+            proxy_log = Path(context_retrieval_output_dir, f"agent_proxy_{context_retrieval_round}.json")
+            proxy_messages = [thread.to_msg() for thread in proxy_threads]
+            proxy_log.write_text(json.dumps(proxy_messages, indent=4))
+            
+            if selected_apis is None:
+                msg = (
+                    "The repo browsing API calls seem invalid. "
+                    "Please check the arguments you give carefully and try again."
+                )
+                self.add_user_message(msg)
+                continue
+            
+            selected_apis_json = json.loads(selected_apis)
+            json_api_calls = selected_apis_json.get("API_calls", [])
+            is_termination = selected_apis_json.get("terminate", None)
+            summary_of_collected_information = selected_apis_json.get("collected_information", None)
+            
+            if is_termination:
+                msg_summary = (
+                    f'Collected information from context retrieval agent:\n'
+                    f'{summary_of_collected_information}\n\n'
+                )
+                task_output = msg_summary
+                summary = "Collect context information successfully."
+                success = True
+                break
+            
+            # Execute API calls
+            collated_tool_response = ""
+            for api_call in json_api_calls:
+                try:
+                    func_name, func_args = parse_function_invocation(api_call)
+                    arg_spec = inspect.getfullargspec(
+                        getattr(RepoBrowseManager, func_name)
+                    )
+                    arg_names = arg_spec.args[1:]  # first parameter is self
+                    
+                    assert len(func_args) == len(arg_names), (
+                        f"Number of argument is wrong in API call: {api_call}"
+                    )
+                    
+                    kwargs = dict(zip(arg_names, func_args))
+                    intent = FunctionCallIntent(func_name, kwargs, None)
+                except Exception as call_api_e:
+                    collated_tool_response += f"Exception when calling {api_call}: {call_api_e}\n\n"
+                    continue
+
+                tool_output, _, _ = self.dispatch_intent(intent)
+                collated_tool_response += f"Result of {api_call}:\n\n{tool_output}\n\n"
+            
+            self.add_user_message(collated_tool_response)
+            
+            # Check if we should continue
+            if context_retrieval_round < self.max_context_retrieval_round:
+                msg = """
+                Let's analyze the collected information and answer these questions:
+
+                1. If there is no specific requirement from the test_analysis_agent, or it has already been satisfied, then determine whether the current information about environment setup and test execution is sufficient. If not, identify what files, contexts, or details are missing, and propose the next appropriate actions based on the basic information from the repository. A good place to start would be inspecting the repository structure and reviewing key documents like `README.md`, `CONTRIBUTING.md`, and basic CI configurations. Avoid aggressive actions like performing deep repository browsing if not explicitly required.
+
+                2. If there are specific requirements from the test_analysis_agent, have these been fully satisfied by the collected information? If yes, you can stop here and provide a detailed summary of all collected information that meets those requirements. The summary must strictly preserve the original content and clearly indicate each section’s source using the format: [Section Title from filename]...[/Section Title from filename].
+
+                [Environment Setup from README.md]
+                To install test dependencies, run:
+                pip install -r requirements-test.txt
+                [/Environment Setup from README.md]
+
+                3. If the information is sufficient, stop and provide the detailed summary as described above.
+                """
+                self.add_user_message(msg)
+            else:
+                task_output = None
+                summary = "Collect context information failure."
+                success = False
+                logger.info(f"Context retrieval failed.")
+                break
+        
+        self.dump_tool_sequence(self.get_latest_context_retrieval_output_dir())
+        self.init_msg_thread()
+        return task_output, summary, success
+    
+    def get_latest_context_retrieval_output_dir(self) -> str:
+        """Return the directory of the most recent Context retrieval outputs."""
+        return os.path.join(self.output_dir, f"context_retrieval_agent_{self.run_count}")
+    
+    def browse_readme(self) -> str:
+        """
+        Browse README file. Used in ablation study without context retrieval agent.
+        
+        Returns:
+            README content or empty string
+        """
+        readme_list = ["README.md", "README.rst", "README.txt"]
+        for readme_name in readme_list:
+            file_path = pjoin(self.task.project_path, readme_name)
+            try:
+                readme_content = self.repo_browse_manager.browse_file(file_path)
+                return (
+                    f"The content of {readme_name} in the target repository:\n"
+                    f"<README>\n{readme_content}\n</README>\n"
+                )
+            except Exception:
+                continue
+        return ""

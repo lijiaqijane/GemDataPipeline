@@ -14,6 +14,7 @@ import faiss
 import ftfy
 import torch
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
 from agent_gem.tools import MediaWikiTool, SearchTool, VisitTool
 
@@ -279,7 +280,9 @@ class SearchAgent(
         logger.info(f"Starting parallel processing with {max_workers} workers")
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_entity = {executor.submit(process_entity, entity): entity for entity in entities}
-            for future in as_completed(future_to_entity):
+            for future in tqdm(
+                as_completed(future_to_entity), total=len(entities), desc="Processing entities"
+            ):
                 entity_results = future.result()
                 results.extend(entity_results)
 
@@ -392,7 +395,7 @@ class SearchAgent(
                 "content": self.DOMAIN_SAMPLER_PROMPT.format(num_domains=1),
             }
         ]
-        domains = []
+        domains: List[str] = []
         while len(domains) < num_domains:
             try:
                 response = self.llm.chat_completion(messages=messages, temperature=1.0, top_p=0.95)
