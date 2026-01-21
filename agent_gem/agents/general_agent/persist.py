@@ -145,6 +145,7 @@ def persist_quadruple_format(
                 "description": package.task.task_content,
                 "difficulty": package.task.difficulty_level,
                 "solution_code": package.solution or "",
+                "submit_result_format": package.task.submit_result_format or {},
                 "state_hash": {
                     "pre": package.metadata.get("pre_state_hash", ""),
                     "post": package.metadata.get("post_state_hash", ""),

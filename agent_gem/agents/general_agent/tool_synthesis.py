@@ -1139,6 +1139,60 @@ class ToolSynthesisMixin:
                 counts[name] = counts.get(name, 0) + 1
         return sorted(name for name, count in counts.items() if count > 1)
 
+    @staticmethod
+    def _extract_function_names(code: str) -> set[str]:
+        """Extract all function names (including async functions) from Python code."""
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return set()
+        function_names = set()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                function_names.add(node.name)
+        return function_names
+
+    @staticmethod
+    def _remove_duplicate_functions(new_code: str, existing_function_names: set[str]) -> str:
+        """Remove function definitions from new_code that already exist in existing_function_names.
+        
+        Args:
+            new_code: New Python code that may contain duplicate functions
+            existing_function_names: Set of function names that already exist
+            
+        Returns:
+            Code with duplicate function definitions removed
+        """
+        if not new_code or not existing_function_names:
+            return new_code
+        
+        try:
+            tree = ast.parse(new_code)
+        except Exception:
+            # If parsing fails, return original code
+            return new_code
+        
+        new_body = []
+        removed_count = 0
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if node.name in existing_function_names:
+                    removed_count += 1
+                    continue
+            new_body.append(node)
+        
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} duplicate function(s) from augmentation code")
+            ast.fix_missing_locations(tree)
+            tree.body = new_body
+            try:
+                return ast.unparse(tree)
+            except Exception:
+                # If unparse fails, return original code
+                return new_code
+        
+        return new_code
+
     def _build_file_tool_prompt(
         self,
         *,
@@ -2617,6 +2671,12 @@ PY"""
                 data_profile=data_profile or {},
                 sandbox=sandbox,
             )
+            
+            # Remove duplicate functions from implemented_code if tools.py already exists
+            if tools_path.exists():
+                existing_functions = self._extract_function_names(tools_path.read_text(encoding="utf-8"))
+                implemented_code = self._remove_duplicate_functions(implemented_code, existing_functions)
+            
             mode = "a" if tools_path.exists() else "w"
             with tools_path.open(mode, encoding="utf-8") as handle:
                 if tools_path.exists():

@@ -30,7 +30,7 @@ class DataPipelineMixin:
 
     # Search and query limits
     MAX_SEARCH_QUERIES = 10
-    MAX_SEARCH_RESULTS_PER_QUERY = 5
+    MAX_SEARCH_RESULTS_PER_QUERY = 2
     MAX_DATA_FILES = 10
     MAX_LLM_TOKENS_FOR_QUERIES = 300
 
