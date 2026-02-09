@@ -635,6 +635,40 @@ class ToolSynthesisMixin:
         cleaned = "\n".join(lines[start:]).strip()
         return cleaned.replace("```", "").strip()
 
+    @staticmethod
+    def _repair_syntax_best_effort(code: str) -> str:
+        """Best-effort syntax repair: if full code can't be parsed, try trimming broken tail.
+
+        Strategy:
+        - If ast.parse(code) succeeds, return as-is.
+        - If it fails with SyntaxError and has a lineno, drop everything from that line onwards
+          and keep only the prefix. If the prefix parses, use that as the repaired code.
+        - Otherwise, return original code (let normal validation/regen handle the failure).
+        """
+        if not code:
+            return code
+        try:
+            ast.parse(code)
+            return code
+        except SyntaxError as exc:
+            try:
+                lineno = getattr(exc, "lineno", None)
+                if not lineno:
+                    return code
+                lines = code.splitlines()
+                if 1 < lineno <= len(lines):
+                    prefix = "\n".join(lines[: lineno - 1]).rstrip()
+                    if not prefix:
+                        return code
+                    ast.parse(prefix)
+                    return prefix
+            except Exception:
+                return code
+        except Exception:
+            # Non-syntax errors shouldn't be "fixed" here.
+            return code
+        return code
+
     def _iter_data_entries(self, data_profile: dict[str, Any]) -> list[dict[str, Any]]:
         """Iterate over data entries, only processing JSON files."""
         entries: list[dict[str, Any]] = []
@@ -1217,19 +1251,22 @@ class ToolSynthesisMixin:
             required_hint = f"Required output fields (use if applicable): {sorted(required_fields)}\n"
         rules_parts = [
             "- Output ONLY one Python code block.\n",
-            f"- Define tools with @mcp.tool() for `{list_tool_name}` and `{main_tool_name}`.\n",
-            "- You MAY define helper functions/classes/constants and imports.\n",
+            f"- Output MUST contain EXACTLY TWO top-level functions named `{list_tool_name}` and `{main_tool_name}`.\n",
+            '- Each of the two functions MUST have EXACTLY ONE decorator: @mcp.tool(description="...").\n',
+            '- The `description` parameter MUST be a SHORT HUMAN-READABLE DESCRIPTION of the tool (NOT the function name).\n',
+            '- Add a docstring to EACH function. The FIRST LINE of the docstring will be used as the description.\n',
+            '- The tool name will be automatically derived from the function name by MCP, so you don\'t need to specify it.\n',
+            "- Do NOT output any other decorators (e.g., @tool, @tool_decorate, @decorator).\n",
+            "- Do NOT output ANY top-level imports, helper functions/classes, constants, or extra code.\n",
+            "  If you need imports, do local imports INSIDE each function body.\n",
             "- Do NOT define mcp, FastMCP, or BASE_DIR; those are provided.\n",
             f"- Use BASE_DIR and exact path: {rel_path}.\n",
             "- Each tool must read the file and implement real logic (no pass/raise).\n",
             f"- `{list_tool_name}` returns list[str] (may have 0 parameters).\n",
             f"- `{main_tool_name}` returns list[dict] or dict (should have 2-4+ parameters for filtering).\n",
-            "- Add type hints; use stable defaults (\"\", 0, []) instead of None.\n",
-            "- Use 'Any' (capitalized) from typing module, NOT 'any' (lowercase built-in function).\n",
-            "  Always import: 'from typing import Any' and use 'Any' in type annotations like dict[str, Any].\n",
-            f"- Parameters: Be DIVERSE and TOPIC-SPECIFIC. Derive from File data structure and topic semantics.\n",
-            "  Vary names across tools; use JSON-serializable types (str, int, bool, list[str], Optional[...]), NOT Enum.\n",
-            "- Returns: list[dict[str, Any]] or dict[str, Any] (avoid TypedDict).\n",
+            "- Add type hints; use stable defaults (\"\", 0, [], False) instead of None.\n",
+            f"- Parameters: Be DIVERSE and TOPIC-SPECIFIC. Derive from file data structure and topic semantics.\n",
+            "  Use JSON-serializable types (str, int, float, bool, list[str], list[int]). Avoid Enum/TypedDict.\n",
             "- Set random.seed(0) if using randomness.\n",
         ]
         rules = "".join(rules_parts)
@@ -1247,6 +1284,55 @@ class ToolSynthesisMixin:
             "Output ONLY one Python code block defining the two tools. No prose."
         )
         return prompt
+
+    @staticmethod
+    def _keep_only_mcp_tool_functions(code: str, *, keep_names: set[str]) -> str:
+        """Normalize MCP tool functions and force decorator to @mcp.tool(description="...").
+
+        This is a hardening step to prevent the LLM from emitting invalid MCP-related decorators
+        (e.g. @tool_decorate, bare @tool). We do NOT drop helper functions/classes here; we only
+        normalize decorators for the specific tool functions we care about.
+        
+        The tool name will be automatically derived from the function name by MCP.
+        """
+        try:
+            tree = ast.parse(code)
+        except Exception:
+            return code
+
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name not in keep_names:
+                continue
+            # Prefer function docstring (first line) as tool description.
+            doc = ast.get_docstring(node, clean=True) or ""
+            first_line = (doc.strip().splitlines() or [""])[0].strip()
+            if not first_line:
+                first_line = f"{node.name} tool"
+            
+            # Truncate description if too long
+            description = first_line
+            if len(description) > 200:
+                description = description[:197].rstrip() + "..."
+            
+            # Force a single @mcp.tool(description="...") decorator.
+            # Tool name will be automatically derived from function name by MCP.
+            node.decorator_list = [
+                ast.Call(
+                    func=ast.Attribute(value=ast.Name(id="mcp", ctx=ast.Load()), attr="tool", ctx=ast.Load()),
+                    args=[],  # No positional args
+                    keywords=[
+                        ast.keyword(arg="description", value=ast.Constant(value=description))
+                    ],
+                )
+            ]
+
+        try:
+            ast.fix_missing_locations(tree)
+            return ast.unparse(tree)
+        except Exception:
+            return code
 
     def _synthesize_file_tools(
         self,
@@ -1291,6 +1377,8 @@ class ToolSynthesisMixin:
             )
             code = self._sanitize_llm_code(raw)
             code = self._sanitize_tool_decorators(code)
+            # Best-effort syntax repair to trim obviously broken tails.
+            code = self._repair_syntax_best_effort(code)
             errors: list[str] = []
             if not code:
                 errors.append("empty_tool_code")
@@ -1364,6 +1452,8 @@ class ToolSynthesisMixin:
                 continue
 
             keep_names = {list_tool_name, main_tool_name}
+            # Hardening: keep ONLY the two tool functions and force decorator format.
+            code = self._keep_only_mcp_tool_functions(code, keep_names=keep_names)
             demoted = self._demote_extra_tool_decorators(code, keep_names)
             fragment = self._strip_module_imports_and_globals(demoted).strip()
             namespace = self._namespace_for_path(entry["path"])

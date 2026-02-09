@@ -55,3 +55,4 @@ search_output/
 search_output*.json
 cache
 search_cache.json
+task_category_generated.json

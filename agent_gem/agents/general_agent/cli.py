@@ -93,6 +93,10 @@ def _extract_categories_from_json(json_file: str, num_categories: int, start_ind
         for role in data.get('user_roles', []):
             for scenario in role.get('scenarios', []):
                 scenarios.append(scenario.get('scenario', ''))
+        if len(scenarios) == 0:
+            for role in data.get('domains', []):
+                for scenario in role.get('scenarios', []):
+                    scenarios.append(scenario.get('scenario', ''))
         # Return requested number of scenarios starting from start_index
         end_index = min(start_index + num_categories, len(scenarios))
         return scenarios[start_index:end_index] if scenarios else []
@@ -137,11 +141,12 @@ def handle_synthesize(args: argparse.Namespace) -> None:
         categories = [args.category]
     elif num_categories > 1:
         # Extract from JSON
-        task_category_file = os.getenv("TASK_CATEGORY_FILE", "task_category.json")
+        task_category_file = os.getenv("TASK_CATEGORY_FILE", "task_category_generated.json")
         start_index = int(os.getenv("SCENARIO_INDEX", "0"))
+        print(f"start_index: {start_index}")
         categories = _extract_categories_from_json(task_category_file, num_categories, start_index)
         if not categories:
-            logging.error("Failed to extract categories from task_category.json")
+            logging.error(f"Failed to extract categories from {task_category_file}")
             sys.exit(1)
     else:
         logging.error("Either --category must be specified or --num-categories > 1 with task_category.json available")
