@@ -56,3 +56,6 @@ search_output*.json
 cache
 search_cache.json
 task_category_generated.json
+
+.venv.py39.backup/
+.venv310/
