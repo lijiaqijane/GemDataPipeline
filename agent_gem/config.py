@@ -39,9 +39,9 @@ class LLMConfig:
         if provider in {"deepseek", "volcano"}:
             base_url = os.getenv(
                 "VOLCANO_BASE_URL",
-                "https://ark.cn-beijing.volces.com/api/v3",
+                "https://openrouter.ai/api/v1",
             )
-            model = os.getenv("VOLCANO_MODEL", "deepseek-v3-2-251201")
+            model = os.getenv("VOLCANO_MODEL", "deepseek/deepseek-v3.2")
             api_key = os.getenv("VOLCANO_API_KEY")
 
             # Optional overrides using DEEPSEEK_* if provided

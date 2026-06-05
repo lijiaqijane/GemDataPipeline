@@ -15,11 +15,64 @@ from functools import cached_property
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional
 
-from mcp.server.fastmcp.utilities.context_injection import find_context_parameter
-from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata, func_metadata
-from mcp.shared.tool_name_validation import validate_and_warn_tool_name
-from pydantic import BaseModel, Field, field_validator, model_serializer
-from pydantic_core import core_schema
+if hasattr(__import__("typing"), "TypeAlias"):
+    from typing import TypeAlias
+else:
+    TypeAlias = Any
+
+UUIDOrNone: TypeAlias = Optional[uuid.UUID]
+StrOrNone: TypeAlias = Optional[str]
+BoolOrNone: TypeAlias = Optional[bool]
+FloatOrNone: TypeAlias = Optional[float]
+
+from pydantic import BaseModel, Field, create_model
+
+try:
+    from pydantic import field_validator, model_serializer
+    from pydantic_core import core_schema
+    PYDANTIC_V2 = True
+except ImportError:
+    from pydantic import validator
+
+    field_validator = None
+    model_serializer = None
+    core_schema = None
+    PYDANTIC_V2 = False
+
+try:
+    from mcp.server.fastmcp.utilities.context_injection import find_context_parameter
+    from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata, func_metadata
+    from mcp.shared.tool_name_validation import validate_and_warn_tool_name
+except ImportError:
+    FuncMetadata = Any
+
+    def validate_and_warn_tool_name(_name: str) -> None:
+        return None
+
+    def find_context_parameter(_fn: Callable[..., Any]) -> Optional[str]:
+        return None
+
+    class _FallbackFuncMetadata(SimpleNamespace):
+        arg_model: type[BaseModel]
+        output_schema: Optional[dict[str, Any]]
+
+    def func_metadata(
+        fn: Callable[..., Any],
+        skip_names: Optional[list[str]] = None,
+        structured_output: Optional[bool] = None,
+    ) -> _FallbackFuncMetadata:
+        del structured_output
+        skip = set(skip_names or [])
+        fields: dict[str, tuple[Any, Any]] = {}
+        signature = inspect.signature(fn)
+        for param in signature.parameters.values():
+            if param.name in skip:
+                continue
+            annotation = param.annotation if param.annotation is not inspect._empty else Any
+            default = param.default if param.default is not inspect._empty else ...
+            fields[param.name] = (annotation, default)
+        arg_model = create_model(f"{fn.__name__}Args", **fields)
+        return _FallbackFuncMetadata(arg_model=arg_model, output_schema=None)
 
 
 def _is_async_callable(obj: Any) -> bool:
@@ -32,8 +85,8 @@ def _is_async_callable(obj: Any) -> bool:
 
 
 class TaskStep(BaseModel):
-    parentUuid: uuid.UUID | None
-    sessionId: uuid.UUID | None
+    parentUuid: UUIDOrNone
+    sessionId: UUIDOrNone
     message: dict[str, Any]
     requestId: str
     taskId: str
@@ -63,17 +116,17 @@ class ToolSpec(BaseModel):
 
     fn: Callable[..., Any] = Field(exclude=True)
     name: str = Field(description="Name of the tool")
-    title: str | None = Field(None, description="Human-readable title of the tool")
+    title: StrOrNone = Field(None, description="Human-readable title of the tool")
     description: str = Field(description="Description of what the tool does")
     parameters: dict[str, Any] = Field(description="JSON schema for tool parameters")
     fn_metadata: FuncMetadata = Field(
         description="Metadata about the function including a pydantic model for tool arguments"
     )
     is_async: bool = Field(description="Whether the tool is async")
-    meta: dict[str, Any] | None = Field(default=None, description="Optional metadata for this tool")
+    meta: Optional[dict[str, Any]] = Field(default=None, description="Optional metadata for this tool")
 
     @cached_property
-    def output_schema(self) -> dict[str, Any] | None:
+    def output_schema(self) -> Optional[dict[str, Any]]:
         return self.fn_metadata.output_schema
 
     @model_serializer(mode="plain")
@@ -92,12 +145,12 @@ class ToolSpec(BaseModel):
     def from_function(
         cls,
         fn: Callable[..., Any],
-        name: str | None = None,
-        title: str | None = None,
-        description: str | None = None,
-        context_kwarg: str | None = None,
-        meta: dict[str, Any] | None = None,
-        structured_output: bool | None = None,
+        name: StrOrNone = None,
+        title: StrOrNone = None,
+        description: StrOrNone = None,
+        context_kwarg: StrOrNone = None,
+        meta: Optional[dict[str, Any]] = None,
+        structured_output: BoolOrNone = None,
     ) -> "ToolSpec":
         """Create a Tool from a function."""
         func_name = name or fn.__name__
@@ -118,7 +171,10 @@ class ToolSpec(BaseModel):
             skip_names=[context_kwarg] if context_kwarg is not None else [],
             structured_output=structured_output,
         )
-        parameters = func_arg_metadata.arg_model.model_json_schema(by_alias=True)
+        if hasattr(func_arg_metadata.arg_model, "model_json_schema"):
+            parameters = func_arg_metadata.arg_model.model_json_schema(by_alias=True)
+        else:
+            parameters = func_arg_metadata.arg_model.schema(by_alias=True)
 
         return cls(
             fn=fn,
@@ -136,7 +192,7 @@ class ToolSpec(BaseModel):
         cls,
         function_string: str,
         *,
-        extra_globals: dict[str, Any] | None = None,
+        extra_globals: Optional[dict[str, Any]] = None,
         filename: str = "<tool>",
     ) -> "ToolSpec":
         """Create a ToolSpec from a Python function string.
@@ -151,8 +207,8 @@ class ToolSpec(BaseModel):
 
         module = ast.parse(source, filename=filename, mode="exec")
 
-        target_fn: ast.FunctionDef | ast.AsyncFunctionDef | None = None
-        decorator_call: ast.Call | None = None
+        target_fn: Optional[ast.FunctionDef | ast.AsyncFunctionDef] = None
+        decorator_call: Optional[ast.Call] = None
         for node in module.body:
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
@@ -246,7 +302,7 @@ class ToolSpec(BaseModel):
 
 def _extract_tool_decorator_call(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
-) -> ast.Call | None:
+) -> Optional[ast.Call]:
     for decorator in node.decorator_list:
         if not isinstance(decorator, ast.Call):
             continue
@@ -258,7 +314,7 @@ def _extract_tool_decorator_call(
     return None
 
 
-def _literal_eval_or_none(expr: ast.expr) -> Any | None:
+def _literal_eval_or_none(expr: ast.expr) -> Optional[Any]:
     try:
         return ast.literal_eval(expr)
     except (ValueError, SyntaxError):
@@ -290,9 +346,11 @@ class _AnnotationPlaceholder:
     def __class_getitem__(cls, _item: object) -> type["_AnnotationPlaceholder"]:
         return cls
 
-    @classmethod
-    def __get_pydantic_core_schema__(cls, _source: Any, _handler: Any) -> core_schema.CoreSchema:
-        return core_schema.any_schema()
+    if PYDANTIC_V2:
+
+        @classmethod
+        def __get_pydantic_core_schema__(cls, _source: Any, _handler: Any) -> core_schema.CoreSchema:
+            return core_schema.any_schema()
 
 
 def _inject_annotation_placeholders(
@@ -318,7 +376,7 @@ def _inject_annotation_placeholders(
                 globals_dict.setdefault(subnode.id, _AnnotationPlaceholder)
             elif isinstance(subnode, ast.Attribute):
                 chain: List[str] = []
-                cursor: ast.AST | None = subnode
+                cursor: Optional[ast.AST] = subnode
                 while isinstance(cursor, ast.Attribute):
                     chain.append(cursor.attr)
                     cursor = cursor.value
@@ -394,7 +452,7 @@ def _sanitize_function_def(
         )
         return not any(isinstance(sub, disallowed) for sub in ast.walk(expr))
 
-    def sanitize_annotation(expr: ast.expr | None) -> ast.expr | None:
+    def sanitize_annotation(expr: Optional[ast.expr]) -> Optional[ast.expr]:
         if expr is None:
             return None
         if not is_safe_annotation_expr(expr):
@@ -496,14 +554,14 @@ class TaskDefinition(BaseModel):
 class TaskPackage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     task: TaskDefinition
-    solution: str | None = None
-    verification: str | None = None
+    solution: StrOrNone = None
+    verification: StrOrNone = None
     agent_type: str = Field(..., min_length=3)
     metadata: Dict[str, str] = Field(default_factory=dict)
     task_path: Optional[str] = None
     use_docker: bool = False
-    validated: bool | None = None
-    validation_reason: str | None = None
+    validated: BoolOrNone = None
+    validation_reason: StrOrNone = None
 
     def as_payload(self) -> Dict[str, object]:
         return {
@@ -537,7 +595,7 @@ class TaskPackage(BaseModel):
 
     def verify_with_meta(
         self, tools: Dict[str, Any], answer: Any
-    ) -> tuple[bool | None, float | None, Any, str | None]:
+    ) -> tuple[BoolOrNone, FloatOrNone, Any, StrOrNone]:
         """Run verification and return richer metadata (bool/score/details/message)."""
         try:
             env = self._build_exec_env(tools, allow_imports=True)
@@ -560,7 +618,7 @@ class TaskPackage(BaseModel):
         return verified, score, details, message
 
     @staticmethod
-    def _coerce_score(value: Any) -> float | None:
+    def _coerce_score(value: Any) -> FloatOrNone:
         try:
             return float(value)
         except Exception:
@@ -569,7 +627,7 @@ class TaskPackage(BaseModel):
     @classmethod
     def _normalize_verification_output(
         cls, output: Any
-    ) -> tuple[bool | None, float | None, Any, str | None]:
+    ) -> tuple[BoolOrNone, FloatOrNone, Any, StrOrNone]:
         """Accept common verification return patterns and normalize them.
 
         Supported patterns:
@@ -577,10 +635,10 @@ class TaskPackage(BaseModel):
         - dict with keys like passed/success/ok/result and optional score/details/message/error
         - tuple/list like (bool, score, details)
         """
-        verified: bool | None = None
-        score: float | None = None
+        verified: BoolOrNone = None
+        score: FloatOrNone = None
         details: Any = None
-        message: str | None = None
+        message: StrOrNone = None
 
         if isinstance(output, dict):
             for key in ("passed", "success", "ok", "result"):

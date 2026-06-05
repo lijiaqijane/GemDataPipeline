@@ -1,0 +1,3039 @@
+{
+  "domains": [
+    {
+      "domain": "Technology & Development",
+      "scenarios": [
+        {
+          "scenario": "Identify the root cause of a recurring bug in production"
+        },
+        {
+          "scenario": "Optimize a slow-performing database query"
+        },
+        {
+          "scenario": "Understand error logs from a distributed system"
+        },
+        {
+          "scenario": "Compare different algorithms for a specific task"
+        },
+        {
+          "scenario": "Set up automated testing for a new module"
+        },
+        {
+          "scenario": "Get a beginner's tutorial on Rust programming"
+        },
+        {
+          "scenario": "Compare GraphQL vs REST for a new API"
+        },
+        {
+          "scenario": "Find best practices for container security"
+        },
+        {
+          "scenario": "Understand the architecture of a specific blockchain"
+        },
+        {
+          "scenario": "Explore machine learning libraries for Python"
+        },
+        {
+          "scenario": "Design a scalable microservices architecture for an e-commerce platform"
+        },
+        {
+          "scenario": "Choose between monolithic vs serverless for a startup"
+        },
+        {
+          "scenario": "Plan disaster recovery strategies for cloud infrastructure"
+        },
+        {
+          "scenario": "Design API rate limiting and throttling mechanisms"
+        },
+        {
+          "scenario": "Create a data flow diagram for real-time analytics"
+        },
+        {
+          "scenario": "Generate constructive feedback for a junior developer's pull request"
+        },
+        {
+          "scenario": "Create coding standards documentation for a new team"
+        },
+        {
+          "scenario": "Set up CI/CD pipeline for a legacy application"
+        },
+        {
+          "scenario": "Plan pair programming sessions for knowledge transfer"
+        },
+        {
+          "scenario": "Automate dependency updates across multiple repositories"
+        },
+        {
+          "scenario": "Reduce memory usage in a Node.js application"
+        },
+        {
+          "scenario": "Optimize frontend bundle size for faster loading"
+        },
+        {
+          "scenario": "Implement caching strategies for a high-traffic website"
+        },
+        {
+          "scenario": "Profile and improve CPU usage in a Java service"
+        },
+        {
+          "scenario": "Design database indexing strategies for complex queries"
+        },
+        {
+          "scenario": "Create API documentation with interactive examples"
+        },
+        {
+          "scenario": "Write deployment guides for different environments"
+        },
+        {
+          "scenario": "Generate architecture decision records"
+        },
+        {
+          "scenario": "Create troubleshooting guides for common issues"
+        },
+        {
+          "scenario": "Document security protocols and compliance requirements"
+        },
+        {
+          "scenario": "Find beginner-friendly issues in popular repositories"
+        },
+        {
+          "scenario": "Understand contribution guidelines for a specific project"
+        },
+        {
+          "scenario": "Set up local development environment for a complex project"
+        },
+        {
+          "scenario": "Create meaningful test cases for a feature"
+        },
+        {
+          "scenario": "Prepare a pull request with proper commit messages"
+        },
+        {
+          "scenario": "Practice system design questions for senior positions"
+        },
+        {
+          "scenario": "Review data structures and algorithms concepts"
+        },
+        {
+          "scenario": "Prepare behavioral interview answers for tech roles"
+        },
+        {
+          "scenario": "Simulate coding challenges with time constraints"
+        },
+        {
+          "scenario": "Research company-specific interview processes"
+        },
+        {
+          "scenario": "Automate infrastructure provisioning using Terraform"
+        },
+        {
+          "scenario": "Set up monitoring and alerting for a new service"
+        },
+        {
+          "scenario": "Create blue-green deployment strategies"
+        },
+        {
+          "scenario": "Implement security scanning in the CI pipeline"
+        },
+        {
+          "scenario": "Optimize Docker images for production"
+        },
+        {
+          "scenario": "Identify skills needed for promotion to staff engineer"
+        },
+        {
+          "scenario": "Find mentorship opportunities in specific technologies"
+        },
+        {
+          "scenario": "Prepare a technical portfolio for job applications"
+        },
+        {
+          "scenario": "Balance deep specialization vs broad knowledge acquisition"
+        },
+        {
+          "scenario": "Navigate career transitions between different tech stacks"
+        },
+        {
+          "scenario": "Perform exploratory data analysis on new datasets"
+        },
+        {
+          "scenario": "Identify patterns and anomalies in time series data"
+        },
+        {
+          "scenario": "Create statistical summaries and visualizations"
+        },
+        {
+          "scenario": "Clean and preprocess messy real-world data"
+        },
+        {
+          "scenario": "Conduct hypothesis testing on business questions"
+        },
+        {
+          "scenario": "Select appropriate algorithms for specific problems"
+        },
+        {
+          "scenario": "Train and validate predictive models"
+        },
+        {
+          "scenario": "Optimize hyperparameters for model performance"
+        },
+        {
+          "scenario": "Handle imbalanced datasets in classification problems"
+        },
+        {
+          "scenario": "Implement ensemble methods for improved accuracy"
+        },
+        {
+          "scenario": "Create meaningful features from raw data"
+        },
+        {
+          "scenario": "Handle categorical variables and text data"
+        },
+        {
+          "scenario": "Reduce dimensionality for high-dimensional data"
+        },
+        {
+          "scenario": "Create time-based features for forecasting models"
+        },
+        {
+          "scenario": "Generate interaction features for complex relationships"
+        },
+        {
+          "scenario": "Package models for production deployment"
+        },
+        {
+          "scenario": "Create APIs for model serving"
+        },
+        {
+          "scenario": "Monitor model performance in production"
+        },
+        {
+          "scenario": "Implement A/B testing for model comparisons"
+        },
+        {
+          "scenario": "Set up automated retraining pipelines"
+        },
+        {
+          "scenario": "Process large datasets using distributed computing"
+        },
+        {
+          "scenario": "Optimize Spark jobs for better performance"
+        },
+        {
+          "scenario": "Design efficient data pipelines"
+        },
+        {
+          "scenario": "Handle streaming data in real-time applications"
+        },
+        {
+          "scenario": "Manage memory and computational resources"
+        },
+        {
+          "scenario": "Translate business problems into data questions"
+        },
+        {
+          "scenario": "Create dashboards for business stakeholders"
+        },
+        {
+          "scenario": "Conduct root cause analysis for business metrics"
+        },
+        {
+          "scenario": "Forecast business outcomes using predictive models"
+        },
+        {
+          "scenario": "Identify opportunities through data mining"
+        },
+        {
+          "scenario": "Design A/B tests for product features"
+        },
+        {
+          "scenario": "Calculate sample sizes for experiments"
+        },
+        {
+          "scenario": "Analyze experiment results and draw conclusions"
+        },
+        {
+          "scenario": "Create sequential testing frameworks"
+        },
+        {
+          "scenario": "Manage multiple simultaneous experiments"
+        },
+        {
+          "scenario": "Implement text classification models"
+        },
+        {
+          "scenario": "Create sentiment analysis systems"
+        },
+        {
+          "scenario": "Build recommendation systems"
+        },
+        {
+          "scenario": "Develop chatbots and conversational AI"
+        },
+        {
+          "scenario": "Perform topic modeling on document collections"
+        },
+        {
+          "scenario": "Design neural network architectures"
+        },
+        {
+          "scenario": "Train models on specialized hardware"
+        },
+        {
+          "scenario": "Implement transfer learning for specific domains"
+        },
+        {
+          "scenario": "Work with image and video data"
+        },
+        {
+          "scenario": "Handle sequence data with RNNs and transformers"
+        },
+        {
+          "scenario": "Identify and mitigate bias in models"
+        },
+        {
+          "scenario": "Ensure data privacy and security"
+        },
+        {
+          "scenario": "Create explainable AI systems"
+        },
+        {
+          "scenario": "Document model decisions and limitations"
+        },
+        {
+          "scenario": "Establish model governance frameworks"
+        }
+      ]
+    },
+    {
+      "domain": "Business & Management",
+      "scenarios": [
+        {
+          "scenario": "Conduct competitive analysis for a new market segment"
+        },
+        {
+          "scenario": "Define key success metrics for a product launch"
+        },
+        {
+          "scenario": "Create a product roadmap for the next 12 months"
+        },
+        {
+          "scenario": "Identify market gaps and opportunities"
+        },
+        {
+          "scenario": "Prioritize features based on customer value and effort"
+        },
+        {
+          "scenario": "Design user interview questions for a new feature"
+        },
+        {
+          "scenario": "Analyze customer feedback from multiple channels"
+        },
+        {
+          "scenario": "Create user personas for different market segments"
+        },
+        {
+          "scenario": "Identify pain points in the current user journey"
+        },
+        {
+          "scenario": "Validate product hypotheses with data"
+        },
+        {
+          "scenario": "Prepare executive presentations for product updates"
+        },
+        {
+          "scenario": "Align engineering, design, and marketing teams on goals"
+        },
+        {
+          "scenario": "Manage expectations with sales and customer success teams"
+        },
+        {
+          "scenario": "Create transparent communication plans for product changes"
+        },
+        {
+          "scenario": "Resolve conflicts between different stakeholder priorities"
+        },
+        {
+          "scenario": "Write clear and actionable user stories"
+        },
+        {
+          "scenario": "Define acceptance criteria for complex features"
+        },
+        {
+          "scenario": "Facilitate effective sprint planning sessions"
+        },
+        {
+          "scenario": "Create release plans with risk mitigation strategies"
+        },
+        {
+          "scenario": "Measure and improve team velocity"
+        },
+        {
+          "scenario": "Set up A/B testing frameworks for feature validation"
+        },
+        {
+          "scenario": "Analyze product usage metrics to identify opportunities"
+        },
+        {
+          "scenario": "Create dashboards for tracking key product metrics"
+        },
+        {
+          "scenario": "Interpret cohort analysis for user retention"
+        },
+        {
+          "scenario": "Use analytics to prioritize bug fixes and improvements"
+        },
+        {
+          "scenario": "Develop pricing strategies for a new product"
+        },
+        {
+          "scenario": "Create positioning and messaging frameworks"
+        },
+        {
+          "scenario": "Plan beta testing programs with early adopters"
+        },
+        {
+          "scenario": "Coordinate launch activities across departments"
+        },
+        {
+          "scenario": "Define success criteria for product launches"
+        },
+        {
+          "scenario": "Generate and validate new product ideas"
+        },
+        {
+          "scenario": "Conduct market sizing and opportunity assessment"
+        },
+        {
+          "scenario": "Create prototypes for user testing"
+        },
+        {
+          "scenario": "Run design sprints to solve complex problems"
+        },
+        {
+          "scenario": "Identify technical constraints and dependencies"
+        },
+        {
+          "scenario": "Mentor junior product managers"
+        },
+        {
+          "scenario": "Create career growth paths for product team members"
+        },
+        {
+          "scenario": "Facilitate knowledge sharing sessions"
+        },
+        {
+          "scenario": "Build effective product processes and rituals"
+        },
+        {
+          "scenario": "Hire and onboard new product team members"
+        },
+        {
+          "scenario": "Identify and mitigate product risks"
+        },
+        {
+          "scenario": "Create contingency plans for critical dependencies"
+        },
+        {
+          "scenario": "Monitor competitive threats and market changes"
+        },
+        {
+          "scenario": "Manage technical debt and legacy system constraints"
+        },
+        {
+          "scenario": "Ensure regulatory compliance for product features"
+        },
+        {
+          "scenario": "Foster a culture of experimentation and learning"
+        },
+        {
+          "scenario": "Balance innovation with maintaining existing products"
+        },
+        {
+          "scenario": "Create processes for evaluating new technologies"
+        },
+        {
+          "scenario": "Manage product portfolio across different lifecycles"
+        },
+        {
+          "scenario": "Identify partnership opportunities for product enhancement"
+        },
+        {
+          "scenario": "Develop business growth strategies"
+        },
+        {
+          "scenario": "Create annual business plans"
+        },
+        {
+          "scenario": "Set business goals and objectives"
+        },
+        {
+          "scenario": "Plan for business expansion"
+        },
+        {
+          "scenario": "Develop contingency plans"
+        },
+        {
+          "scenario": "Manage cash flow and working capital"
+        },
+        {
+          "scenario": "Create and monitor budgets"
+        },
+        {
+          "scenario": "Prepare financial projections"
+        },
+        {
+          "scenario": "Manage business taxes and compliance"
+        },
+        {
+          "scenario": "Secure business financing"
+        },
+        {
+          "scenario": "Develop marketing strategies on a budget"
+        },
+        {
+          "scenario": "Create customer acquisition plans"
+        },
+        {
+          "scenario": "Build brand awareness locally"
+        },
+        {
+          "scenario": "Develop sales processes and systems"
+        },
+        {
+          "scenario": "Manage customer relationships"
+        },
+        {
+          "scenario": "Optimize business processes and workflows"
+        },
+        {
+          "scenario": "Manage inventory and supply chain"
+        },
+        {
+          "scenario": "Improve customer service systems"
+        },
+        {
+          "scenario": "Implement quality control measures"
+        },
+        {
+          "scenario": "Manage vendor relationships"
+        },
+        {
+          "scenario": "Hire and train employees"
+        },
+        {
+          "scenario": "Create employee schedules"
+        },
+        {
+          "scenario": "Develop team training programs"
+        },
+        {
+          "scenario": "Manage payroll and benefits"
+        },
+        {
+          "scenario": "Build company culture"
+        },
+        {
+          "scenario": "Research new product opportunities"
+        },
+        {
+          "scenario": "Develop and test new offerings"
+        },
+        {
+          "scenario": "Improve existing products/services"
+        },
+        {
+          "scenario": "Set pricing strategies"
+        },
+        {
+          "scenario": "Create service packages"
+        },
+        {
+          "scenario": "Gather and analyze customer feedback"
+        },
+        {
+          "scenario": "Improve customer satisfaction"
+        },
+        {
+          "scenario": "Develop loyalty programs"
+        },
+        {
+          "scenario": "Handle customer complaints effectively"
+        },
+        {
+          "scenario": "Create exceptional service standards"
+        },
+        {
+          "scenario": "Select and implement business software"
+        },
+        {
+          "scenario": "Build business websites and online presence"
+        },
+        {
+          "scenario": "Use social media for business growth"
+        },
+        {
+          "scenario": "Implement e-commerce solutions"
+        },
+        {
+          "scenario": "Automate business processes"
+        },
+        {
+          "scenario": "Understand business regulations"
+        },
+        {
+          "scenario": "Manage business licenses and permits"
+        },
+        {
+          "scenario": "Create business contracts and agreements"
+        },
+        {
+          "scenario": "Protect intellectual property"
+        },
+        {
+          "scenario": "Ensure workplace safety compliance"
+        },
+        {
+          "scenario": "Manage business stress and burnout"
+        },
+        {
+          "scenario": "Delegate tasks effectively"
+        },
+        {
+          "scenario": "Create systems for business efficiency"
+        },
+        {
+          "scenario": "Plan for business continuity"
+        },
+        {
+          "scenario": "Balance business and personal life"
+        },
+        {
+          "scenario": "Analyze and improve operational workflows"
+        },
+        {
+          "scenario": "Implement lean manufacturing principles"
+        },
+        {
+          "scenario": "Reduce operational costs and waste"
+        },
+        {
+          "scenario": "Streamline supply chain processes"
+        },
+        {
+          "scenario": "Improve quality control systems"
+        },
+        {
+          "scenario": "Manage and develop operational teams"
+        },
+        {
+          "scenario": "Create shift schedules and staffing plans"
+        },
+        {
+          "scenario": "Develop training programs for staff"
+        },
+        {
+          "scenario": "Monitor team performance and productivity"
+        },
+        {
+          "scenario": "Handle employee relations issues"
+        },
+        {
+          "scenario": "Optimize inventory levels and turnover"
+        },
+        {
+          "scenario": "Implement inventory tracking systems"
+        },
+        {
+          "scenario": "Manage warehouse operations"
+        },
+        {
+          "scenario": "Reduce inventory carrying costs"
+        },
+        {
+          "scenario": "Improve inventory accuracy"
+        },
+        {
+          "scenario": "Implement quality assurance programs"
+        },
+        {
+          "scenario": "Monitor product/service quality metrics"
+        },
+        {
+          "scenario": "Conduct root cause analysis for defects"
+        },
+        {
+          "scenario": "Develop quality standards and procedures"
+        },
+        {
+          "scenario": "Manage quality improvement initiatives"
+        },
+        {
+          "scenario": "Manage supplier relationships"
+        },
+        {
+          "scenario": "Optimize procurement processes"
+        },
+        {
+          "scenario": "Monitor supply chain risks"
+        },
+        {
+          "scenario": "Improve logistics and distribution"
+        },
+        {
+          "scenario": "Negotiate supplier contracts"
+        },
+        {
+          "scenario": "Develop operational KPIs and dashboards"
+        },
+        {
+          "scenario": "Monitor production/output metrics"
+        },
+        {
+          "scenario": "Analyze operational efficiency data"
+        },
+        {
+          "scenario": "Create performance reporting systems"
+        },
+        {
+          "scenario": "Benchmark against industry standards"
+        },
+        {
+          "scenario": "Develop and implement safety protocols"
+        },
+        {
+          "scenario": "Conduct safety training and drills"
+        },
+        {
+          "scenario": "Investigate workplace accidents"
+        },
+        {
+          "scenario": "Ensure regulatory compliance"
+        },
+        {
+          "scenario": "Promote safety culture"
+        },
+        {
+          "scenario": "Select and implement operational software"
+        },
+        {
+          "scenario": "Automate manual processes"
+        },
+        {
+          "scenario": "Implement IoT and monitoring systems"
+        },
+        {
+          "scenario": "Use data analytics for operations"
+        },
+        {
+          "scenario": "Integrate operational systems"
+        },
+        {
+          "scenario": "Create and manage operational budgets"
+        },
+        {
+          "scenario": "Control operational expenses"
+        },
+        {
+          "scenario": "Justify capital expenditures"
+        },
+        {
+          "scenario": "Analyze cost-saving opportunities"
+        },
+        {
+          "scenario": "Report on budget performance"
+        },
+        {
+          "scenario": "Lead continuous improvement initiatives"
+        },
+        {
+          "scenario": "Implement Six Sigma methodologies"
+        },
+        {
+          "scenario": "Facilitate problem-solving sessions"
+        },
+        {
+          "scenario": "Develop standard operating procedures"
+        },
+        {
+          "scenario": "Foster innovation in operations"
+        },
+        {
+          "scenario": "Develop recruitment strategies"
+        },
+        {
+          "scenario": "Create job descriptions and requirements"
+        },
+        {
+          "scenario": "Screen and interview candidates"
+        },
+        {
+          "scenario": "Manage applicant tracking systems"
+        },
+        {
+          "scenario": "Improve candidate experience"
+        },
+        {
+          "scenario": "Design onboarding programs"
+        },
+        {
+          "scenario": "Create orientation materials"
+        },
+        {
+          "scenario": "Coordinate department introductions"
+        },
+        {
+          "scenario": "Set up new hire paperwork"
+        },
+        {
+          "scenario": "Monitor onboarding success"
+        },
+        {
+          "scenario": "Develop performance review systems"
+        },
+        {
+          "scenario": "Create goal-setting frameworks"
+        },
+        {
+          "scenario": "Manage promotion processes"
+        },
+        {
+          "scenario": "Handle performance improvement plans"
+        },
+        {
+          "scenario": "Design recognition programs"
+        },
+        {
+          "scenario": "Identify training needs"
+        },
+        {
+          "scenario": "Develop training programs"
+        },
+        {
+          "scenario": "Manage learning management systems"
+        },
+        {
+          "scenario": "Create career development paths"
+        },
+        {
+          "scenario": "Measure training effectiveness"
+        },
+        {
+          "scenario": "Develop compensation structures"
+        },
+        {
+          "scenario": "Manage benefits programs"
+        },
+        {
+          "scenario": "Conduct salary benchmarking"
+        },
+        {
+          "scenario": "Create incentive plans"
+        },
+        {
+          "scenario": "Ensure pay equity"
+        },
+        {
+          "scenario": "Handle employee grievances"
+        },
+        {
+          "scenario": "Conduct workplace investigations"
+        },
+        {
+          "scenario": "Mediate conflicts between employees"
+        },
+        {
+          "scenario": "Develop employee engagement programs"
+        },
+        {
+          "scenario": "Manage exit interviews"
+        },
+        {
+          "scenario": "Ensure legal compliance in HR practices"
+        },
+        {
+          "scenario": "Develop HR policies and procedures"
+        },
+        {
+          "scenario": "Manage workplace safety programs"
+        },
+        {
+          "scenario": "Handle employment law matters"
+        },
+        {
+          "scenario": "Maintain employee records"
+        },
+        {
+          "scenario": "Develop DEI strategies and programs"
+        },
+        {
+          "scenario": "Create inclusive hiring practices"
+        },
+        {
+          "scenario": "Measure diversity metrics"
+        },
+        {
+          "scenario": "Train teams on inclusion"
+        },
+        {
+          "scenario": "Build diverse talent pipelines"
+        },
+        {
+          "scenario": "Analyze employee turnover data"
+        },
+        {
+          "scenario": "Measure HR program effectiveness"
+        },
+        {
+          "scenario": "Create HR dashboards and reports"
+        },
+        {
+          "scenario": "Predict workforce needs"
+        },
+        {
+          "scenario": "Benchmark against industry standards"
+        },
+        {
+          "scenario": "Align HR with business strategy"
+        },
+        {
+          "scenario": "Develop workforce planning"
+        },
+        {
+          "scenario": "Manage organizational change"
+        },
+        {
+          "scenario": "Build HR business cases"
+        },
+        {
+          "scenario": "Advise leadership on people matters"
+        },
+        {
+          "scenario": "Define project scope and objectives"
+        },
+        {
+          "scenario": "Identify project stakeholders"
+        },
+        {
+          "scenario": "Create project charters"
+        },
+        {
+          "scenario": "Assess project feasibility"
+        },
+        {
+          "scenario": "Secure project approval"
+        },
+        {
+          "scenario": "Create detailed project plans"
+        },
+        {
+          "scenario": "Develop project schedules"
+        },
+        {
+          "scenario": "Estimate resource requirements"
+        },
+        {
+          "scenario": "Identify project dependencies"
+        },
+        {
+          "scenario": "Plan risk mitigation strategies"
+        },
+        {
+          "scenario": "Create project budgets"
+        },
+        {
+          "scenario": "Track project expenses"
+        },
+        {
+          "scenario": "Manage cost controls"
+        },
+        {
+          "scenario": "Forecast budget needs"
+        },
+        {
+          "scenario": "Report financial status"
+        },
+        {
+          "scenario": "Assemble project teams"
+        },
+        {
+          "scenario": "Delegate tasks effectively"
+        },
+        {
+          "scenario": "Facilitate team meetings"
+        },
+        {
+          "scenario": "Resolve team conflicts"
+        },
+        {
+          "scenario": "Motivate team members"
+        },
+        {
+          "scenario": "Identify project risks"
+        },
+        {
+          "scenario": "Assess risk probability and impact"
+        },
+        {
+          "scenario": "Develop risk response plans"
+        },
+        {
+          "scenario": "Monitor risk triggers"
+        },
+        {
+          "scenario": "Manage project changes"
+        },
+        {
+          "scenario": "Create communication plans"
+        },
+        {
+          "scenario": "Prepare status reports"
+        },
+        {
+          "scenario": "Present to stakeholders"
+        },
+        {
+          "scenario": "Facilitate project reviews"
+        },
+        {
+          "scenario": "Manage project documentation"
+        },
+        {
+          "scenario": "Define quality standards"
+        },
+        {
+          "scenario": "Create quality assurance plans"
+        },
+        {
+          "scenario": "Monitor project deliverables"
+        },
+        {
+          "scenario": "Conduct quality reviews"
+        },
+        {
+          "scenario": "Implement improvements"
+        },
+        {
+          "scenario": "Manage stakeholder expectations"
+        },
+        {
+          "scenario": "Handle stakeholder conflicts"
+        },
+        {
+          "scenario": "Gather stakeholder feedback"
+        },
+        {
+          "scenario": "Build stakeholder relationships"
+        },
+        {
+          "scenario": "Ensure stakeholder satisfaction"
+        },
+        {
+          "scenario": "Track project progress"
+        },
+        {
+          "scenario": "Monitor key performance indicators"
+        },
+        {
+          "scenario": "Identify project issues"
+        },
+        {
+          "scenario": "Take corrective actions"
+        },
+        {
+          "scenario": "Manage project timelines"
+        },
+        {
+          "scenario": "Conduct project reviews"
+        },
+        {
+          "scenario": "Document lessons learned"
+        },
+        {
+          "scenario": "Hand over deliverables"
+        },
+        {
+          "scenario": "Close project contracts"
+        },
+        {
+          "scenario": "Celebrate project success"
+        },
+        {
+          "scenario": "Test business ideas with market research"
+        },
+        {
+          "scenario": "Validate problem-solution fit"
+        },
+        {
+          "scenario": "Identify target customer segments"
+        },
+        {
+          "scenario": "Assess market size and opportunity"
+        },
+        {
+          "scenario": "Research competitive landscape"
+        },
+        {
+          "scenario": "Design revenue models"
+        },
+        {
+          "scenario": "Create value propositions"
+        },
+        {
+          "scenario": "Define customer acquisition strategies"
+        },
+        {
+          "scenario": "Plan distribution channels"
+        },
+        {
+          "scenario": "Develop cost structures"
+        },
+        {
+          "scenario": "Prepare pitch decks for investors"
+        },
+        {
+          "scenario": "Research funding options"
+        },
+        {
+          "scenario": "Network with potential investors"
+        },
+        {
+          "scenario": "Create financial projections"
+        },
+        {
+          "scenario": "Negotiate investment terms"
+        },
+        {
+          "scenario": "Build minimum viable products"
+        },
+        {
+          "scenario": "Gather user feedback"
+        },
+        {
+          "scenario": "Iterate based on testing"
+        },
+        {
+          "scenario": "Manage development timelines"
+        },
+        {
+          "scenario": "Balance features and resources"
+        },
+        {
+          "scenario": "Identify key hires needed"
+        },
+        {
+          "scenario": "Recruit early team members"
+        },
+        {
+          "scenario": "Create company culture"
+        },
+        {
+          "scenario": "Define roles and responsibilities"
+        },
+        {
+          "scenario": "Build advisory networks"
+        },
+        {
+          "scenario": "Plan market entry strategies"
+        },
+        {
+          "scenario": "Develop scaling plans"
+        },
+        {
+          "scenario": "Create customer retention programs"
+        },
+        {
+          "scenario": "Explore partnership opportunities"
+        },
+        {
+          "scenario": "Plan international expansion"
+        },
+        {
+          "scenario": "Identify business risks"
+        },
+        {
+          "scenario": "Create contingency plans"
+        },
+        {
+          "scenario": "Protect intellectual property"
+        },
+        {
+          "scenario": "Manage cash flow risks"
+        },
+        {
+          "scenario": "Plan for market changes"
+        },
+        {
+          "scenario": "Develop leadership skills"
+        },
+        {
+          "scenario": "Learn about different business functions"
+        },
+        {
+          "scenario": "Build resilience and adaptability"
+        },
+        {
+          "scenario": "Network with other entrepreneurs"
+        },
+        {
+          "scenario": "Balance work and personal life"
+        },
+        {
+          "scenario": "Choose business structure"
+        },
+        {
+          "scenario": "Handle legal registrations"
+        },
+        {
+          "scenario": "Create founder agreements"
+        },
+        {
+          "scenario": "Understand regulatory requirements"
+        },
+        {
+          "scenario": "Protect business legally"
+        },
+        {
+          "scenario": "Understand exit options"
+        },
+        {
+          "scenario": "Prepare business for acquisition"
+        },
+        {
+          "scenario": "Plan for succession"
+        },
+        {
+          "scenario": "Maximize business valuation"
+        },
+        {
+          "scenario": "Transition to next venture"
+        }
+      ]
+    },
+    {
+      "domain": "Creative & Design",
+      "scenarios": [
+        {
+          "scenario": "Create affinity diagrams from user interview data"
+        },
+        {
+          "scenario": "Identify patterns and insights from usability testing"
+        },
+        {
+          "scenario": "Develop user journey maps for complex workflows"
+        },
+        {
+          "scenario": "Create service blueprints for multi-channel experiences"
+        },
+        {
+          "scenario": "Synthesize quantitative and qualitative research findings"
+        },
+        {
+          "scenario": "Create low-fidelity wireframes for rapid iteration"
+        },
+        {
+          "scenario": "Design interactive prototypes for user testing"
+        },
+        {
+          "scenario": "Establish design systems and component libraries"
+        },
+        {
+          "scenario": "Create responsive designs for multiple devices"
+        },
+        {
+          "scenario": "Design micro-interactions and animations"
+        },
+        {
+          "scenario": "Plan and conduct remote usability testing sessions"
+        },
+        {
+          "scenario": "Create test scripts and scenarios for specific user tasks"
+        },
+        {
+          "scenario": "Analyze and prioritize usability issues"
+        },
+        {
+          "scenario": "Measure task success rates and time-on-task"
+        },
+        {
+          "scenario": "Conduct accessibility testing for different abilities"
+        },
+        {
+          "scenario": "Facilitate design thinking workshops with stakeholders"
+        },
+        {
+          "scenario": "Create design specifications for developers"
+        },
+        {
+          "scenario": "Present design rationale and decisions to teams"
+        },
+        {
+          "scenario": "Collaborate with product managers on feature definition"
+        },
+        {
+          "scenario": "Work with researchers to validate design hypotheses"
+        },
+        {
+          "scenario": "Organize complex content into intuitive structures"
+        },
+        {
+          "scenario": "Create navigation systems for large websites"
+        },
+        {
+          "scenario": "Design search and filtering interfaces"
+        },
+        {
+          "scenario": "Structure information for different user contexts"
+        },
+        {
+          "scenario": "Create content hierarchies and taxonomies"
+        },
+        {
+          "scenario": "Develop color palettes and typography systems"
+        },
+        {
+          "scenario": "Create icon sets and visual assets"
+        },
+        {
+          "scenario": "Design data visualizations and dashboards"
+        },
+        {
+          "scenario": "Establish visual hierarchy and spacing systems"
+        },
+        {
+          "scenario": "Create design tokens for consistent implementation"
+        },
+        {
+          "scenario": "Ensure designs meet WCAG accessibility standards"
+        },
+        {
+          "scenario": "Create designs for different abilities and contexts"
+        },
+        {
+          "scenario": "Test color contrast and readability"
+        },
+        {
+          "scenario": "Design keyboard navigation and focus states"
+        },
+        {
+          "scenario": "Create inclusive design patterns and components"
+        },
+        {
+          "scenario": "Define design principles and vision for products"
+        },
+        {
+          "scenario": "Create design roadmaps aligned with business goals"
+        },
+        {
+          "scenario": "Measure and communicate design impact"
+        },
+        {
+          "scenario": "Establish design processes and quality standards"
+        },
+        {
+          "scenario": "Advocate for user-centered design in organizations"
+        },
+        {
+          "scenario": "Design for voice interfaces and conversational AI"
+        },
+        {
+          "scenario": "Create AR/VR experiences and interfaces"
+        },
+        {
+          "scenario": "Design for wearable devices and IoT"
+        },
+        {
+          "scenario": "Explore ethical considerations in AI interface design"
+        },
+        {
+          "scenario": "Design for multi-modal interactions"
+        },
+        {
+          "scenario": "Build a compelling design portfolio"
+        },
+        {
+          "scenario": "Stay updated with design trends and tools"
+        },
+        {
+          "scenario": "Develop specialized skills in specific design areas"
+        },
+        {
+          "scenario": "Find mentorship and networking opportunities"
+        },
+        {
+          "scenario": "Prepare for design leadership roles"
+        },
+        {
+          "scenario": "Develop content calendars and schedules"
+        },
+        {
+          "scenario": "Research trending topics and ideas"
+        },
+        {
+          "scenario": "Plan content series and campaigns"
+        },
+        {
+          "scenario": "Identify target audience interests"
+        },
+        {
+          "scenario": "Create content themes and pillars"
+        },
+        {
+          "scenario": "Write engaging articles and blog posts"
+        },
+        {
+          "scenario": "Create video content and scripts"
+        },
+        {
+          "scenario": "Produce podcast episodes"
+        },
+        {
+          "scenario": "Design visual content and graphics"
+        },
+        {
+          "scenario": "Record and edit multimedia content"
+        },
+        {
+          "scenario": "Respond to comments and messages"
+        },
+        {
+          "scenario": "Create interactive content formats"
+        },
+        {
+          "scenario": "Run contests and giveaways"
+        },
+        {
+          "scenario": "Build community around content"
+        },
+        {
+          "scenario": "Gather audience feedback"
+        },
+        {
+          "scenario": "Optimize content for different platforms"
+        },
+        {
+          "scenario": "Use platform algorithms effectively"
+        },
+        {
+          "scenario": "Create platform-specific content strategies"
+        },
+        {
+          "scenario": "Cross-promote across platforms"
+        },
+        {
+          "scenario": "Analyze platform analytics"
+        },
+        {
+          "scenario": "Develop sponsorship opportunities"
+        },
+        {
+          "scenario": "Create and sell digital products"
+        },
+        {
+          "scenario": "Build affiliate marketing strategies"
+        },
+        {
+          "scenario": "Offer premium content or services"
+        },
+        {
+          "scenario": "Diversify income streams"
+        },
+        {
+          "scenario": "Pitch to potential brand partners"
+        },
+        {
+          "scenario": "Negotiate collaboration terms"
+        },
+        {
+          "scenario": "Create branded content that aligns with values"
+        },
+        {
+          "scenario": "Measure campaign effectiveness"
+        },
+        {
+          "scenario": "Build long-term brand relationships"
+        },
+        {
+          "scenario": "Analyze content performance metrics"
+        },
+        {
+          "scenario": "Identify growth opportunities"
+        },
+        {
+          "scenario": "Track audience demographics"
+        },
+        {
+          "scenario": "Measure engagement and reach"
+        },
+        {
+          "scenario": "Optimize content based on data"
+        },
+        {
+          "scenario": "Develop unique content formats"
+        },
+        {
+          "scenario": "Experiment with new content types"
+        },
+        {
+          "scenario": "Improve storytelling techniques"
+        },
+        {
+          "scenario": "Learn new creative tools and software"
+        },
+        {
+          "scenario": "Overcome creative blocks"
+        },
+        {
+          "scenario": "Understand copyright and fair use"
+        },
+        {
+          "scenario": "Disclose sponsored content properly"
+        },
+        {
+          "scenario": "Protect intellectual property"
+        },
+        {
+          "scenario": "Handle user-generated content legally"
+        },
+        {
+          "scenario": "Comply with platform policies"
+        },
+        {
+          "scenario": "Streamline content creation processes"
+        },
+        {
+          "scenario": "Batch create content efficiently"
+        },
+        {
+          "scenario": "Automate repetitive tasks"
+        },
+        {
+          "scenario": "Manage multiple projects simultaneously"
+        },
+        {
+          "scenario": "Balance creativity with consistency"
+        },
+        {
+          "scenario": "Develop architectural concepts"
+        },
+        {
+          "scenario": "Create design narratives"
+        },
+        {
+          "scenario": "Explore spatial relationships"
+        },
+        {
+          "scenario": "Integrate site context"
+        },
+        {
+          "scenario": "Balance form and function"
+        },
+        {
+          "scenario": "Create detailed floor plans"
+        },
+        {
+          "scenario": "Develop construction documents"
+        },
+        {
+          "scenario": "Prepare elevation drawings"
+        },
+        {
+          "scenario": "Design structural systems"
+        },
+        {
+          "scenario": "Coordinate MEP systems"
+        },
+        {
+          "scenario": "Create architectural renderings"
+        },
+        {
+          "scenario": "Develop BIM models"
+        },
+        {
+          "scenario": "Produce virtual walkthroughs"
+        },
+        {
+          "scenario": "Simulate lighting conditions"
+        },
+        {
+          "scenario": "Create presentation visuals"
+        },
+        {
+          "scenario": "Understand client requirements"
+        },
+        {
+          "scenario": "Present design concepts"
+        },
+        {
+          "scenario": "Manage client expectations"
+        },
+        {
+          "scenario": "Handle design revisions"
+        },
+        {
+          "scenario": "Communicate technical details"
+        },
+        {
+          "scenario": "Research building codes"
+        },
+        {
+          "scenario": "Prepare permit applications"
+        },
+        {
+          "scenario": "Ensure accessibility compliance"
+        },
+        {
+          "scenario": "Meet sustainability standards"
+        },
+        {
+          "scenario": "Navigate zoning regulations"
+        },
+        {
+          "scenario": "Research building materials"
+        },
+        {
+          "scenario": "Specify finishes and fixtures"
+        },
+        {
+          "scenario": "Balance aesthetics and durability"
+        },
+        {
+          "scenario": "Consider environmental impact"
+        },
+        {
+          "scenario": "Manage material budgets"
+        },
+        {
+          "scenario": "Conduct site surveys"
+        },
+        {
+          "scenario": "Analyze environmental conditions"
+        },
+        {
+          "scenario": "Study sun and wind patterns"
+        },
+        {
+          "scenario": "Assess site constraints"
+        },
+        {
+          "scenario": "Integrate landscape design"
+        },
+        {
+          "scenario": "Create project schedules"
+        },
+        {
+          "scenario": "Manage construction budgets"
+        },
+        {
+          "scenario": "Coordinate with contractors"
+        },
+        {
+          "scenario": "Handle change orders"
+        },
+        {
+          "scenario": "Monitor construction progress"
+        },
+        {
+          "scenario": "Implement green building principles"
+        },
+        {
+          "scenario": "Design energy-efficient systems"
+        },
+        {
+          "scenario": "Select sustainable materials"
+        },
+        {
+          "scenario": "Create water conservation strategies"
+        },
+        {
+          "scenario": "Achieve green certifications"
+        },
+        {
+          "scenario": "Stay updated on architectural trends"
+        },
+        {
+          "scenario": "Learn new design software"
+        },
+        {
+          "scenario": "Build professional portfolio"
+        },
+        {
+          "scenario": "Network with industry peers"
+        },
+        {
+          "scenario": "Prepare for licensure exams"
+        }
+      ]
+    },
+    {
+      "domain": "Marketing & Sales",
+      "scenarios": [
+        {
+          "scenario": "Develop integrated marketing campaigns"
+        },
+        {
+          "scenario": "Create campaign timelines and budgets"
+        },
+        {
+          "scenario": "Define target audience segments"
+        },
+        {
+          "scenario": "Set campaign objectives and KPIs"
+        },
+        {
+          "scenario": "Plan multi-channel marketing strategies"
+        },
+        {
+          "scenario": "Create content calendars for multiple platforms"
+        },
+        {
+          "scenario": "Develop brand messaging and voice guidelines"
+        },
+        {
+          "scenario": "Plan content distribution across channels"
+        },
+        {
+          "scenario": "Optimize content for SEO and discoverability"
+        },
+        {
+          "scenario": "Repurpose content for different formats and audiences"
+        },
+        {
+          "scenario": "Set up and optimize PPC campaigns"
+        },
+        {
+          "scenario": "Create targeted ad audiences"
+        },
+        {
+          "scenario": "A/B test ad creatives and copy"
+        },
+        {
+          "scenario": "Manage programmatic advertising campaigns"
+        },
+        {
+          "scenario": "Optimize landing pages for conversion"
+        },
+        {
+          "scenario": "Develop social media content strategies"
+        },
+        {
+          "scenario": "Plan and execute social media campaigns"
+        },
+        {
+          "scenario": "Engage with communities and influencers"
+        },
+        {
+          "scenario": "Monitor social media trends and conversations"
+        },
+        {
+          "scenario": "Measure social media ROI and impact"
+        },
+        {
+          "scenario": "Design email marketing automation workflows"
+        },
+        {
+          "scenario": "Create personalized email campaigns"
+        },
+        {
+          "scenario": "Segment email lists for targeted messaging"
+        },
+        {
+          "scenario": "Optimize email deliverability and open rates"
+        },
+        {
+          "scenario": "Analyze email campaign performance metrics"
+        },
+        {
+          "scenario": "Set up marketing analytics dashboards"
+        },
+        {
+          "scenario": "Track customer journey and attribution"
+        },
+        {
+          "scenario": "Calculate marketing ROI and LTV"
+        },
+        {
+          "scenario": "Conduct competitive analysis"
+        },
+        {
+          "scenario": "Report marketing performance to stakeholders"
+        },
+        {
+          "scenario": "Develop brand positioning strategies"
+        },
+        {
+          "scenario": "Create brand guidelines and standards"
+        },
+        {
+          "scenario": "Manage brand reputation and crises"
+        },
+        {
+          "scenario": "Conduct brand awareness research"
+        },
+        {
+          "scenario": "Plan brand launch and refresh initiatives"
+        },
+        {
+          "scenario": "Evaluate and implement marketing tools"
+        },
+        {
+          "scenario": "Integrate marketing systems and platforms"
+        },
+        {
+          "scenario": "Automate marketing workflows"
+        },
+        {
+          "scenario": "Manage customer data platforms"
+        },
+        {
+          "scenario": "Implement personalization engines"
+        },
+        {
+          "scenario": "Identify and develop partnership opportunities"
+        },
+        {
+          "scenario": "Create co-marketing campaigns"
+        },
+        {
+          "scenario": "Manage affiliate marketing programs"
+        },
+        {
+          "scenario": "Negotiate sponsorship agreements"
+        },
+        {
+          "scenario": "Develop channel marketing strategies"
+        },
+        {
+          "scenario": "Build and develop marketing teams"
+        },
+        {
+          "scenario": "Create marketing processes and best practices"
+        },
+        {
+          "scenario": "Manage marketing budgets and resources"
+        },
+        {
+          "scenario": "Foster creativity and innovation in teams"
+        },
+        {
+          "scenario": "Align marketing with overall business strategy"
+        },
+        {
+          "scenario": "Identify potential customers"
+        },
+        {
+          "scenario": "Research target companies"
+        },
+        {
+          "scenario": "Find key decision makers"
+        },
+        {
+          "scenario": "Build prospect lists"
+        },
+        {
+          "scenario": "Qualify sales leads"
+        },
+        {
+          "scenario": "Create compelling sales decks"
+        },
+        {
+          "scenario": "Customize presentations for clients"
+        },
+        {
+          "scenario": "Demonstrate product value"
+        },
+        {
+          "scenario": "Handle objections effectively"
+        },
+        {
+          "scenario": "Close sales presentations"
+        },
+        {
+          "scenario": "Build rapport with prospects"
+        },
+        {
+          "scenario": "Maintain client relationships"
+        },
+        {
+          "scenario": "Network at industry events"
+        },
+        {
+          "scenario": "Follow up with leads"
+        },
+        {
+          "scenario": "Create referral programs"
+        },
+        {
+          "scenario": "Prepare negotiation strategies"
+        },
+        {
+          "scenario": "Handle pricing discussions"
+        },
+        {
+          "scenario": "Negotiate contract terms"
+        },
+        {
+          "scenario": "Create win-win agreements"
+        },
+        {
+          "scenario": "Manage difficult negotiations"
+        },
+        {
+          "scenario": "Predict sales pipeline outcomes"
+        },
+        {
+          "scenario": "Create sales projections"
+        },
+        {
+          "scenario": "Analyze sales trends"
+        },
+        {
+          "scenario": "Manage sales quotas"
+        },
+        {
+          "scenario": "Report on sales performance"
+        },
+        {
+          "scenario": "Maintain accurate sales records"
+        },
+        {
+          "scenario": "Track customer interactions"
+        },
+        {
+          "scenario": "Manage sales pipeline stages"
+        },
+        {
+          "scenario": "Use CRM analytics"
+        },
+        {
+          "scenario": "Automate sales processes"
+        },
+        {
+          "scenario": "Stay updated on product features"
+        },
+        {
+          "scenario": "Understand competitive offerings"
+        },
+        {
+          "scenario": "Learn industry trends"
+        },
+        {
+          "scenario": "Master product demonstrations"
+        },
+        {
+          "scenario": "Handle technical questions"
+        },
+        {
+          "scenario": "Coordinate with marketing teams"
+        },
+        {
+          "scenario": "Work with customer success"
+        },
+        {
+          "scenario": "Collaborate with product teams"
+        },
+        {
+          "scenario": "Share best practices"
+        },
+        {
+          "scenario": "Mentor junior sales staff"
+        },
+        {
+          "scenario": "Develop account growth strategies"
+        },
+        {
+          "scenario": "Identify upsell opportunities"
+        },
+        {
+          "scenario": "Handle account renewals"
+        },
+        {
+          "scenario": "Manage customer expectations"
+        },
+        {
+          "scenario": "Resolve account issues"
+        },
+        {
+          "scenario": "Develop territory plans"
+        },
+        {
+          "scenario": "Create sales playbooks"
+        },
+        {
+          "scenario": "Analyze market segments"
+        },
+        {
+          "scenario": "Optimize sales processes"
+        },
+        {
+          "scenario": "Adapt to market changes"
+        }
+      ]
+    },
+    {
+      "domain": "Finance & Legal",
+      "scenarios": [
+        {
+          "scenario": "Build three-statement financial models"
+        },
+        {
+          "scenario": "Create discounted cash flow valuations"
+        },
+        {
+          "scenario": "Develop budgeting and forecasting models"
+        },
+        {
+          "scenario": "Analyze investment opportunities"
+        },
+        {
+          "scenario": "Model different business scenarios"
+        },
+        {
+          "scenario": "Prepare monthly financial statements"
+        },
+        {
+          "scenario": "Create management dashboards and reports"
+        },
+        {
+          "scenario": "Analyze variance against budget and forecast"
+        },
+        {
+          "scenario": "Prepare regulatory filings and disclosures"
+        },
+        {
+          "scenario": "Create investor presentations"
+        },
+        {
+          "scenario": "Analyze sales and revenue trends"
+        },
+        {
+          "scenario": "Conduct profitability analysis by segment"
+        },
+        {
+          "scenario": "Calculate key financial ratios and metrics"
+        },
+        {
+          "scenario": "Identify cost-saving opportunities"
+        },
+        {
+          "scenario": "Analyze working capital requirements"
+        },
+        {
+          "scenario": "Create financial dashboards in BI tools"
+        },
+        {
+          "scenario": "Automate financial reporting processes"
+        },
+        {
+          "scenario": "Develop predictive models for financial metrics"
+        },
+        {
+          "scenario": "Integrate financial data from multiple systems"
+        },
+        {
+          "scenario": "Create ad-hoc analysis for business decisions"
+        },
+        {
+          "scenario": "Support M&A analysis and due diligence"
+        },
+        {
+          "scenario": "Evaluate capital investment decisions"
+        },
+        {
+          "scenario": "Develop pricing strategies and analysis"
+        },
+        {
+          "scenario": "Analyze market trends and competitive positioning"
+        },
+        {
+          "scenario": "Support strategic planning processes"
+        },
+        {
+          "scenario": "Identify and quantify financial risks"
+        },
+        {
+          "scenario": "Develop risk mitigation strategies"
+        },
+        {
+          "scenario": "Create stress testing scenarios"
+        },
+        {
+          "scenario": "Monitor compliance with financial policies"
+        },
+        {
+          "scenario": "Analyze currency and interest rate risks"
+        },
+        {
+          "scenario": "Automate manual financial processes"
+        },
+        {
+          "scenario": "Improve financial data quality and accuracy"
+        },
+        {
+          "scenario": "Streamline month-end closing processes"
+        },
+        {
+          "scenario": "Implement new financial systems and tools"
+        },
+        {
+          "scenario": "Develop financial controls and procedures"
+        },
+        {
+          "scenario": "Research industry trends and benchmarks"
+        },
+        {
+          "scenario": "Analyze competitor financial performance"
+        },
+        {
+          "scenario": "Monitor regulatory changes and impacts"
+        },
+        {
+          "scenario": "Research market opportunities and threats"
+        },
+        {
+          "scenario": "Prepare industry outlook reports"
+        },
+        {
+          "scenario": "Present financial analysis to executives"
+        },
+        {
+          "scenario": "Explain financial concepts to non-financial teams"
+        },
+        {
+          "scenario": "Collaborate with operational teams on financial goals"
+        },
+        {
+          "scenario": "Support investor relations activities"
+        },
+        {
+          "scenario": "Train teams on financial processes and tools"
+        },
+        {
+          "scenario": "Stay updated with accounting standards"
+        },
+        {
+          "scenario": "Learn advanced financial modeling techniques"
+        },
+        {
+          "scenario": "Develop data analysis and visualization skills"
+        },
+        {
+          "scenario": "Prepare for professional certifications"
+        },
+        {
+          "scenario": "Build expertise in specific industries"
+        },
+        {
+          "scenario": "Review and draft business contracts"
+        },
+        {
+          "scenario": "Identify potential legal risks in agreements"
+        },
+        {
+          "scenario": "Negotiate contract terms and conditions"
+        },
+        {
+          "scenario": "Create standard contract templates"
+        },
+        {
+          "scenario": "Advise on contract interpretation"
+        },
+        {
+          "scenario": "Research case law and legal precedents"
+        },
+        {
+          "scenario": "Analyze regulatory requirements"
+        },
+        {
+          "scenario": "Research industry-specific regulations"
+        },
+        {
+          "scenario": "Stay updated on legal developments"
+        },
+        {
+          "scenario": "Prepare legal memoranda"
+        },
+        {
+          "scenario": "Develop compliance programs and policies"
+        },
+        {
+          "scenario": "Conduct compliance audits and assessments"
+        },
+        {
+          "scenario": "Train employees on legal requirements"
+        },
+        {
+          "scenario": "Monitor regulatory changes"
+        },
+        {
+          "scenario": "Implement compliance monitoring systems"
+        },
+        {
+          "scenario": "Identify legal risks in business operations"
+        },
+        {
+          "scenario": "Assess litigation risks and exposure"
+        },
+        {
+          "scenario": "Develop risk mitigation strategies"
+        },
+        {
+          "scenario": "Create risk management frameworks"
+        },
+        {
+          "scenario": "Advise on insurance coverage"
+        },
+        {
+          "scenario": "Advise on board governance matters"
+        },
+        {
+          "scenario": "Prepare board meeting materials"
+        },
+        {
+          "scenario": "Ensure compliance with corporate laws"
+        },
+        {
+          "scenario": "Manage shareholder relations"
+        },
+        {
+          "scenario": "Advise on corporate structure decisions"
+        },
+        {
+          "scenario": "Manage trademark and patent portfolios"
+        },
+        {
+          "scenario": "Draft licensing agreements"
+        },
+        {
+          "scenario": "Conduct IP due diligence"
+        },
+        {
+          "scenario": "Protect trade secrets and confidential information"
+        },
+        {
+          "scenario": "Handle IP infringement matters"
+        },
+        {
+          "scenario": "Draft employment agreements and policies"
+        },
+        {
+          "scenario": "Advise on employee relations issues"
+        },
+        {
+          "scenario": "Handle workplace investigations"
+        },
+        {
+          "scenario": "Develop termination procedures"
+        },
+        {
+          "scenario": "Ensure compliance with labor laws"
+        },
+        {
+          "scenario": "Manage external counsel relationships"
+        },
+        {
+          "scenario": "Develop litigation strategies"
+        },
+        {
+          "scenario": "Prepare for depositions and hearings"
+        },
+        {
+          "scenario": "Manage discovery processes"
+        },
+        {
+          "scenario": "Negotiate settlements"
+        },
+        {
+          "scenario": "Conduct legal due diligence"
+        },
+        {
+          "scenario": "Draft transaction documents"
+        },
+        {
+          "scenario": "Advise on M&A transactions"
+        },
+        {
+          "scenario": "Handle financing arrangements"
+        },
+        {
+          "scenario": "Manage closing processes"
+        },
+        {
+          "scenario": "Explain legal concepts to non-lawyers"
+        },
+        {
+          "scenario": "Present legal updates to executives"
+        },
+        {
+          "scenario": "Train business teams on legal matters"
+        },
+        {
+          "scenario": "Communicate with regulatory authorities"
+        },
+        {
+          "scenario": "Manage external legal communications"
+        }
+      ]
+    },
+    {
+      "domain": "Healthcare & Wellness",
+      "scenarios": [
+        {
+          "scenario": "Review patient medical history and records"
+        },
+        {
+          "scenario": "Conduct initial patient assessments"
+        },
+        {
+          "scenario": "Interpret diagnostic test results"
+        },
+        {
+          "scenario": "Identify risk factors and warning signs"
+        },
+        {
+          "scenario": "Develop differential diagnoses"
+        },
+        {
+          "scenario": "Create personalized treatment plans"
+        },
+        {
+          "scenario": "Prescribe medications and therapies"
+        },
+        {
+          "scenario": "Coordinate care with other specialists"
+        },
+        {
+          "scenario": "Develop patient education materials"
+        },
+        {
+          "scenario": "Plan follow-up and monitoring protocols"
+        },
+        {
+          "scenario": "Document patient encounters and progress notes"
+        },
+        {
+          "scenario": "Create discharge summaries and referrals"
+        },
+        {
+          "scenario": "Maintain accurate medical records"
+        },
+        {
+          "scenario": "Document treatment decisions and rationale"
+        },
+        {
+          "scenario": "Prepare clinical reports and summaries"
+        },
+        {
+          "scenario": "Review medical literature and guidelines"
+        },
+        {
+          "scenario": "Participate in clinical trials and studies"
+        },
+        {
+          "scenario": "Analyze patient outcomes and quality metrics"
+        },
+        {
+          "scenario": "Research new treatments and technologies"
+        },
+        {
+          "scenario": "Present clinical findings and case studies"
+        },
+        {
+          "scenario": "Explain diagnoses and treatment options"
+        },
+        {
+          "scenario": "Provide health education and counseling"
+        },
+        {
+          "scenario": "Address patient concerns and questions"
+        },
+        {
+          "scenario": "Discuss sensitive health information"
+        },
+        {
+          "scenario": "Support shared decision making"
+        },
+        {
+          "scenario": "Triage patients based on urgency"
+        },
+        {
+          "scenario": "Manage acute medical emergencies"
+        },
+        {
+          "scenario": "Coordinate emergency care teams"
+        },
+        {
+          "scenario": "Make rapid clinical decisions under pressure"
+        },
+        {
+          "scenario": "Document emergency interventions"
+        },
+        {
+          "scenario": "Develop preventive screening schedules"
+        },
+        {
+          "scenario": "Provide lifestyle counseling and guidance"
+        },
+        {
+          "scenario": "Administer vaccinations and immunizations"
+        },
+        {
+          "scenario": "Conduct health risk assessments"
+        },
+        {
+          "scenario": "Promote wellness and disease prevention"
+        },
+        {
+          "scenario": "Coordinate with nursing and support staff"
+        },
+        {
+          "scenario": "Consult with specialists and other providers"
+        },
+        {
+          "scenario": "Participate in multidisciplinary team meetings"
+        },
+        {
+          "scenario": "Supervise medical students and residents"
+        },
+        {
+          "scenario": "Collaborate with administrative staff"
+        },
+        {
+          "scenario": "Ensure HIPAA compliance in patient care"
+        },
+        {
+          "scenario": "Follow clinical guidelines and protocols"
+        },
+        {
+          "scenario": "Document for billing and reimbursement"
+        },
+        {
+          "scenario": "Maintain licensure and certification requirements"
+        },
+        {
+          "scenario": "Participate in quality improvement initiatives"
+        },
+        {
+          "scenario": "Stay current with medical advancements"
+        },
+        {
+          "scenario": "Attend conferences and continuing education"
+        },
+        {
+          "scenario": "Develop specialized clinical skills"
+        },
+        {
+          "scenario": "Learn new medical technologies and tools"
+        },
+        {
+          "scenario": "Balance clinical work with personal growth"
+        },
+        {
+          "scenario": "Conduct fitness evaluations"
+        },
+        {
+          "scenario": "Assess movement patterns"
+        },
+        {
+          "scenario": "Measure body composition"
+        },
+        {
+          "scenario": "Identify limitations and injuries"
+        },
+        {
+          "scenario": "Set baseline fitness metrics"
+        },
+        {
+          "scenario": "Create personalized workout plans"
+        },
+        {
+          "scenario": "Design progressive training programs"
+        },
+        {
+          "scenario": "Balance different fitness components"
+        },
+        {
+          "scenario": "Adapt programs for special populations"
+        },
+        {
+          "scenario": "Create periodization schedules"
+        },
+        {
+          "scenario": "Provide basic nutrition advice"
+        },
+        {
+          "scenario": "Create meal planning frameworks"
+        },
+        {
+          "scenario": "Educate on macronutrients"
+        },
+        {
+          "scenario": "Address dietary restrictions"
+        },
+        {
+          "scenario": "Promote healthy eating habits"
+        },
+        {
+          "scenario": "Demonstrate proper exercise form"
+        },
+        {
+          "scenario": "Correct movement patterns"
+        },
+        {
+          "scenario": "Teach exercise progressions"
+        },
+        {
+          "scenario": "Ensure safety during workouts"
+        },
+        {
+          "scenario": "Modify exercises as needed"
+        },
+        {
+          "scenario": "Set and track client goals"
+        },
+        {
+          "scenario": "Provide positive reinforcement"
+        },
+        {
+          "scenario": "Overcome mental barriers"
+        },
+        {
+          "scenario": "Build client confidence"
+        },
+        {
+          "scenario": "Maintain client accountability"
+        },
+        {
+          "scenario": "Design injury prevention programs"
+        },
+        {
+          "scenario": "Teach proper warm-up routines"
+        },
+        {
+          "scenario": "Address muscle imbalances"
+        },
+        {
+          "scenario": "Recommend recovery strategies"
+        },
+        {
+          "scenario": "Modify exercises for injuries"
+        },
+        {
+          "scenario": "Design group workout classes"
+        },
+        {
+          "scenario": "Manage different fitness levels"
+        },
+        {
+          "scenario": "Create engaging class formats"
+        },
+        {
+          "scenario": "Use music and timing effectively"
+        },
+        {
+          "scenario": "Build class community"
+        },
+        {
+          "scenario": "Schedule client sessions"
+        },
+        {
+          "scenario": "Manage coaching packages"
+        },
+        {
+          "scenario": "Handle client payments"
+        },
+        {
+          "scenario": "Market coaching services"
+        },
+        {
+          "scenario": "Build client referrals"
+        },
+        {
+          "scenario": "Stay updated on fitness research"
+        },
+        {
+          "scenario": "Learn new training methodologies"
+        },
+        {
+          "scenario": "Get specialized certifications"
+        },
+        {
+          "scenario": "Attend fitness conferences"
+        },
+        {
+          "scenario": "Network with other professionals"
+        },
+        {
+          "scenario": "Provide workout feedback"
+        },
+        {
+          "scenario": "Answer fitness questions"
+        },
+        {
+          "scenario": "Check in on client progress"
+        },
+        {
+          "scenario": "Handle client concerns"
+        },
+        {
+          "scenario": "Build long-term relationships"
+        }
+      ]
+    },
+    {
+      "domain": "Education & Research",
+      "scenarios": [
+        {
+          "scenario": "Design new course curricula and syllabi"
+        },
+        {
+          "scenario": "Create learning objectives and outcomes"
+        },
+        {
+          "scenario": "Develop course materials and resources"
+        },
+        {
+          "scenario": "Design assessments and grading rubrics"
+        },
+        {
+          "scenario": "Plan course schedules and timelines"
+        },
+        {
+          "scenario": "Prepare lectures and presentations"
+        },
+        {
+          "scenario": "Facilitate classroom discussions"
+        },
+        {
+          "scenario": "Design interactive learning activities"
+        },
+        {
+          "scenario": "Provide feedback on student work"
+        },
+        {
+          "scenario": "Adapt teaching methods for different learners"
+        },
+        {
+          "scenario": "Guide student research projects"
+        },
+        {
+          "scenario": "Mentor graduate students"
+        },
+        {
+          "scenario": "Review and provide feedback on research"
+        },
+        {
+          "scenario": "Help students develop research proposals"
+        },
+        {
+          "scenario": "Support publication of student work"
+        },
+        {
+          "scenario": "Design and conduct research studies"
+        },
+        {
+          "scenario": "Analyze research data and findings"
+        },
+        {
+          "scenario": "Write and publish academic papers"
+        },
+        {
+          "scenario": "Apply for research grants and funding"
+        },
+        {
+          "scenario": "Present research at conferences"
+        },
+        {
+          "scenario": "Create fair and valid assessments"
+        },
+        {
+          "scenario": "Design exams and quizzes"
+        },
+        {
+          "scenario": "Develop project-based assessments"
+        },
+        {
+          "scenario": "Create rubrics for subjective grading"
+        },
+        {
+          "scenario": "Implement alternative assessment methods"
+        },
+        {
+          "scenario": "Use learning management systems effectively"
+        },
+        {
+          "scenario": "Incorporate educational technology tools"
+        },
+        {
+          "scenario": "Design online and hybrid courses"
+        },
+        {
+          "scenario": "Create digital learning resources"
+        },
+        {
+          "scenario": "Use data analytics to improve teaching"
+        },
+        {
+          "scenario": "Serve on university committees"
+        },
+        {
+          "scenario": "Review journal submissions"
+        },
+        {
+          "scenario": "Participate in accreditation processes"
+        },
+        {
+          "scenario": "Contribute to curriculum development"
+        },
+        {
+          "scenario": "Engage in community outreach"
+        },
+        {
+          "scenario": "Guide students on academic paths"
+        },
+        {
+          "scenario": "Provide career counseling and advice"
+        },
+        {
+          "scenario": "Support struggling students"
+        },
+        {
+          "scenario": "Write recommendation letters"
+        },
+        {
+          "scenario": "Help students with research opportunities"
+        },
+        {
+          "scenario": "Stay current in academic field"
+        },
+        {
+          "scenario": "Develop teaching skills and methods"
+        },
+        {
+          "scenario": "Build research networks and collaborations"
+        },
+        {
+          "scenario": "Prepare for promotion and tenure"
+        },
+        {
+          "scenario": "Balance teaching, research, and service"
+        },
+        {
+          "scenario": "Experiment with new teaching methods"
+        },
+        {
+          "scenario": "Develop interdisciplinary courses"
+        },
+        {
+          "scenario": "Create experiential learning opportunities"
+        },
+        {
+          "scenario": "Design inclusive and accessible education"
+        },
+        {
+          "scenario": "Implement evidence-based teaching practices"
+        },
+        {
+          "scenario": "Design experimental protocols"
+        },
+        {
+          "scenario": "Develop research hypotheses"
+        },
+        {
+          "scenario": "Plan sampling strategies"
+        },
+        {
+          "scenario": "Create data collection methods"
+        },
+        {
+          "scenario": "Design control groups"
+        },
+        {
+          "scenario": "Conduct laboratory experiments"
+        },
+        {
+          "scenario": "Collect field observations"
+        },
+        {
+          "scenario": "Administer surveys and questionnaires"
+        },
+        {
+          "scenario": "Gather secondary data sources"
+        },
+        {
+          "scenario": "Manage research participants"
+        },
+        {
+          "scenario": "Perform statistical analysis"
+        },
+        {
+          "scenario": "Use specialized analysis software"
+        },
+        {
+          "scenario": "Interpret research findings"
+        },
+        {
+          "scenario": "Validate research results"
+        },
+        {
+          "scenario": "Handle missing or incomplete data"
+        },
+        {
+          "scenario": "Write research papers"
+        },
+        {
+          "scenario": "Prepare conference presentations"
+        },
+        {
+          "scenario": "Create research posters"
+        },
+        {
+          "scenario": "Respond to peer reviews"
+        },
+        {
+          "scenario": "Manage publication timelines"
+        },
+        {
+          "scenario": "Identify funding opportunities"
+        },
+        {
+          "scenario": "Write grant proposals"
+        },
+        {
+          "scenario": "Develop research budgets"
+        },
+        {
+          "scenario": "Create project timelines"
+        },
+        {
+          "scenario": "Manage grant reporting"
+        },
+        {
+          "scenario": "Coordinate with research teams"
+        },
+        {
+          "scenario": "Manage research partnerships"
+        },
+        {
+          "scenario": "Share data and resources"
+        },
+        {
+          "scenario": "Co-author publications"
+        },
+        {
+          "scenario": "Organize research meetings"
+        },
+        {
+          "scenario": "Search academic databases"
+        },
+        {
+          "scenario": "Synthesize existing research"
+        },
+        {
+          "scenario": "Identify research gaps"
+        },
+        {
+          "scenario": "Stay current in field"
+        },
+        {
+          "scenario": "Manage reference libraries"
+        },
+        {
+          "scenario": "Prepare IRB applications"
+        },
+        {
+          "scenario": "Ensure research ethics"
+        },
+        {
+          "scenario": "Protect participant privacy"
+        },
+        {
+          "scenario": "Handle sensitive data"
+        },
+        {
+          "scenario": "Maintain research integrity"
+        },
+        {
+          "scenario": "Manage laboratory equipment"
+        },
+        {
+          "scenario": "Order research supplies"
+        },
+        {
+          "scenario": "Maintain safety protocols"
+        },
+        {
+          "scenario": "Train research assistants"
+        },
+        {
+          "scenario": "Organize lab spaces"
+        },
+        {
+          "scenario": "Communicate research to public"
+        },
+        {
+          "scenario": "Create policy briefs"
+        },
+        {
+          "scenario": "Develop educational materials"
+        },
+        {
+          "scenario": "Engage with stakeholders"
+        },
+        {
+          "scenario": "Apply research findings"
+        },
+        {
+          "scenario": "Create engaging lesson plans"
+        },
+        {
+          "scenario": "Align lessons with standards"
+        },
+        {
+          "scenario": "Differentiate instruction"
+        },
+        {
+          "scenario": "Incorporate diverse learning styles"
+        },
+        {
+          "scenario": "Plan assessment strategies"
+        },
+        {
+          "scenario": "Establish classroom routines"
+        },
+        {
+          "scenario": "Manage student behavior"
+        },
+        {
+          "scenario": "Create positive learning environment"
+        },
+        {
+          "scenario": "Handle classroom disruptions"
+        },
+        {
+          "scenario": "Build classroom community"
+        },
+        {
+          "scenario": "Design formative assessments"
+        },
+        {
+          "scenario": "Create summative evaluations"
+        },
+        {
+          "scenario": "Provide constructive feedback"
+        },
+        {
+          "scenario": "Track student progress"
+        },
+        {
+          "scenario": "Use assessment data"
+        },
+        {
+          "scenario": "Conduct parent-teacher conferences"
+        },
+        {
+          "scenario": "Send regular updates to parents"
+        },
+        {
+          "scenario": "Address parent concerns"
+        },
+        {
+          "scenario": "Collaborate with families"
+        },
+        {
+          "scenario": "Build parent partnerships"
+        },
+        {
+          "scenario": "Adapt curriculum materials"
+        },
+        {
+          "scenario": "Create supplemental resources"
+        },
+        {
+          "scenario": "Integrate technology in teaching"
+        },
+        {
+          "scenario": "Design project-based learning"
+        },
+        {
+          "scenario": "Develop interdisciplinary units"
+        },
+        {
+          "scenario": "Identify learning needs"
+        },
+        {
+          "scenario": "Create intervention plans"
+        },
+        {
+          "scenario": "Support special needs students"
+        },
+        {
+          "scenario": "Challenge advanced learners"
+        },
+        {
+          "scenario": "Provide emotional support"
+        },
+        {
+          "scenario": "Participate in team planning"
+        },
+        {
+          "scenario": "Share best practices"
+        },
+        {
+          "scenario": "Observe and give feedback"
+        },
+        {
+          "scenario": "Collaborate on projects"
+        },
+        {
+          "scenario": "Mentor new teachers"
+        },
+        {
+          "scenario": "Attend training workshops"
+        },
+        {
+          "scenario": "Pursue advanced certifications"
+        },
+        {
+          "scenario": "Stay current in subject area"
+        },
+        {
+          "scenario": "Learn new teaching methods"
+        },
+        {
+          "scenario": "Reflect on teaching practice"
+        },
+        {
+          "scenario": "Use educational software"
+        },
+        {
+          "scenario": "Create digital learning materials"
+        },
+        {
+          "scenario": "Teach digital literacy skills"
+        },
+        {
+          "scenario": "Manage online learning platforms"
+        },
+        {
+          "scenario": "Protect student privacy online"
+        },
+        {
+          "scenario": "Manage grading workload"
+        },
+        {
+          "scenario": "Plan efficient lesson preparation"
+        },
+        {
+          "scenario": "Handle teaching stress"
+        },
+        {
+          "scenario": "Balance multiple responsibilities"
+        },
+        {
+          "scenario": "Maintain personal wellbeing"
+        }
+      ]
+    }
+  ]
+}

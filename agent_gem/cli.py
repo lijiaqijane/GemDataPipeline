@@ -9,7 +9,7 @@ import dotenv
 
 from agent_gem.agents.code_agent.cli import add_code_synthesize_subparser, handle_code_synthesize
 from agent_gem.agents.general_agent.cli import add_synthesize_subparser, handle_synthesize
-from agent_gem.agents.search_agent.cli import add_search_synthesize_subparser, handle_search_synthesize
+# from agent_gem.agents.search_agent.cli import add_search_synthesize_subparser, handle_search_synthesize
 from agent_gem.generator import EnvironmentGenerator, GenerationRequest
 from agent_gem.llm import LLMClient
 
@@ -62,7 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_synthesize_subparser(subparsers)
 
-    add_search_synthesize_subparser(subparsers)
+    # add_search_synthesize_subparser(subparsers)
 
     add_code_synthesize_subparser(subparsers)
 

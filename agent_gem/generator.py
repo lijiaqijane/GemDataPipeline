@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Type
 
-from agent_gem.agents import BaseAgent, CodeAgent, CodeInterpreterAgent, GeneralAgent, SearchAgent
+from agent_gem.agents import BaseAgent, CodeAgent, CodeInterpreterAgent, GeneralAgent  # , SearchAgent
 from agent_gem.core import TaskPackage, ToolSpec, score_task, validate_task_package
 from agent_gem.writer import TaskWriter
 

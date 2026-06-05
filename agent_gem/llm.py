@@ -341,7 +341,7 @@ class LLMClient:
                 top_p=top_p,
                 max_tokens=max_tokens,
                 extra_body={
-                    "thinking": {
+                    "reasoning": {
                         "type": "enabled",
                     }
                 },
