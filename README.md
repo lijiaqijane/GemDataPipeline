@@ -16,14 +16,12 @@ Build the image locally:
 
 ```bash
 docker build -f ./sandbox_fusion/scripts/Dockerfile.server -t code_sandbox:server .
-docker run -d --rm --privileged --it \
-  -v "$PWD/sandbox_fusion":/root/sandbox \
-  -p 8080:8080 code_sandbox:server
+docker run --rm -it --privileged -p 8080:8080 -v "$PWD/sandbox_fusion":/root/sandbox code_sandbox:server-ready bash -lc "cd /root/sandbox && make run-online"
 ```
 
 ## FireCrawl Configuration
 ```bash
-
+docker compose -p firecrawl --env-file .env.instance up
 ```
 
 ## Quickstart
