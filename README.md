@@ -21,6 +21,11 @@ docker run -d --rm --privileged --it \
   -p 8080:8080 code_sandbox:server
 ```
 
+## FireCrawl Configuration
+```bash
+
+```
+
 ## Quickstart
 
 Generate general tasks:
