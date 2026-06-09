@@ -100,7 +100,10 @@ services:
         condition: service_healthy
     ports:
       - "${PORT:-3002}:${INTERNAL_PORT:-3002}"
-    command: node dist/src/harness.js --start-docker
+    # DeepSeek 适配补丁（helpers.js + generic-ai.js Chat API 修复）
+    volumes:
+      - ./docker:/docker
+    command: sh -c "sh /docker/patch.sh && node dist/src/harness.js --start-docker"
     # Resource limits for Docker Compose (not Swarm)
     # Increase if you have more CPU cores/RAM available
     cpus: 4.0

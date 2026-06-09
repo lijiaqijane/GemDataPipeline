@@ -9,7 +9,7 @@ import {
 import { Logger } from "winston";
 import { logger } from "../../../lib/logger";
 import { modelPrices } from "../../../lib/extract/usage/model-prices";
-import { generateObject, generateText, LanguageModel } from "ai";
+import { generateObject, generateText, LanguageModel, NoObjectGeneratedError } from "ai";
 import { jsonSchema } from "ai";
 import { getModel } from "../../../lib/generic-ai";
 import { z } from "zod";
@@ -39,6 +39,108 @@ class LLMRefusalError extends Error {
     super("LLM refused to extract the website's content");
     this.refusal = refusal;
   }
+}
+
+/**
+ * Check if the model is a DeepSeek model (or accessed via DeepSeek-compatible API).
+ * Used to apply DeepSeek-specific JSON parsing workarounds.
+ */
+function isDeepSeekModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return (
+    lower.includes("deepseek") ||
+    lower.includes("deep-seek") ||
+    lower.includes("ds-") ||
+    // Volcengine DeepSeek models from ark.cn-beijing.volces.com
+    lower.includes("dv-") ||
+    // Common DeepSeek model naming patterns
+    lower === "deepseek-chat" ||
+    lower === "deepseek-reasoner" ||
+    lower.startsWith("deepseek-v") ||
+    lower.startsWith("deepseek-r")
+  );
+}
+
+/**
+ * Robust JSON parser that handles common quirks when LLMs (especially DeepSeek)
+ * return malformed JSON. Handles:
+ * - Markdown code block wrapping (```json ... ```)
+ * - Extra text before/after the JSON
+ * - Zero-width and invisible characters
+ * - Single quotes instead of double quotes
+ * - Trailing commas
+ * - Multiple JSON objects (takes the first valid one)
+ */
+function safeParseJSON(text: string): { success: boolean; data?: any; error?: string } {
+  if (!text || typeof text !== "string") {
+    return { success: false, error: "Empty or non-string input" };
+  }
+
+  let cleaned = text.trim();
+
+  // Remove markdown code block markers (```json ... ``` or ``` ... ```)
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/g, "");
+
+  // Remove zero-width and invisible Unicode characters
+  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u00AD\u2060\u200E\u200F]/g, "");
+
+  // Try direct parse first
+  try {
+    return { success: true, data: JSON.parse(cleaned) };
+  } catch (_) {
+    // Continue to advanced parsing
+  }
+
+  // Find first { or [ and matching last } or ]
+  const firstBrace = cleaned.indexOf("{");
+  const firstBracket = cleaned.indexOf("[");
+  const startIdx =
+    firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)
+      ? firstBrace
+      : firstBracket;
+
+  if (startIdx === -1) {
+    return { success: false, error: "No JSON object or array found in the response" };
+  }
+
+  const lastBrace = cleaned.lastIndexOf("}");
+  const lastBracket = cleaned.lastIndexOf("]");
+  const endIdx =
+    lastBrace !== -1 && (lastBracket === -1 || lastBrace > lastBracket)
+      ? lastBrace
+      : lastBracket;
+
+  if (endIdx === -1 || endIdx <= startIdx) {
+    return { success: false, error: "Could not find matching closing bracket" };
+  }
+
+  cleaned = cleaned.slice(startIdx, endIdx + 1);
+
+  // Try parsing after extracting JSON region
+  try {
+    return { success: true, data: JSON.parse(cleaned) };
+  } catch (_) {}
+
+  // Replace single quotes with double quotes (common DeepSeek quirk)
+  // But be careful not to break already-valid JSON strings containing apostrophes
+  try {
+    const singleQuoteReplaced = cleaned.replace(/'/g, '"');
+    return { success: true, data: JSON.parse(singleQuoteReplaced) };
+  } catch (_) {}
+
+  // Remove trailing commas before closing brackets
+  try {
+    const noTrailingCommas = cleaned.replace(/,\s*([}\]])/g, "$1");
+    return { success: true, data: JSON.parse(noTrailingCommas) };
+  } catch (_) {}
+
+  // Try parsing with both single quote replacement AND trailing comma fix
+  try {
+    const combined = cleaned.replace(/'/g, '"').replace(/,\s*([}\]])/g, "$1");
+    return { success: true, data: JSON.parse(combined) };
+  } catch (_) {}
+
+  return { success: false, error: "Failed to parse JSON after all attempts" };
 }
 
 function normalizeSchema(x: any): any {
@@ -303,27 +405,111 @@ export async function generateCompletions_F0({
       schema = normalizeSchema(schema);
     }
 
-    const repairConfig = {
-      experimental_repairText: async ({ text, error }) => {
-        // AI may output a markdown JSON code block. Remove it - mogery
-        if (typeof text === "string" && text.trim().startsWith("```")) {
-          if (text.trim().startsWith("```json")) {
-            text = text.trim().slice("```json".length).trim();
-          } else {
-            text = text.trim().slice("```".length).trim();
-          }
+    // For DeepSeek models (and similar OpenAI-compatible models that may not fully
+    // support the response_format parameter), use generateText with explicit JSON
+    // instructions instead of generateObject. This avoids issues with structured
+    // output support in non-OpenAI models.
+    if (isDeepSeekModel(modelId)) {
+      logger.info("Using generateText fallback for DeepSeek model", { modelId });
 
-          if (text.trim().endsWith("```")) {
-            text = text.trim().slice(0, -"```".length).trim();
-          }
+      const jsonPrompt = schema
+        ? `You must respond with valid JSON only, no markdown formatting, no explanation.
+The JSON must conform to this schema: ${JSON.stringify(schema)}
 
-          // If this fixes the JSON, just return it. If not, continue - mogery
-          try {
-            JSON.parse(text);
-            return text;
-          } catch (_) {}
+${options.prompt !== undefined
+  ? `User request: ${options.prompt}`
+  : ""}
+
+Content to extract from:
+${markdown}`
+        : `You must respond with valid JSON only, no markdown formatting, no explanation.
+${options.prompt !== undefined
+  ? `User request: ${options.prompt}`
+  : ""}
+
+Content to extract from:
+${markdown}`;
+
+      const result = await generateText({
+        model: model,
+        prompt: jsonPrompt,
+        temperature: options.temperature ?? 0,
+        system: (options.systemPrompt || "") + "\nYou are a JSON extraction assistant. Always respond with valid JSON only. Do not wrap JSON in markdown code blocks. Do not include any text before or after the JSON.",
+        providerOptions: {
+          google: {
+            labels: {
+              functionId: metadata.functionId ?? "unspecified",
+              extractId: metadata.extractId ?? "unspecified",
+              scrapeId: metadata.scrapeId ?? "unspecified",
+              teamId: metadata.teamId,
+            },
+          },
+        },
+        experimental_telemetry: {
+          isEnabled: true,
+          functionId: metadata.functionId,
+          metadata: {
+            teamId: metadata.teamId,
+            ...(metadata.extractId
+              ? {
+                  langfuseTraceId: "extract:" + metadata.extractId,
+                  extractId: metadata.extractId,
+                }
+              : {}),
+            ...(metadata.scrapeId
+              ? {
+                  langfuseTraceId: "scrape:" + metadata.scrapeId,
+                  scrapeId: metadata.scrapeId,
+                }
+              : {}),
+          },
+        },
+      });
+
+      const parsed = safeParseJSON(result.text);
+      if (parsed.success) {
+        extract = parsed.data;
+
+        // If the users actually wants the items object, they can specify it as 'required' in the schema
+        // otherwise, we just return the items array
+        if (
+          options.schema &&
+          options.schema.type === "array" &&
+          !schema?.required?.includes("items")
+        ) {
+          extract = extract?.items;
         }
 
+        return {
+          extract,
+          warning,
+          numTokens: result.usage?.inputTokens ?? 0,
+          totalUsage: {
+            promptTokens: result.usage?.inputTokens ?? 0,
+            completionTokens: result.usage?.outputTokens ?? 0,
+            totalTokens: (result.usage?.inputTokens ?? 0) + (result.usage?.outputTokens ?? 0),
+          },
+          model: modelId,
+        };
+      } else {
+        logger.error("Failed to parse DeepSeek JSON response", {
+          parseError: parsed.error,
+          textPeek: result.text.substring(0, 500),
+        });
+        // Fall through to try generateObject as fallback
+      }
+    }
+
+    const repairConfig = {
+      experimental_repairText: async ({ text, error }) => {
+        // First, try our robust JSON parser before anything else
+        const robustParsed = safeParseJSON(text);
+        if (robustParsed.success) {
+          logger.debug("Repaired text using safeParseJSON");
+          return JSON.stringify(robustParsed.data);
+        }
+
+        // Try LLM-based repair as fallback
         const { text: fixedText } = await generateText({
           model: model,
           prompt: `Fix this JSON that had the following error: ${error}\n\nOriginal text:\n${text}\n\nReturn only the fixed JSON, no explanation.`,
@@ -409,7 +595,123 @@ export async function generateCompletions_F0({
       },
     } satisfies Parameters<typeof generateObject>[0];
 
-    const result = await generateObject(generateObjectConfig);
+    let result: {
+      object: any;
+      usage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+      };
+    } | undefined;
+
+    let generateObjectFailed = false;
+    try {
+      result = await generateObject(generateObjectConfig);
+    } catch (error) {
+      generateObjectFailed = true;
+      // Handle NoObjectGeneratedError - the model returned text that wasn't valid JSON.
+      // This is common with DeepSeek and other OpenAI-compatible models that may
+      // wrap JSON in markdown code blocks, add extra text, or use non-standard formatting.
+      if (NoObjectGeneratedError.isInstance(error)) {
+        logger.warn("NoObjectGeneratedError caught, attempting to parse text response", {
+          error: error.message,
+          modelId,
+          textPeek: error.text
+            ? JSON.stringify(error.text.substring(0, 300))
+            : "N/A",
+        });
+
+        if (error.text) {
+          // Try our robust JSON parser first
+          const parsed = safeParseJSON(error.text);
+          if (parsed.success) {
+            logger.info("Successfully parsed JSON from error text using safeParseJSON");
+            result = {
+              object: parsed.data,
+              usage: {
+                inputTokens: error.usage?.inputTokens ?? 0,
+                outputTokens: error.usage?.outputTokens ?? 0,
+                totalTokens: error.usage?.totalTokens ?? 0,
+              },
+            };
+          } else {
+            // If safeParseJSON failed, try using the LLM to repair the text
+            logger.warn("safeParseJSON failed, attempting LLM-based repair", {
+              parseError: parsed.error,
+            });
+            try {
+              const { text: fixedText } = await generateText({
+                model: model,
+                prompt: `Fix this JSON that had the following error: ${error.message}\n\nOriginal text:\n${error.text}\n\nReturn only the fixed JSON, no explanation.`,
+                system:
+                  "You are a JSON repair expert. Your only job is to fix malformed JSON and return valid JSON that matches the original structure and intent as closely as possible. Do not include any explanation or commentary - only return the fixed JSON. Do not return it in a Markdown code block, just plain JSON.",
+                providerOptions: {
+                  google: {
+                    labels: {
+                      functionId: metadata.functionId ?? "unspecified",
+                      extractId: metadata.extractId ?? "unspecified",
+                      scrapeId: metadata.scrapeId ?? "unspecified",
+                      teamId: metadata.teamId,
+                    },
+                  },
+                },
+                experimental_telemetry: {
+                  isEnabled: true,
+                  functionId: metadata.functionId,
+                  metadata: {
+                    teamId: metadata.teamId,
+                    ...(metadata.extractId
+                      ? {
+                          langfuseTraceId: "extract:" + metadata.extractId,
+                          extractId: metadata.extractId,
+                        }
+                      : {}),
+                    ...(metadata.scrapeId
+                      ? {
+                          langfuseTraceId: "scrape:" + metadata.scrapeId,
+                          scrapeId: metadata.scrapeId,
+                        }
+                      : {}),
+                  },
+                },
+              });
+              const repaired = safeParseJSON(fixedText);
+              if (repaired.success) {
+                logger.info("Successfully repaired JSON using LLM repair");
+                result = {
+                  object: repaired.data,
+                  usage: {
+                    inputTokens: error.usage?.inputTokens ?? 0,
+                    outputTokens: error.usage?.outputTokens ?? 0,
+                    totalTokens: error.usage?.totalTokens ?? 0,
+                  },
+                };
+              } else {
+                throw new Error(
+                  `Failed to parse JSON even after LLM repair: ${repaired.error}`,
+                );
+              }
+            } catch (repairError) {
+              logger.error("Failed to repair JSON via LLM", {
+                error: repairError.message,
+              });
+              throw repairError;
+            }
+          }
+        } else {
+          throw error;
+        }
+      } else if (error.message?.includes("refused")) {
+        throw new LLMRefusalError(error.message);
+      } else {
+        throw error;
+      }
+    }
+
+    if (!result) {
+      throw new Error("generateObject returned undefined result");
+    }
+
     extract = result.object;
 
     // If the users actually wants the items object, they can specify it as 'required' in the schema
@@ -422,14 +724,14 @@ export async function generateCompletions_F0({
       extract = extract?.items;
     }
 
-    // Since generateObject doesn't provide token usage, we'll estimate it
-    const promptTokens = numTokens;
-    const completionTokens = result?.usage?.outputTokens ?? 0;
+    // Token usage
+    const promptTokens = result.usage?.inputTokens ?? numTokens;
+    const completionTokens = result.usage?.outputTokens ?? 0;
 
     return {
       extract,
       warning,
-      numTokens,
+      numTokens: promptTokens,
       totalUsage: {
         promptTokens,
         completionTokens,
@@ -441,6 +743,11 @@ export async function generateCompletions_F0({
     if (error.message?.includes("refused")) {
       throw new LLMRefusalError(error.message);
     }
+    logger.error("LLM extraction failed", {
+      error: error.message,
+      modelId,
+      mode,
+    });
     throw error;
   }
 }

@@ -23,7 +23,7 @@ export VLLM_MODEL="${VLLM_MODEL:-local-model}"
 export VLLM_API_KEY="${VLLM_API_KEY:-}"
 
 # Web search (Serper) for sandbox data retrieval
-export SERPER_API_KEY="${SERPER_API_KEY:-197d0e578b52e0177e271974bb004329571c9a05}"
+export SERPER_API_KEY="${SERPER_API_KEY:-a6dcb6918aff22b3f7cf18693cd175e52fab94ed}"
 
 # Firecrawl
 # fc-64f3247dc29b4ccfba207223fd3a3633
@@ -107,14 +107,23 @@ fi
 args+=(--use-sandbox-fusion)
 
 # ---------- Execute main program ----------
-# Prefer the conda environment managed by the user
+# Try: conda -> VIRTUAL_ENV -> .venv -> .venv_wsl -> system python
 CONDA_ENV_NAME="${CONDA_ENV_NAME:-tau2}"
+PYTHON_BIN=""
 if [[ -n "${CONDA_PREFIX:-}" && "$(basename "$CONDA_PREFIX")" == "$CONDA_ENV_NAME" && -x "$CONDA_PREFIX/bin/python" ]]; then
   PYTHON_BIN="$CONDA_PREFIX/bin/python"
 elif [[ -x "$HOME/anaconda3/envs/$CONDA_ENV_NAME/bin/python" ]]; then
   PYTHON_BIN="$HOME/anaconda3/envs/$CONDA_ENV_NAME/bin/python"
+elif [[ -n "${VIRTUAL_ENV:-}" && -x "$VIRTUAL_ENV/bin/python" ]]; then
+  PYTHON_BIN="$VIRTUAL_ENV/bin/python"
+elif [[ -x "./.venv/bin/python" ]]; then
+  PYTHON_BIN="$(pwd)/.venv/bin/python"
+elif [[ -x "./.venv_wsl/bin/python" ]]; then
+  PYTHON_BIN="$(pwd)/.venv_wsl/bin/python"
+elif command -v python3 &>/dev/null; then
+  PYTHON_BIN="$(command -v python3)"
 else
-  echo "ERROR: Conda environment '$CONDA_ENV_NAME' not found. Activate it first or set CONDA_ENV_NAME." >&2
+  echo "ERROR: No Python environment found. Activate conda '$CONDA_ENV_NAME' or a venv first." >&2
   exit 1
 fi
 

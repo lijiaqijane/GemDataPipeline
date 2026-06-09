@@ -10,7 +10,6 @@ import { Meta } from "..";
 import { logger } from "../../../lib/logger";
 import { modelPrices } from "../../../lib/extract/usage/model-prices";
 import {
-  AISDKError,
   generateObject,
   generateText,
   LanguageModel,
@@ -25,6 +24,95 @@ import { extractData } from "../lib/extractSmartScrape";
 import { CostTracking } from "../../../lib/cost-tracking";
 import { isAgentExtractModelValid } from "../../../controllers/v1/types";
 import { hasFormatOfType } from "../../../lib/format-utils";
+
+/**
+ * Check if the model is a DeepSeek model (or accessed via DeepSeek-compatible API).
+ */
+function isDeepSeekModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+  return (
+    lower.includes("deepseek") ||
+    lower.includes("deep-seek") ||
+    lower.includes("ds-") ||
+    lower.includes("dv-") ||
+    lower === "deepseek-chat" ||
+    lower === "deepseek-reasoner" ||
+    lower.startsWith("deepseek-v") ||
+    lower.startsWith("deepseek-r")
+  );
+}
+
+/**
+ * Robust JSON parser that handles common quirks when LLMs (especially DeepSeek)
+ * return malformed JSON.
+ */
+function safeParseJSON(text: string): { success: boolean; data?: any; error?: string } {
+  if (!text || typeof text !== "string") {
+    return { success: false, error: "Empty or non-string input" };
+  }
+
+  let cleaned = text.trim();
+
+  // Remove markdown code block markers
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/g, "");
+
+  // Remove zero-width and invisible Unicode characters
+  cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF\u00AD\u2060\u200E\u200F]/g, "");
+
+  // Try direct parse first
+  try {
+    return { success: true, data: JSON.parse(cleaned) };
+  } catch (_) {}
+
+  // Find first { or [ and matching last } or ]
+  const firstBrace = cleaned.indexOf("{");
+  const firstBracket = cleaned.indexOf("[");
+  const startIdx =
+    firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)
+      ? firstBrace
+      : firstBracket;
+
+  if (startIdx === -1) {
+    return { success: false, error: "No JSON object or array found in the response" };
+  }
+
+  const lastBrace = cleaned.lastIndexOf("}");
+  const lastBracket = cleaned.lastIndexOf("]");
+  const endIdx =
+    lastBrace !== -1 && (lastBracket === -1 || lastBrace > lastBracket)
+      ? lastBrace
+      : lastBracket;
+
+  if (endIdx === -1 || endIdx <= startIdx) {
+    return { success: false, error: "Could not find matching closing bracket" };
+  }
+
+  cleaned = cleaned.slice(startIdx, endIdx + 1);
+
+  try {
+    return { success: true, data: JSON.parse(cleaned) };
+  } catch (_) {}
+
+  // Replace single quotes with double quotes (common DeepSeek quirk)
+  try {
+    const singleQuoteReplaced = cleaned.replace(/'/g, '"');
+    return { success: true, data: JSON.parse(singleQuoteReplaced) };
+  } catch (_) {}
+
+  // Remove trailing commas before closing brackets
+  try {
+    const noTrailingCommas = cleaned.replace(/,\s*([}\]])/g, "$1");
+    return { success: true, data: JSON.parse(noTrailingCommas) };
+  } catch (_) {}
+
+  // Combined approach
+  try {
+    const combined = cleaned.replace(/'/g, '"').replace(/,\s*([}\]])/g, "$1");
+    return { success: true, data: JSON.parse(combined) };
+  } catch (_) {}
+
+  return { success: false, error: "Failed to parse JSON after all attempts" };
+}
 
 // Smart model selection based on schema
 function detectRecursiveSchema(schema: any): boolean {
@@ -576,6 +664,131 @@ export async function generateCompletions({
       schema = normalizeSchema(schema);
     }
 
+    // For DeepSeek models (and similar OpenAI-compatible models that may not fully
+    // support the response_format parameter), use generateText with explicit JSON
+    // instructions instead of generateObject.
+    if (isDeepSeekModel(modelId)) {
+      logger.info("Using generateText fallback for DeepSeek model", { modelId });
+
+      const jsonPrompt = schema
+        ? `You must respond with valid JSON only, no markdown formatting, no explanation.
+The JSON must conform to this schema: ${JSON.stringify(schema)}
+
+${options.prompt !== undefined
+  ? `User request: ${options.prompt}`
+  : ""}
+
+Content to extract from:
+${markdown}`
+        : `You must respond with valid JSON only, no markdown formatting, no explanation.
+${options.prompt !== undefined
+  ? `User request: ${options.prompt}`
+  : ""}
+
+Content to extract from:
+${markdown}`;
+
+      const result = await generateText({
+        model: currentModel,
+        prompt: jsonPrompt,
+        system: (options.systemPrompt || "") + "\nYou are a JSON extraction assistant. Always respond with valid JSON only. Do not wrap JSON in markdown code blocks. Do not include any text before or after the JSON.",
+        providerOptions: {
+          google: {
+            labels: {
+              teamId: metadata.teamId,
+              functionId: metadata.functionId ?? "unspecified",
+              extractId: metadata.extractId ?? "unspecified",
+              scrapeId: metadata.scrapeId ?? "unspecified",
+              deepResearchId: metadata.deepResearchId ?? "unspecified",
+              llmsTxtId: metadata.llmsTxtId ?? "unspecified",
+            },
+          },
+          openai: {
+            strictJsonSchema: true,
+          },
+        },
+        experimental_telemetry: {
+          isEnabled: true,
+          functionId: metadata.functionId
+            ? metadata.functionId + "/deepseekFallback"
+            : "deepseekFallback",
+          metadata: {
+            teamId: metadata.teamId,
+            ...(metadata.extractId
+              ? {
+                  langfuseTraceId: "extract:" + metadata.extractId,
+                  extractId: metadata.extractId,
+                }
+              : {}),
+            ...(metadata.scrapeId
+              ? {
+                  langfuseTraceId: "scrape:" + metadata.scrapeId,
+                  scrapeId: metadata.scrapeId,
+                }
+              : {}),
+            ...(metadata.deepResearchId
+              ? {
+                  langfuseTraceId: "deepResearch:" + metadata.deepResearchId,
+                  deepResearchId: metadata.deepResearchId,
+                }
+              : {}),
+            ...(metadata.llmsTxtId
+              ? {
+                  langfuseTraceId: "llmsTxt:" + metadata.llmsTxtId,
+                  llmsTxtId: metadata.llmsTxtId,
+                }
+              : {}),
+          },
+        },
+      });
+
+      const parsed = safeParseJSON(result.text);
+      if (parsed.success) {
+        extract = parsed.data;
+
+        // If the users actually wants the items object, they can specify it as 'required' in the schema
+        if (
+          options.schema &&
+          options.schema.type === "array" &&
+          !schema?.required?.includes("items")
+        ) {
+          extract = extract?.items;
+        }
+
+        const promptTokens = result.usage?.inputTokens ?? 0;
+        const completionTokens = result.usage?.outputTokens ?? 0;
+
+        costTrackingOptions.costTracking.addCall({
+          type: "other",
+          metadata: {
+            ...costTrackingOptions.metadata,
+            gcDetails: "deepseek-fallback-generateText",
+          },
+          model: modelId,
+          cost: calculateCost(modelId, promptTokens, completionTokens),
+          tokens: { input: promptTokens, output: completionTokens },
+        });
+
+        return {
+          extract,
+          warning,
+          numTokens: promptTokens,
+          totalUsage: {
+            promptTokens,
+            completionTokens,
+            totalTokens: promptTokens + completionTokens,
+          },
+          model: modelId,
+        };
+      } else {
+        logger.error("Failed to parse DeepSeek JSON response", {
+          parseError: parsed.error,
+          textPeek: result.text.substring(0, 500),
+        });
+        // Fall through to try generateObject as fallback
+      }
+    }
+
     const repairConfig = {
       experimental_repairText: async ({ text, error }) => {
         // AI may output a markdown JSON code block. Remove it - mogery
@@ -585,27 +798,11 @@ export async function generateCompletions({
           error,
         });
 
-        if (typeof text === "string" && text.trim().startsWith("```")) {
-          if (text.trim().startsWith("```json")) {
-            text = text.trim().slice("```json".length).trim();
-          } else {
-            text = text.trim().slice("```".length).trim();
-          }
-
-          if (text.trim().endsWith("```")) {
-            text = text.trim().slice(0, -"```".length).trim();
-          }
-
-          // If this fixes the JSON, just return it. If not, continue - mogery
-          try {
-            JSON.parse(text);
-            logger.debug("Repaired text with string manipulation");
-            return text;
-          } catch (e) {
-            logger.error("Even after repairing, failed to parse JSON", {
-              error: e,
-            });
-          }
+        // First, try our robust JSON parser before any LLM-based repair
+        const robustParsed = safeParseJSON(text);
+        if (robustParsed.success) {
+          logger.debug("Repaired text using safeParseJSON");
+          return JSON.stringify(robustParsed.data);
         }
 
         try {
@@ -860,33 +1057,100 @@ export async function generateCompletions({
           throw lastError;
         }
       } else if (NoObjectGeneratedError.isInstance(error)) {
-        logger.warn("No object generated", { error });
-        if (
-          error.text &&
-          error.text.startsWith("```json") &&
-          error?.text.endsWith("```")
-        ) {
-          try {
-            extract = JSON.parse(
-              error.text.slice("```json".length, -"```".length).trim(),
-            );
+        logger.warn("NoObjectGeneratedError caught, attempting to parse text response", {
+          error: error.message,
+          modelId,
+          textPeek: error.text
+            ? JSON.stringify(error.text.substring(0, 300))
+            : "N/A",
+        });
+
+        if (error.text) {
+          // Use our robust JSON parser instead of only handling ```json blocks
+          const parsed = safeParseJSON(error.text);
+          if (parsed.success) {
+            logger.info("Successfully parsed JSON from error text using safeParseJSON");
             result = {
-              object: extract,
+              object: parsed.data,
               usage: {
                 inputTokens: error.usage?.inputTokens ?? 0,
                 outputTokens: error.usage?.outputTokens ?? 0,
                 totalTokens: error.usage?.totalTokens ?? 0,
               },
             };
-          } catch (parseError) {
-            lastError = parseError as Error;
-            logger.error("Failed to parse JSON from error text", {
-              error: lastError.message,
+          } else {
+            // Try LLM-based repair as last resort
+            logger.warn("safeParseJSON failed in NoObjectGeneratedError handler", {
+              parseError: parsed.error,
             });
-            throw lastError;
+            try {
+              const { text: fixedText, usage: repairUsage } = await generateText({
+                model: currentModel,
+                prompt: `Fix this JSON that had the following error: ${error.message}\n\nOriginal text:\n${error.text}\n\nReturn only the fixed JSON, no explanation.`,
+                system:
+                  "You are a JSON repair expert. Your only job is to fix malformed JSON and return valid JSON that matches the original structure and intent as closely as possible. Do not include any explanation or commentary - only return the fixed JSON. Do not return it in a Markdown code block, just plain JSON.",
+                providerOptions: {
+                  google: {
+                    labels: {
+                      teamId: metadata.teamId,
+                      functionId: metadata.functionId ?? "unspecified",
+                      extractId: metadata.extractId ?? "unspecified",
+                      scrapeId: metadata.scrapeId ?? "unspecified",
+                      deepResearchId: metadata.deepResearchId ?? "unspecified",
+                      llmsTxtId: metadata.llmsTxtId ?? "unspecified",
+                    },
+                  },
+                  openai: { strictJsonSchema: true },
+                },
+                experimental_telemetry: {
+                  isEnabled: true,
+                  functionId: metadata.functionId
+                    ? metadata.functionId + "/repairNoObject"
+                    : "repairNoObject",
+                  metadata: {
+                    teamId: metadata.teamId,
+                    ...(metadata.extractId
+                      ? { langfuseTraceId: "extract:" + metadata.extractId, extractId: metadata.extractId }
+                      : {}),
+                    ...(metadata.scrapeId
+                      ? { langfuseTraceId: "scrape:" + metadata.scrapeId, scrapeId: metadata.scrapeId }
+                      : {}),
+                    ...(metadata.deepResearchId
+                      ? { langfuseTraceId: "deepResearch:" + metadata.deepResearchId, deepResearchId: metadata.deepResearchId }
+                      : {}),
+                    ...(metadata.llmsTxtId
+                      ? { langfuseTraceId: "llmsTxt:" + metadata.llmsTxtId, llmsTxtId: metadata.llmsTxtId }
+                      : {}),
+                  },
+                },
+              });
+
+              const repaired = safeParseJSON(fixedText);
+              if (repaired.success) {
+                logger.info("Successfully repaired JSON using LLM repair in NoObjectGeneratedError");
+                result = {
+                  object: repaired.data,
+                  usage: {
+                    inputTokens: error.usage?.inputTokens ?? 0,
+                    outputTokens: error.usage?.outputTokens ?? 0,
+                    totalTokens: error.usage?.totalTokens ?? 0,
+                  },
+                };
+              } else {
+                throw new Error(
+                  `Failed to parse JSON even after LLM repair: ${repaired.error}`,
+                );
+              }
+            } catch (repairError) {
+              lastError = repairError as Error;
+              logger.error("Failed to repair JSON via LLM in NoObjectGeneratedError", {
+                error: lastError.message,
+              });
+              throw lastError;
+            }
           }
         } else {
-          throw lastError;
+          throw error;
         }
       } else {
         throw lastError;
